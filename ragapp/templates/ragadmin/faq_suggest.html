@@ -1,0 +1,169 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#ffffff; --text:#0f172a; --dim:#6b7280; --line:#e5e7eb;
+    --accent:#38bdf8; --accent-strong:#0ea5e9; --accent-soft:#e0f2fe;
+    --ok:#10b981; --radius:14px;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  .head h1{margin:0 0 6px;font-weight:800}
+  .head p{margin:0 0 14px;color:var(--dim)}
+
+  /* 리스트(행 접기) */
+  .list{list-style:none;margin:0;padding:0}
+  .item{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+        box-shadow:0 8px 24px rgba(15,23,42,.06);margin:10px 0;overflow:hidden}
+  .item details{border-radius:inherit}
+  .item summary{display:flex;align-items:center;gap:12px;cursor:pointer;padding:14px 16px;list-style:none}
+  .item summary::-webkit-details-marker{display:none}
+  .item summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:10px}
+  .item summary .q{flex:1;font-weight:700}
+  .item summary .chips{display:flex;gap:8px;align-items:center;white-space:nowrap}
+  .item summary .btn-inline{margin-left:8px}
+  /* 캐럿 아이콘 */
+  .item summary::before{
+    content:"";width:10px;height:10px;border-right:2px solid var(--accent-strong);
+    border-bottom:2px solid var(--accent-strong);transform:rotate(-45deg);transition:.2s;margin-right:2px
+  }
+  .item[open] summary::before{transform:rotate(45deg)}
+
+  /* 상세 패널 */
+  .panel{border-top:1px solid var(--line);padding:12px 16px;background:#fff}
+  .samples{display:grid;gap:10px}
+  .sample{
+    white-space:pre-wrap;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff
+  }
+  .sample-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+
+  /* 버튼/배지 */
+  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);
+       padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:800}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.primary{border-color:transparent;background:linear-gradient(180deg,var(--accent),var(--accent-strong));color:#fff}
+  .btn.primary:disabled{opacity:.55;cursor:not-allowed;transform:none}
+  .chip{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700;font-size:12px;border:1px solid var(--line)}
+  .chip.count{background:var(--accent-soft);color:#075985}
+  .chip.bad{background:#fff1f2;color:#991b1b;border-color:#fecaca}
+
+  .empty{color:var(--dim);text-align:center;padding:24px 8px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="head">
+    <h1>FAQ 후보 추천</h1>
+    <p>반복적으로 많이 나온 질문·👎 많은 질문부터 정렬됩니다. 각 행을 펼쳐 샘플을 선택해 바로 승격하세요.</p>
+  </div>
+
+  <ul class="list">
+    {% for it in suggestions %}
+      {% with idx=forloop.counter %}
+      <li class="item">
+        <details id="item-{{ idx }}">
+          <summary tabindex="0" role="button" aria-controls="panel-{{ idx }}">
+            <span class="q">{{ it.question }}</span>
+            <span class="chips">
+              <span class="chip count">질문 {{ it.count }}</span>
+              <span class="chip bad">👎 {{ it.bad_count }}</span>
+            </span>
+            {% if it.samples and it.samples.0 %}
+              <!-- 요약행에서 바로 승격 (선택된 라디오 기준) -->
+              <button class="btn btn-inline primary" type="button"
+                      data-promote="#promote-{{ idx }}">FAQ로 승격</button>
+            {% else %}
+              <button class="btn btn-inline" type="button" disabled>샘플 없음</button>
+            {% endif %}
+          </summary>
+
+          <div class="panel" id="panel-{{ idx }}">
+            {% if it.samples %}
+              <div class="samples" role="radiogroup" aria-label="샘플 선택">
+                {% for s in it.samples %}
+                  {% with rid="s-"|add:idx|add:"-"|add:forloop.counter %}
+                  <label class="sample" for="{{ rid }}">
+                    <div class="sample-head">
+                      <input type="radio" id="{{ rid }}" name="sel-{{ idx }}"
+                             class="sel-radio" {% if forloop.first %}checked{% endif %}
+                             data-answer="{{ s|escape }}">
+                      <strong>샘플 {{ forloop.counter }}</strong>
+                    </div>
+                    <div>{{ s }}</div>
+                  </label>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="empty">샘플 답변이 없습니다.</div>
+            {% endif %}
+
+            {% if it.samples and it.samples.0 %}
+              <!-- 실제 전송 폼 (선택 라디오의 텍스트를 hidden textarea로 복사) -->
+              <form id="promote-{{ idx }}" class="controls" method="post" action="{% url 'ragadmin:faq_promote' %}">
+                {% csrf_token %}
+                <input type="hidden" name="question" value="{{ it.question }}">
+                <textarea name="answer" hidden>{{ it.samples.0 }}</textarea>
+                <button class="btn primary" type="submit">선택 샘플로 승격</button>
+              </form>
+            {% endif %}
+          </div>
+        </details>
+      </li>
+      {% endwith %}
+    {% empty %}
+      <li class="item"><div class="empty">데이터 없음</div></li>
+    {% endfor %}
+  </ul>
+</div>
+
+<script>
+(function(){
+  // 1) 요약행 접근성: Enter/Space로 열림/닫힘 보강
+  document.querySelectorAll('.item summary').forEach(function(sum){
+    sum.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        const details = sum.parentElement;
+        details.open = !details.open;
+      }
+    });
+  });
+
+  // 2) 라디오 선택 → 해당 폼의 hidden textarea에 복사
+  const updateAnswer = (wrap) => {
+    const checked = wrap.querySelector('.sel-radio:checked');
+    const form = wrap.querySelector('form[id^="promote-"]');
+    if (!checked || !form) return;
+    const ta = form.querySelector('textarea[name="answer"]');
+    if (ta) {
+      // data-answer는 escape된 텍스트라 innerText에 그대로 넣어줘도 안전
+      ta.value = checked.getAttribute('data-answer');
+    }
+  };
+
+  document.querySelectorAll('.item .panel').forEach(function(panel){
+    panel.addEventListener('change', function(e){
+      if (e.target.classList && e.target.classList.contains('sel-radio')) {
+        updateAnswer(panel);
+      }
+    });
+    // 초기값 세팅
+    updateAnswer(panel);
+  });
+
+  // 3) 요약행의 "FAQ로 승격" 버튼 → 패널 내부 폼 submit
+  document.querySelectorAll('button[data-promote]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      const form = document.querySelector(btn.dataset.promote);
+      if (!form) return;
+      // 폼 제출 전 최신 선택 라디오 텍스트 복사
+      updateAnswer(form.closest('.panel'));
+      form.submit();
+    });
+  });
+})();
+</script>
+{% endblock %}

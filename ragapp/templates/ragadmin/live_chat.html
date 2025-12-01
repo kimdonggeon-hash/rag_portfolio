@@ -1,0 +1,213 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>실시간 상담 콘솔</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <!-- 상담 콘솔 전용 CSS (스타일은 이 파일에서만 관리) -->
+  <link rel="stylesheet" href="{% static 'ragapp/css/livechat_console.css' %}">
+</head>
+<body class="lc-body">
+<div class="lc-wrap">
+  <!-- 좌측: 세션 리스트 -->
+  <aside class="lc-sidebar">
+    <header class="lc-sidebar-header">
+      <div>
+        <div class="lc-sidebar-title">상담 요청 목록</div>
+        <div class="lc-sidebar-sub">
+          질문 챗봇에서 “상담사 연결”을 누른 요청이 이곳에 쌓입니다.
+        </div>
+      </div>
+      <div class="lc-sidebar-actions">
+        <button type="button" class="lc-btn ghost" id="lc-refresh-btn">새로고침</button>
+      </div>
+    </header>
+
+    <div class="lc-sidebar-status">
+      <span class="lc-dot" id="lc-master-dot"></span>
+      <span id="lc-master-status-text">상담사 연결 준비 중…</span>
+    </div>
+
+    <ul id="lc-session-list" class="lc-session-list"></ul>
+  </aside>
+
+  <!-- 우측: 메인 영역 -->
+  <main class="lc-main">
+    <header class="lc-main-header">
+      <div>
+        <div class="lc-main-title">실시간 상담 콘솔</div>
+        <div class="lc-main-sub" id="lc-main-sub">
+          왼쪽에서 방을 선택하고, 위에서 오는 “인입 배너”에서 <b>연결</b>을 눌러야만 채팅이 시작됩니다.
+        </div>
+      </div>
+      <div class="lc-main-actions">
+        <a href="/admin/" class="lc-link-admin">기본 Django Admin</a>
+      </div>
+    </header>
+
+    <!-- ⬇⬇ 아이폰 인입 콜 느낌 배너 -->
+    <section id="lc-incoming-banner" class="lc-incoming" aria-live="polite">
+      <div class="lc-incoming-main">
+        <div class="lc-incoming-title-row">
+          <span class="lc-incoming-dot"></span>
+          <span class="lc-incoming-text-main">새 상담 요청</span>
+        </div>
+        <div class="lc-incoming-text-sub">
+          <span id="lc-incoming-room"></span>
+          <span id="lc-incoming-page"></span>
+        </div>
+      </div>
+      <div class="lc-incoming-actions">
+        <button type="button" id="lc-incoming-accept" class="lc-btn primary">연결</button>
+        <button type="button" id="lc-incoming-later" class="lc-btn ghost">나중에</button>
+      </div>
+    </section>
+    <!-- ⬆⬆ 여기까지 인입 콜 배너 -->
+
+    <!-- 채팅 영역 -->
+    <section class="lc-chat" aria-label="대화 영역">
+      <div class="lc-chat-header">
+        <div>
+          <div class="lc-chat-room-title" id="lc-room-title">선택된 방 없음</div>
+          <div class="lc-chat-room-sub" id="lc-room-sub">
+            왼쪽에서 세션을 선택하고, 위 인입 배너나 아래 <b>연결하기</b> 버튼을 눌러 상담을 시작하세요.
+          </div>
+        </div>
+        <div class="lc-chat-header-meta" id="lc-room-meta"></div>
+      </div>
+
+      <div id="lc-messages" class="lc-messages" aria-label="대화 내용"></div>
+
+      <form id="lc-chat-form" class="lc-chat-form">
+        <!-- 빠른 응답 카드 -->
+        <div class="lc-quick-row">
+          <button type="button" class="lc-chip-btn lc-template-btn"
+                  data-template="안녕하세요, 김동건 포트폴리오 실시간 상담입니다. 무엇을 도와드릴까요?">
+            기본 인사
+          </button>
+          <button type="button" class="lc-chip-btn lc-template-btn"
+                  data-template="상담 중 이해가 어려운 부분이 있으면 편하게 말씀해 주세요. 천천히 다시 설명드리겠습니다.">
+            진행 중 안내
+          </button>
+          <button type="button" class="lc-chip-btn lc-template-btn"
+                  data-template="도움이 되었길 바랍니다. 더 궁금한 점이 생기면 언제든지 다시 문의 주세요. 감사합니다.">
+            종료 인사
+          </button>
+        </div>
+
+        <div class="lc-input-row">
+          <textarea id="lc-input" class="lc-input"
+            placeholder="왼쪽에서 방을 선택하고 '연결하기'를 누르면 메시지를 보낼 수 있습니다."
+          ></textarea>
+          <button type="button" id="lc-connect-btn" class="lc-btn ghost" disabled>연결하기</button>
+          <button type="submit" id="lc-send-btn" class="lc-btn primary" disabled>전송</button>
+          <button type="button" id="lc-end-btn" class="lc-btn ghost" disabled>상담 종료</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ✅ 상담 기록 입력 섹션 (스타일은 CSS 파일에서 정의) -->
+    <section class="lc-record" aria-label="상담 기록">
+      <header>
+        <div class="lc-record-title-row">
+          <h2 class="lc-record-title">상담 기록</h2>
+          <span class="lc-record-badge" id="lc-record-status-badge">저장 전</span>
+        </div>
+        <p class="lc-record-sub">
+          상담을 마친 뒤, 아래에 간단한 요약과 메모를 남기고 <b>상담기록 저장</b>을 눌러 주세요.
+          (향후 이력 조회·증빙용으로만 사용됩니다.)
+        </p>
+      </header>
+
+      <div class="lc-record-grid">
+        <div class="lc-record-col">
+          <label for="lc-record-type" class="lc-record-label">상담 분류</label>
+          <select id="lc-record-type" class="lc-record-select">
+            <option value="">선택 안 함</option>
+            <option value="general">일반 문의</option>
+            <option value="tech">기술 지원</option>
+            <option value="bug">오류/버그 신고</option>
+            <option value="feedback">개선/피드백</option>
+            <option value="other">기타</option>
+          </select>
+        </div>
+
+        <div class="lc-record-col">
+          <label for="lc-record-summary" class="lc-record-label">한 줄 요약</label>
+          <input
+            id="lc-record-summary"
+            class="lc-record-input"
+            type="text"
+            placeholder="예) RAG 검색 속도 문의, 캐시 설명 후 만족하고 종료"
+          />
+        </div>
+
+        <div class="lc-record-col lc-record-col-full">
+          <label for="lc-record-detail" class="lc-record-label">상담 내용 메모</label>
+          <textarea
+            id="lc-record-detail"
+            class="lc-record-textarea"
+            placeholder="상담 진행 과정, 중요한 발언, 후속 TODO, 필요 시 추후 연락처 등 메모를 남겨 두세요."
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="lc-record-footer">
+        <div class="lc-record-left">
+          <button type="button" id="lc-save-record-btn" class="lc-btn primary">
+            상담기록 저장
+          </button>
+          <button type="button" id="lc-clear-record-btn" class="lc-btn ghost">
+            내용 초기화
+          </button>
+        </div>
+        <p class="lc-record-status" id="lc-record-status-text">
+          현재 선택된 방 기준으로 기록이 저장될 예정입니다.
+        </p>
+      </div>
+    </section>
+    <!-- 상담 기록 섹션 끝 -->
+
+  </main>
+</div>
+
+<!-- 파이썬에서 내려준 초기 세션 목록을 JS로 전달 -->
+<script>
+  window.LIVECHAT_INITIAL = {
+    initialRoom: "{{ initial_room|default:'master'|escapejs }}",
+    sessions: []
+  };
+</script>
+{% for s in sessions %}
+<script>
+  (function () {
+    if (!window.LIVECHAT_INITIAL) {
+      window.LIVECHAT_INITIAL = { initialRoom: "master", sessions: [] };
+    }
+    window.LIVECHAT_INITIAL.sessions.push({
+      id: {{ s.id }},
+      room: "{{ s.room|default_if_none:''|escapejs }}",
+      status: "{{ s.status|default_if_none:''|escapejs }}",
+      page_title: "{{ s.page_title|default_if_none:''|escapejs }}",
+      page_path: "{{ s.page_path|default_if_none:''|escapejs }}"
+    });
+  })();
+</script>
+{% endfor %}
+
+<!-- API 경로 전달 -->
+<script>
+  window.LIVECHAT_CONFIG = {
+    historyUrl: "{% url 'livechat:api_livechat_history' %}",
+    endUrl: "{% url 'livechat:api_livechat_end' %}",
+    saveUrl: "{% url 'livechat:api_livechat_save' %}",
+    nextUrl: "{% url 'livechat:api_livechat_next' %}",      // ✅ 다음 상담 받기 (이미 있으면 그대로 사용)
+    csrfToken: "{{ csrf_token }}"
+  };
+</script>
+
+<script src="{% static 'ragapp/javascript/livechat_console.js' %}"></script>
+</body>
+</html>

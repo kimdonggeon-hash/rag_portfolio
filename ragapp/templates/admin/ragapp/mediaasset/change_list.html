@@ -1,0 +1,115 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<style>
+  :root{
+    --bg:#0b1220; --panel:#0f172a; --ink:#e5e7eb; --muted:#9aa7bd;
+    --line:rgba(148,163,184,.22); --accent:#6366f1; --accent2:#4f46e5; --ok:#16a34a;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f8fafc; --panel:#ffffff; --ink:#0f172a; --muted:#475569;
+      --line:rgba(15,23,42,.12); --accent:#4f46e5; --accent2:#4338ca; --ok:#15803d;
+    }
+  }
+
+  /* 상단 히어로 */
+  .ma-hero{
+    margin:6px 0 14px; border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    background: radial-gradient(1200px 500px at -10% -30%, rgba(99,102,241,.24), transparent 55%),
+                radial-gradient(900px 600px at 120% -20%, rgba(79,70,229,.20), transparent 60%),
+                var(--panel);
+    padding:14px 16px;
+  }
+  .ma-hero h1{margin:0; font-weight:800; color:var(--ink); letter-spacing:-.2px; font-size:20px}
+  .ma-hero .sub{margin-top:4px; color:var(--muted)}
+
+  /* 가이드 카드 */
+  .ma-guide{
+    border:1px solid var(--line); border-radius:12px; background:var(--panel);
+    padding:12px 14px; margin:0 0 14px;
+  }
+  .ma-guide summary{
+    cursor:pointer; font-weight:800; color:var(--ink);
+    list-style:none; display:flex; align-items:center; gap:8px;
+  }
+  .ma-guide summary::-webkit-details-marker{display:none;}
+  .ma-guide .chip{
+    display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--line);
+    font-size:12px; color:var(--muted); margin-right:6px; margin-top:6px;
+  }
+  .ma-guide .tips{color:var(--muted); margin:8px 0 0 0}
+  .ma-guide code{font-family:ui-monospace, Menlo, Consolas, monospace}
+
+  /* 퀵 필터 */
+  .ma-quick{
+    display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 14px;
+  }
+  .ma-quick a{
+    border:1px solid var(--line); border-radius:999px; padding:6px 10px; text-decoration:none;
+    color:var(--ink); background:transparent;
+  }
+  .ma-quick a:hover{background:rgba(99,102,241,.12); border-color:rgba(99,102,241,.35)}
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- 상단 히어로 -->
+  <div class="ma-hero">
+    <h1>미디어 자산 검색</h1>
+    <div class="sub">제목·태그·URL로 빠르게 찾고, 좌측 필터로 종류/확장자/날짜를 좁혀보세요.</div>
+  </div>
+
+  <!-- 설명서(토글) -->
+  <details class="ma-guide">
+    <summary>📘 사용 가이드 펼치기</summary>
+    <div class="tips">
+      <ul style="margin:8px 0 0 18px; padding:0">
+        <li><b>검색창</b>(우측 상단)을 이용하면 <code>search_fields</code> 에 지정된 필드에서 부분 일치를 찾습니다.</li>
+        <li><b>필터 사이드바</b>에서 <b>종류/확장자/등록일</b>을 조합해 범위를 좁힙니다.</li>
+        <li>자주 쓰는 예시:
+          <div style="margin-top:6px">
+            <span class="chip">제품 로고</span>
+            <span class="chip">meeting</span>
+            <span class="chip">report</span>
+            <span class="chip">.pdf</span>
+            <span class="chip">.png</span>
+          </div>
+        </li>
+        <li>목록에서 체크 후 상단의 <b>Actions</b>로 일괄 처리(재임베딩/재인덱싱 등 확장 액션 구성 시)도 가능합니다.</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- 퀵 필터 (현재 페이지 쿼리스트링 유지 + q 프리셋만 설정) -->
+  <div class="ma-quick" id="maQuick"></div>
+
+  {{ block.super }}
+{% endblock %}
+
+{% block footer %}{{ block.super }}
+<script>
+(function(){
+  // 현재 URL의 쿼리 유지하며 q만 바꿔주는 퀵 필터 버튼
+  const presets = ["제품 로고", "meeting", "report", ".pdf", ".png"];
+  const box = document.getElementById('maQuick');
+  if (!box) return;
+
+  function withQuery(qValue){
+    const u = new URL(location.href);
+    if (qValue) u.searchParams.set('q', qValue); else u.searchParams.delete('q');
+    // 페이지 유지
+    u.searchParams.delete('p');
+    return u.toString();
+  }
+
+  presets.forEach(v=>{
+    const a = document.createElement('a');
+    a.href = withQuery(v);
+    a.textContent = v;
+    box.appendChild(a);
+  });
+})();
+</script>
+{% endblock %}

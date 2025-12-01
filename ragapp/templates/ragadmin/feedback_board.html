@@ -1,0 +1,575 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>피드백 보드</title>
+
+  <style>
+    :root{
+      --bg:#020617;
+      --bg-soft:#020617;
+      --card:#020617;
+      --border:rgba(148,163,184,.35);
+      --text:#e5e7eb;
+      --dim:#9ca3af;
+      --accent:#60a5fa;
+      --bad:#f97373;
+      --radius:18px;
+    }
+    *{box-sizing:border-box;}
+    html,body{
+      margin:0;
+      padding:0;
+      background:radial-gradient(circle at top,#111827 0,#020617 55%,#000 100%);
+      color:var(--text);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","Noto Sans KR",sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    a{color:inherit;text-decoration:none;}
+    body{padding:20px;}
+    .wrap{
+      max-width:1200px;
+      margin:0 auto 40px;
+    }
+
+    /* 헤더 */
+    .head{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:flex-start;
+      margin-bottom:16px;
+    }
+    .head-main{
+      flex:1;
+    }
+    .title{
+      font-size:22px;
+      font-weight:800;
+      letter-spacing:-0.02em;
+      margin-bottom:4px;
+    }
+    .subtitle{
+      font-size:13px;
+      color:var(--dim);
+      line-height:1.5;
+    }
+    .subtitle strong{color:#fee2e2;font-weight:700;}
+    .stat-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:12px;
+      font-size:12px;
+    }
+    .stat-chip{
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.9);
+      color:#c7d2fe;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .chip-bad{
+      border-color:rgba(248,113,113,.65);
+      background:rgba(127,29,29,.75);
+      color:#fee2e2;
+      box-shadow:0 0 18px rgba(248,113,113,.4);
+    }
+    .stat-chip small{
+      font-size:11px;
+      color:rgba(226,232,240,.8);
+    }
+
+    /* 툴바 */
+    .toolbar{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+    .tabs{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .tab{
+      font-size:12px;
+      padding:5px 11px;
+      border-radius:999px;
+      border:1px solid transparent;
+      background:transparent;
+      color:var(--dim);
+      cursor:pointer;
+      transition:border-color .15s ease,background .15s ease,color .15s ease;
+    }
+    .tab.is-on{
+      border-color:var(--accent);
+      background:rgba(37,99,235,.18);
+      color:#dbeafe;
+      box-shadow:0 0 0 1px rgba(37,99,235,.25);
+    }
+    .search-form{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .search-input{
+      height:32px;
+      padding:0 11px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.9);
+      color:var(--text);
+      font-size:12px;
+      min-width:220px;
+    }
+    .search-input::placeholder{color:#6b7280;}
+    .search-btn{
+      height:32px;
+      padding:0 12px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.6);
+      background:linear-gradient(90deg,#1d4ed8,#6366f1);
+      color:#e5e7eb;
+      font-size:12px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .search-btn:hover{
+      filter:brightness(1.05);
+    }
+    .auto-refresh{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color:var(--dim);
+      white-space:nowrap;
+    }
+    .auto-refresh input{
+      width:14px;
+      height:14px;
+    }
+
+    /* 카드 & 테이블 */
+    .card{
+      background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(15,23,42,.9));
+      border-radius:var(--radius);
+      border:1px solid var(--border);
+      padding:12px 14px 10px;
+      box-shadow:0 20px 52px rgba(0,0,0,.65);
+      overflow:hidden;
+    }
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      font-size:12px;
+    }
+    thead{
+      background:rgba(15,23,42,.98);
+    }
+    th,td{
+      padding:7px 8px;
+      vertical-align:top;
+    }
+    th{
+      text-align:left;
+      color:var(--dim);
+      font-weight:500;
+      white-space:nowrap;
+      border-bottom:1px solid rgba(30,64,175,.8);
+    }
+    tbody tr{
+      border-bottom:1px solid rgba(15,23,42,.9);
+    }
+    tbody tr:last-child{
+      border-bottom:none;
+    }
+    tbody tr:hover{
+      background:rgba(15,23,42,.55);
+    }
+
+    .col-time{width:70px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+    .time-main{display:block;}
+    .time-sub{
+      display:block;
+      font-size:11px;
+      color:var(--dim);
+    }
+
+    .col-channel{width:90px;}
+    .badge-channel{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.5);
+      background:rgba(15,23,42,.9);
+    }
+    .badge-channel span{font-size:11px;}
+    .badge-thumb{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid rgba(248,113,113,.7);
+      background:rgba(248,113,113,.09);
+      color:#fecaca;
+      font-size:11px;
+      white-space:nowrap;
+      margin-top:4px;
+    }
+
+    .question{
+      font-size:12px;
+      margin-bottom:4px;
+      font-weight:500;
+    }
+    .answer{
+      font-size:11px;
+      color:var(--dim);
+    }
+
+    .reasons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+      margin-bottom:4px;
+    }
+    .reason-chip{
+      padding:2px 7px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.45);
+      background:rgba(15,23,42,.9);
+      font-size:11px;
+      color:#e5e7eb;
+    }
+
+    .comment{
+      font-size:11px;
+      color:#e5e7eb;
+      background:rgba(15,23,42,.95);
+      border-radius:8px;
+      padding:5px 7px;
+      border:1px solid rgba(148,163,184,.35);
+      max-height:70px;
+      overflow:auto;
+      white-space:pre-line;
+      line-height:1.35;
+    }
+    .comment.empty{
+      opacity:.6;
+      font-style:italic;
+    }
+
+    .status-cell{
+      font-size:11px;
+    }
+    .status-badge{
+      display:inline-flex;
+      align-items:center;
+      padding:2px 7px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.45);
+      background:rgba(15,23,42,.9);
+      margin-bottom:4px;
+      font-weight:500;
+    }
+    .status-todo{border-color:rgba(251,191,36,.75);color:#fef3c7;}
+    .status-doing{border-color:rgba(56,189,248,.8);color:#e0f2fe;}
+    .status-done{border-color:rgba(34,197,94,.75);color:#bbf7d0;}
+    .status-wontfix{border-color:rgba(148,163,184,.8);color:#e5e7eb;}
+
+    .owner-tag{
+      display:inline-block;
+      font-size:11px;
+      color:var(--dim);
+      margin-bottom:4px;
+    }
+    .owner-tag::before{
+      content:"담당 · ";
+      color:rgba(148,163,184,.9);
+    }
+
+    .action-links a{
+      display:inline-block;
+      font-size:11px;
+      color:#bfdbfe;
+      margin-right:6px;
+    }
+
+    .empty-row td{
+      padding:20px 8px;
+      text-align:center;
+      color:var(--dim);
+    }
+
+    .pagination{
+      margin-top:8px;
+      font-size:11px;
+      display:flex;
+      gap:6px;
+      justify-content:flex-end;
+      align-items:center;
+    }
+    .page-link{
+      padding:2px 7px;
+      border-radius:999px;
+      border:1px solid transparent;
+      cursor:pointer;
+    }
+    .page-link.is-on{
+      border-color:var(--accent);
+      background:rgba(37,99,235,.2);
+    }
+
+    @media (max-width:960px){
+      body{padding:12px;}
+      .wrap{max-width:100%;}
+      .head{flex-direction:column;}
+      .col-time{width:64px;}
+      .col-channel{width:80px;}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <div class="head-main">
+      <div class="title">피드백 보드 (조금 아쉬웠어요만)</div>
+      <div class="subtitle">
+        질문 챗봇 · 웹 검색 · RAG 에서 들어온 <strong>👎 피드백</strong>만 모아서,<br>
+        이유와 코멘트, 그리고 우리가 어떻게 대응했는지 메모를 남기는 화면입니다.
+      </div>
+      <div class="stat-row">
+        <span class="stat-chip chip-bad">
+          <span>누적 아쉬운 피드백 {{ total_count }}건</span>
+          <small>도움이 되지 않았던 답변만 모아놓은 기록</small>
+        </span>
+        <span class="stat-chip">
+          <span>오늘 들어온 피드백 {{ today_count }}건</span>
+          <small>자주 반복되는 유형이 있는지 체크</small>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <section class="toolbar">
+    <div class="tabs" role="tablist" aria-label="채널 필터">
+      {% with base_q="q="|add:q|urlencode %}
+        {% if q %}
+          {% with q_param="&q="|add:q|urlencode %}
+            <a href="?channel=all{{ q_param }}" class="tab {% if channel == 'all' %}is-on{% endif %}">전체</a>
+            <a href="?channel=qa{{ q_param }}" class="tab {% if channel == 'qa' %}is-on{% endif %}">질문 챗봇</a>
+            <a href="?channel=web{{ q_param }}" class="tab {% if channel == 'web' %}is-on{% endif %}">웹 검색</a>
+            <a href="?channel=rag{{ q_param }}" class="tab {% if channel == 'rag' %}is-on{% endif %}">RAG</a>
+          {% endwith %}
+        {% else %}
+          <a href="?channel=all" class="tab {% if channel == 'all' %}is-on{% endif %}">전체</a>
+          <a href="?channel=qa" class="tab {% if channel == 'qa' %}is-on{% endif %}">질문 챗봇</a>
+          <a href="?channel=web" class="tab {% if channel == 'web' %}is-on{% endif %}">웹 검색</a>
+          <a href="?channel=rag" class="tab {% if channel == 'rag' %}is-on{% endif %}">RAG</a>
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <form method="get" class="search-form">
+      {% if channel and channel != "all" %}
+        <input type="hidden" name="channel" value="{{ channel }}">
+      {% endif %}
+      <input
+        type="text"
+        class="search-input"
+        name="q"
+        value="{{ q }}"
+        placeholder="질문 · 답변 · 코멘트에서 검색"
+      />
+      <button type="submit" class="search-btn">검색</button>
+      <label class="auto-refresh">
+        <input type="checkbox" id="auto-refresh-toggle" checked>
+        <span>자동 새로고침 (약 10초)</span>
+      </label>
+    </form>
+  </section>
+
+  <section class="card">
+    <table>
+      <thead>
+        <tr>
+          <th class="col-time">시각</th>
+          <th class="col-channel">채널</th>
+          <th>질문 / 답변 요약</th>
+          <th>이유 / 코멘트</th>
+          <th>상태 / 기록</th>
+        </tr>
+      </thead>
+      <tbody id="fb-tbody">
+        {% for fb in page_obj.object_list %}
+          <tr>
+            <td class="col-time">
+              <span class="time-main">{{ fb.created_at|date:"m-d" }}</span>
+              <span class="time-sub">{{ fb.created_at|date:"H:i" }}</span>
+            </td>
+            <td class="col-channel">
+              <span class="badge-channel">
+                {% if fb.answer_type == "qa" %}
+                  <span>💬</span><span>질문 챗봇</span>
+                {% elif fb.answer_type == "web" %}
+                  <span>🌐</span><span>웹</span>
+                {% elif fb.answer_type == "rag" %}
+                  <span>📚</span><span>RAG</span>
+                {% else %}
+                  <span>❓</span><span>{{ fb.answer_type }}</span>
+                {% endif %}
+              </span>
+              <div>
+                <span class="badge-thumb">👎 조금 아쉬웠어요</span>
+              </div>
+            </td>
+            <td>
+              <div class="question">
+                {{ fb.question|default:"(질문 없음)"|truncatechars:80 }}
+              </div>
+              <div class="answer">
+                {{ fb.answer|default:"(답변 스냅샷 없음)"|truncatechars:90 }}
+              </div>
+            </td>
+            <td>
+              {% if fb.reasons %}
+                <div class="reasons">
+                  {% for r in fb.reasons %}
+                    <span class="reason-chip">
+                      {% if r == "wrong" %}
+                        답이 달라요
+                      {% elif r == "missing" %}
+                        중요한 내용이 빠졌어요
+                      {% elif r == "hard" %}
+                        설명이 어렵게 느껴져요
+                      {% elif r == "slow" %}
+                        응답이 너무 느렸어요
+                      {% elif r == "ui" %}
+                        화면 / 버튼이 불편해요
+                      {% elif r == "other" %}
+                        기타 이유
+                      {% else %}
+                        {{ r }}
+                      {% endif %}
+                    </span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if fb.comment %}
+                <div class="comment">
+                  {{ fb.comment }}
+                </div>
+              {% else %}
+                <div class="comment empty">
+                  (자유 코멘트 없음)
+                </div>
+              {% endif %}
+            </td>
+            <td class="status-cell">
+              {% if fb.review %}
+                {% if fb.review.status == "todo" %}
+                  <div class="status-badge status-todo">할 일</div>
+                {% elif fb.review.status == "doing" %}
+                  <div class="status-badge status-doing">처리 중</div>
+                {% elif fb.review.status == "done" %}
+                  <div class="status-badge status-done">수정 완료</div>
+                {% elif fb.review.status == "wontfix" %}
+                  <div class="status-badge status-wontfix">보류 / 적용 안함</div>
+                {% else %}
+                  <div class="status-badge">상태 미설정</div>
+                {% endif %}
+                {% if fb.review.owner %}
+                  <div class="owner-tag">{{ fb.review.owner }}</div>
+                {% endif %}
+              {% else %}
+                <div class="status-badge status-todo">리뷰 없음</div>
+              {% endif %}
+
+              <div class="action-links" style="margin-top:6px;">
+                <a href="/admin/ragapp/feedbacklog/{{ fb.id }}/change/" target="_blank">원본 로그</a>
+                {% if fb.review %}
+                  <a href="/admin/ragapp/feedbackreview/{{ fb.review.id }}/change/" target="_blank">리뷰 편집</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr class="empty-row">
+            <td colspan="5">
+              아직 '조금 아쉬웠어요(👎)' 피드백이 없습니다.<br>
+              질문 챗봇 · 웹 검색 · RAG 화면에서 피드백을 남기면 이곳에 모입니다.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="pagination">
+        {% if page_obj.has_previous %}
+          <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if channel and channel != 'all' %}&channel={{ channel }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">&laquo;</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+          {% if num == page_obj.number %}
+            <span class="page-link is-on">{{ num }}</span>
+          {% elif num <= page_obj.number|add:2 and num >= page_obj.number|add:-2 %}
+            <a class="page-link" href="?page={{ num }}{% if channel and channel != 'all' %}&channel={{ channel }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">{{ num }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+          <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if channel and channel != 'all' %}&channel={{ channel }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">&raquo;</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+(function(){
+  const INTERVAL = 10000; // 10초
+  let enabled = true;
+  const key = "fb_auto_refresh";
+  const toggle = document.getElementById("auto-refresh-toggle");
+
+  try {
+    const saved = window.localStorage.getItem(key);
+    if (saved === "0") {
+      enabled = false;
+      if (toggle) toggle.checked = false;
+    }
+  } catch(e){}
+
+  if (toggle) {
+    toggle.addEventListener("change", function(){
+      enabled = toggle.checked;
+      try{
+        window.localStorage.setItem(key, enabled ? "1" : "0");
+      }catch(e){}
+    });
+  }
+
+  setInterval(function(){
+    if (!enabled) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("_ts", Date.now()); // 캐시 방지용
+    window.location.href = url.toString();
+  }, INTERVAL);
+})();
+</script>
+</body>
+</html>

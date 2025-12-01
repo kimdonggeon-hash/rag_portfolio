@@ -1,0 +1,1260 @@
+/* ==========================================================================
+   RAG Console — 메인 화면 레이아웃 & 카드 스타일
+   File: ragapp/static/ragapp/css/news.css
+   ※ 동의 모달/법무/질문 챗봇 CSS 는 각각 legal-bundle.css, qarag_chat.css 에서 관리
+   ========================================================================== */
+
+/* ------------------------------
+   Design tokens
+   ------------------------------ */
+
+:root {
+    /* 시스템 힌트 */
+    color-scheme: light dark;
+    scrollbar-gutter: stable both-edges;
+
+    /* 레이아웃 */
+    --page-max-width: 1120px;
+    --page-padding-x: 16px;
+    --page-padding-y: 32px;
+
+    /* 배경 */
+    --page-bg: #e5edff;
+    --page-bg-grad-a: rgba(56, 189, 248, 0.18);
+    --page-bg-grad-b: rgba(129, 140, 248, 0.22);
+    --page-bg-inner: #ecf3ff;
+
+    /* 카드 */
+    --card-bg: #ffffff;
+    --card-border: rgba(148, 163, 184, 0.45);
+    --card-soft: #f3f4ff;
+    --card-radius-lg: 22px;
+    --card-radius-md: 16px;
+    --card-shadow-soft:
+        0 18px 40px rgba(15, 23, 42, 0.30),
+        0 8px 18px rgba(15, 23, 42, 0.18);
+    --card-shadow-small:
+        0 10px 24px rgba(15, 23, 42, 0.18),
+        0 4px 12px rgba(15, 23, 42, 0.16);
+
+    /* 텍스트 */
+    --text-main: #0f172a;
+    --text-sub: #4b5563;
+    --text-soft: #6b7280;
+    --text-on-primary: #f9fafb;
+
+    /* 포인트 */
+    --accent: #6366f1;
+    --accent-soft: rgba(99, 102, 241, 0.1);
+    --accent-2: #38bdf8;
+    --accent-muted: rgba(148, 163, 184, 0.75);
+
+    /* 버튼 */
+    --btn-bg: #111827;
+    --btn-bg-soft: #f3f4ff;
+    --btn-border: rgba(148, 163, 184, 0.35);
+
+    /* 탭 */
+    --tab-bg: rgba(15, 23, 42, 0.04);
+    --tab-border: rgba(148, 163, 184, 0.45);
+    --tab-active-bg: #111827;
+    --tab-active-text: #e5e7eb;
+
+    /* 사이드 카드 */
+    --side-bg: #ffffff;
+    --side-border: rgba(148, 163, 184, 0.38);
+
+    /* 폰트 */
+    --font-main: system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+}
+
+/* 다크 모드 토큰 */
+html[data-theme="dark"] {
+    --page-bg: #020617;
+    --page-bg-grad-a: rgba(56, 189, 248, 0.12);
+    --page-bg-grad-b: rgba(129, 140, 248, 0.18);
+    --page-bg-inner: #020617;
+
+    --card-bg: #020617;
+    --card-border: rgba(51, 65, 85, 0.95);
+    --card-soft: rgba(15, 23, 42, 0.9);
+
+    --text-main: #e5e7eb;
+    --text-sub: #cbd5f5;
+    --text-soft: #9ca3af;
+
+    --accent: #38bdf8;
+    --accent-soft: rgba(56, 189, 248, 0.18);
+    --accent-2: #a855f7;
+    --accent-muted: rgba(148, 163, 184, 0.9);
+
+    --btn-bg: #0b1120;
+    --btn-bg-soft: rgba(15, 23, 42, 0.9);
+    --btn-border: rgba(30, 64, 175, 0.85);
+
+    --tab-bg: rgba(15, 23, 42, 0.85);
+    --tab-border: rgba(55, 65, 81, 1);
+    --tab-active-bg: linear-gradient(90deg, #38bdf8 0%, #6366f1 100%);
+    --tab-active-text: #020617;
+
+    --side-bg: rgba(15, 23, 42, 0.98);
+    --side-border: rgba(30, 64, 175, 0.9);
+}
+
+/* ------------------------------
+   Global / body
+   ------------------------------ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    font-family: var(--font-main);
+    color: var(--text-main);
+    background:
+        radial-gradient(900px 480px at 0% 0%, var(--page-bg-grad-a), transparent 60%),
+        radial-gradient(1000px 520px at 100% 100%, var(--page-bg-grad-b), transparent 60%),
+        var(--page-bg);
+}
+
+/* 자바스크립트 꺼진 배너 */
+.noscript-banner {
+    background: #b91c1c;
+    color: #fef2f2;
+    padding: 8px 12px;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* ------------------------------
+   App shell
+   ------------------------------ */
+
+.page-wrap.app-shell {
+    max-width: var(--page-max-width);
+    margin: var(--page-padding-y) auto;
+    padding: 18px 20px 24px;
+    background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.28), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.35), transparent 55%),
+        var(--page-bg-inner);
+    border-radius: 26px;
+    box-shadow: var(--card-shadow-soft);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+/* ------------------------------
+   Header / top bar
+   ------------------------------ */
+
+.app-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.title-block h1 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.title-block .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.title-block .subline {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-sub);
+}
+
+/* Header right */
+.nav-links {
+    display: flex;
+    align-items: center;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Theme toggle */
+.theme-toggle {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+html[data-theme="dark"] .theme-toggle {
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(55, 65, 81, 0.9);
+}
+
+.theme-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    padding: 5px 7px;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: background 0.12s ease, opacity 0.12s ease, transform 0.08s ease;
+}
+
+.theme-btn:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
+.theme-btn.is-active {
+    background: rgba(15, 23, 42, 0.85);
+    color: #f9fafb;
+    opacity: 1;
+}
+
+html[data-theme="dark"] .theme-btn.is-active {
+    background: rgba(248, 250, 252, 0.92);
+    color: #020617;
+}
+
+/* ------------------------------
+   Shell grid
+   ------------------------------ */
+
+.shell-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(260px, 330px);
+    gap: 18px;
+    align-items: flex-start;
+}
+
+/* 메인 영역 카드 */
+.shell-main {
+    min-width: 0;
+}
+
+/* 오른쪽 사이드 */
+.shell-side {
+    min-width: 0;
+}
+
+/* ------------------------------
+   Mode tabs
+   ------------------------------ */
+
+.mode-tabs {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+    gap: 4px;
+    padding: 5px;
+    border-radius: 999px;
+    background: var(--tab-bg);
+    border: 1px solid var(--tab-border);
+    box-shadow: var(--card-shadow-small);
+    margin-bottom: 14px;
+}
+
+.mode-tab {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    appearance: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-soft);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+
+.mode-tab:hover {
+    transform: translateY(-1px);
+    color: var(--text-main);
+}
+
+.mode-tab.is-active {
+    background: var(--tab-active-bg);
+    color: var(--tab-active-text);
+    box-shadow:
+        0 10px 22px rgba(15, 23, 42, 0.35),
+        0 4px 10px rgba(15, 23, 42, 0.3);
+}
+
+/* 섹션 카드 */
+.mode-section {
+    background: var(--card-bg);
+    border-radius: var(--card-radius-lg);
+    border: 1px solid var(--card-border);
+    box-shadow: var(--card-shadow-soft);
+    padding: 16px 18px 18px;
+    margin-top: 8px;
+}
+
+/* 모드 전환시 가벼운 애니메이션 */
+.mode-anim {
+    animation: fadeUpMode 0.22s ease-out;
+}
+
+@keyframes fadeUpMode {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ------------------------------
+   Web / RAG / PDF 카드 공통
+   (card_web.html / card_rag.html / card_pdf.html 호환)
+   ------------------------------ */
+
+.card {
+    background: var(--card-soft);
+    border-radius: 18px;
+    padding: 14px 14px 16px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    box-shadow:
+        0 12px 24px rgba(15, 23, 42, 0.18),
+        0 6px 14px rgba(15, 23, 42, 0.16);
+}
+
+.card+.card {
+    margin-top: 10px;
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.card-title-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.card-badge {
+    font-size: 11px;
+    color: var(--accent-muted);
+}
+
+.card-subtitle {
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.card-head-pill {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--text-soft);
+}
+
+/* 폼 레이아웃 */
+.form-row {
+    margin-bottom: 10px;
+}
+
+.field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-sub);
+}
+
+.field-input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.7);
+    background: #f9fafb;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+html[data-theme="dark"] .field-input {
+    background: #020617;
+    border-color: rgba(55, 65, 81, 1);
+    color: #e5e7eb;
+}
+
+.field-input:focus {
+    outline: 2px solid rgba(96, 165, 250, 0.7);
+    outline-offset: 1px;
+}
+
+.field-note {
+    margin: 3px 0 0;
+    font-size: 11px;
+    color: var(--text-soft);
+}
+
+/* 메시지 영역 */
+.msg-row {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.msg-ok {
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(22, 163, 74, 0.4);
+    color: #166534;
+}
+
+.msg-err {
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: rgba(248, 113, 113, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    color: #b91c1c;
+}
+
+/* 답변 / 소스 영역 */
+.answer-block {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #f9fafb;
+    border: 1px dashed rgba(148, 163, 184, 0.7);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+html[data-theme="dark"] .answer-block {
+    background: #020617;
+}
+
+.sources-block {
+    margin-top: 6px;
+}
+
+.sources-block[hidden] {
+    display: none !important;
+}
+
+.sources-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-soft);
+    margin-bottom: 3px;
+}
+
+.sources-list {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 12px;
+}
+
+.sources-list li {
+    margin: 2px 0;
+}
+
+.src-title {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.src-title:hover {
+    text-decoration: underline;
+}
+
+/* web / rag 전용 id 스타일 (id 기반) */
+#web-answer-block,
+#rag-answer-block {
+    white-space: pre-wrap;
+}
+
+#web-answer-block.answer-block-empty,
+#rag-answer-block.answer-block-empty {
+    color: var(--text-soft);
+}
+
+/* =========================================================
+   📄 PDF 카드 전용 — 출력 방식 · 추가 설정(선택)
+   ========================================================= */
+
+.pdf-output-block {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px dashed rgba(148, 163, 184, 0.70);
+}
+
+html[data-theme="dark"] .pdf-output-block {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(75, 85, 99, 0.95);
+}
+
+.pdf-output-row {
+    display: grid;
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 4px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.pdf-output-label {
+    font-weight: 600;
+    color: var(--text-sub);
+    white-space: nowrap;
+}
+
+/* 라디오 버튼 알약(pill) 스타일 */
+.pdf-output-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.75);
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+}
+
+.pdf-output-pill input[type="radio"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #0ea5e9;
+    flex-shrink: 0;
+}
+
+html[data-theme="dark"] .pdf-output-pill {
+    background: rgba(15, 23, 42, 0.98);
+    border-color: rgba(129, 140, 248, 0.75);
+    color: #e5e7eb;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* 설명 텍스트는 밑으로 한 줄 전체 사용 */
+.pdf-output-note {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: var(--text-soft);
+    margin-top: 2px;
+}
+
+
+/* ---------------------------------------------------
+   🔍 Web / RAG / PDF 검색창 + 옵션 + 버튼 공통 보정
+   (card_* 템플릿의 input-wrap / opt-consent-block / btn 사용)
+   --------------------------------------------------- */
+
+/* 검색 입력창 */
+.card .input-wrap {
+    margin-top: 8px;
+}
+
+.card .input-box {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.75);
+    background: rgba(255, 255, 255, 0.96);
+    padding: 9px 14px;
+    font-size: 13px;
+    color: var(--text-main);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
+}
+
+.card .input-box::placeholder {
+    color: var(--text-soft);
+}
+
+html[data-theme="dark"] .card .input-box {
+    background: rgba(15, 23, 42, 0.98);
+    border-color: rgba(55, 65, 81, 1);
+    color: #e5e7eb;
+}
+
+/* 옵션(체크박스) 박스 */
+.opt-consent-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px dashed rgba(148, 163, 184, 0.65);
+}
+
+html[data-theme="dark"] .opt-consent-block {
+    background: rgba(15, 23, 42, 0.9);
+    border-color: rgba(75, 85, 99, 0.9);
+}
+
+.opt-consent-title {
+    font-size: 12px;
+    font-weight: 650;
+    margin-bottom: 4px;
+    color: var(--text-sub);
+}
+
+.opt-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    margin: 3px 0;
+    color: var(--text-soft);
+}
+
+.opt-line input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #0ea5e9;
+    flex-shrink: 0;
+}
+
+.opt-line span {
+    line-height: 1.5;
+}
+
+/* 버튼 줄 – 세 카드 공통 */
+.btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* 기존 .btn 기본 스타일이 있더라도,
+   info / heart 에서 더 예쁘게 덮어 씌우기 */
+.btn.info,
+.btn.heart {
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    /* 위치 이동 없이 색/그림자만 부드럽게 */
+    transition: box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.btn.info {
+    background: #0f172a;
+    color: #e5e7eb;
+    box-shadow:
+        0 10px 22px rgba(15, 23, 42, 0.55),
+        0 4px 10px rgba(15, 23, 42, 0.35);
+}
+
+.btn.heart {
+    background: #f9fafb;
+    color: #0f172a;
+    border-color: rgba(148, 163, 184, 0.8);
+}
+
+html[data-theme="dark"] .btn.heart {
+    background: #020617;
+    color: #e5e7eb;
+}
+
+/* ⛔ 위치 점프 없애기: transform 제거 */
+.btn.info:hover,
+.btn.heart:hover {
+    transform: none;
+    box-shadow:
+        0 10px 22px rgba(15, 23, 42, 0.65),
+        0 4px 10px rgba(15, 23, 42, 0.45);
+}
+
+/* ------------------------------
+   사이드 카드 (Quick Tools / User Manual)
+   ------------------------------ */
+
+.side-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.side-card {
+    background: var(--side-bg);
+    border-radius: var(--card-radius-md);
+    border: 1px solid var(--side-border);
+    box-shadow: var(--card-shadow-small);
+    padding: 10px 12px 12px;
+}
+
+.side-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.side-card-title {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.side-meta {
+    font-size: 11px;
+    color: var(--text-soft);
+}
+
+/* Quick tools 링크 */
+.side-card-body {
+    font-size: 12px;
+}
+
+.side-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text-main);
+    transition: background 0.12s ease, transform 0.08s ease;
+}
+
+.side-link:hover {
+    background: rgba(148, 163, 184, 0.1);
+    transform: translateY(-1px);
+}
+
+.side-sep {
+    margin: 6px 0;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.5);
+}
+
+/* User manual (오른쪽 사이드용) */
+.manual-item summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(148, 163, 184, 0.08);
+    font-size: 12px;
+}
+
+.manual-item[open] summary {
+    background: rgba(129, 140, 248, 0.16);
+}
+
+.manual-item summary::-webkit-details-marker {
+    display: none;
+}
+
+.manual-body {
+    padding: 6px 8px 8px;
+    font-size: 12px;
+    color: var(--text-sub);
+}
+
+/* ------------------------------
+   Footer
+   ------------------------------ */
+
+.page-footer-wrap {
+    max-width: 960px;
+    margin: 32px auto 28px;
+    padding: 12px 18px;
+    border-radius: 18px;
+
+    /* 유리 느낌 테두리/배경 */
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background:
+        radial-gradient(200px 140px at 0% 0%, rgba(56, 189, 248, 0.22), transparent 60%),
+        radial-gradient(220px 160px at 100% 100%, rgba(129, 140, 248, 0.20), transparent 60%),
+        rgba(255, 255, 255, 0.80);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+
+    text-align: center;
+}
+
+/* 다크 모드에서 유리 카드 톤 */
+html[data-theme="dark"] .page-footer-wrap {
+    border-color: rgba(148, 163, 184, 0.60);
+    background:
+        radial-gradient(200px 140px at 0% 0%, rgba(56, 189, 248, 0.24), transparent 60%),
+        radial-gradient(220px 160px at 100% 100%, rgba(129, 140, 248, 0.28), transparent 60%),
+        rgba(15, 23, 42, 0.86);
+    box-shadow: 0 22px 55px rgba(0, 0, 0, 0.65);
+}
+
+/* 베타 안내 블록은 화면에 안 보이게 */
+.tester-notice {
+    display: none;
+}
+
+/* 링크 스타일 */
+.page-footer-wrap .legal-link {
+    color: var(--link, #4f46e5);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.page-footer-wrap .legal-link:hover {
+    text-decoration: underline;
+}
+
+/* 점(·) 구분자 살짝 투명하게 */
+.page-footer-wrap .dot {
+    opacity: 0.7;
+}
+
+/* =========================================================
+   RAG 카드 전용 — 메인 버튼 + 자료 설명서(내 자료 검색 사용 설명서 등)
+   ========================================================= */
+
+/* 메인 액션 버튼 줄(내 자료에서 답 찾기 / 시드 저장 / 새로 시작) */
+#modeSectionRag .btn-row {
+    flex-wrap: nowrap;
+    gap: 10px;
+}
+
+@media (max-width: 720px) {
+    #modeSectionRag .btn-row {
+        flex-wrap: wrap;
+    }
+}
+
+/* 1번 버튼: "내 자료에서 답 찾기" 강조 */
+#modeSectionRag .btn-row .btn:nth-child(1) {
+    flex: 1 1 0;
+    justify-content: center;
+
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 16px;
+
+    background: linear-gradient(135deg, #111827, #020617);
+    color: #e5e7eb;
+    border: 1px solid rgba(15, 23, 42, 0.95);
+    box-shadow:
+        0 14px 30px rgba(15, 23, 42, 0.55),
+        0 6px 14px rgba(15, 23, 42, 0.45);
+}
+
+/* 2번 버튼: "지금 화면 내용까지 저장(시드)" 보조 */
+#modeSectionRag .btn-row .btn:nth-child(2) {
+    flex: 0 0 auto;
+
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+
+    background: rgba(30, 64, 175, 0.06);
+    color: var(--text-main);
+    border: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+/* 3번 버튼: "저장된 자료 새로 시작하기(주의)" 경고 톤 */
+#modeSectionRag .btn-row .btn:nth-child(3) {
+    flex: 0 0 auto;
+
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 14px;
+
+    background: rgba(248, 113, 113, 0.08);
+    color: #7f1d1d;
+    border: 1px solid rgba(239, 68, 68, 0.7);
+}
+
+html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(2) {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+    border-color: rgba(75, 85, 99, 0.9);
+}
+
+html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
+    background: rgba(127, 29, 29, 0.9);
+    color: #fee2e2;
+    border-color: rgba(248, 113, 113, 0.9);
+}
+
+/* 호버 공통 (여긴 살짝 떠오르는 효과 유지) */
+#modeSectionRag .btn-row .btn:nth-child(1):hover,
+#modeSectionRag .btn-row .btn:nth-child(2):hover,
+#modeSectionRag .btn-row .btn:nth-child(3):hover {
+    transform: translateY(-1px);
+}
+
+
+/* ============================================
+   PDF 카드 – "📘 PDF 분석 사용 설명서" (버튼 아래, 가로 전체)
+   ============================================ */
+
+#modeSectionPdf .pdf-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 설명서 전체(details)를 카드 가로 꽉 차는 박스로 */
+#modeSectionPdf details.pdf-manual {
+    margin-top: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);
+}
+
+/* 요약 줄 (토글 버튼 역할) */
+#modeSectionPdf details.pdf-manual>summary {
+    list-style: none;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 14px;
+    border-radius: 16px 16px 0 0;
+
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* 기본 마커 제거 */
+#modeSectionPdf details.pdf-manual>summary::-webkit-details-marker {
+    display: none;
+}
+
+/* 열고/닫기 삼각형 아이콘 */
+#modeSectionPdf details.pdf-manual>summary::before {
+    content: "▶";
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+#modeSectionPdf details.pdf-manual[open]>summary::before {
+    content: "▼";
+}
+
+/* 펼쳐졌을 때 본문 (카드 전체 폭) */
+#modeSectionPdf details.pdf-manual .pdf-manual-body {
+    padding: 10px 14px 12px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.6);
+
+    font-size: 13px;
+    color: var(--text-sub);
+    line-height: 1.6;
+
+    width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+    word-break: keep-all;
+}
+
+/* ───────────── 다크 모드 ───────────── */
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual {
+    background: rgba(15, 23, 42, 0.96);
+    border-color: rgba(129, 140, 248, 0.8);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual>summary {
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual>summary::before {
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual .pdf-manual-body {
+    color: #cbd5f5;
+    border-top-color: rgba(129, 140, 248, 0.75);
+}
+
+
+/* -----------------------------------------
+   RAG 카드 안쪽 자료 설명서 / 근거 details 공통
+   (예: "내 자료 검색 사용 설명서", "근거 보기" 등)
+   ----------------------------------------- */
+
+#modeSectionRag details {
+    margin-top: 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.15);
+    overflow: hidden;
+}
+
+html[data-theme="dark"] #modeSectionRag details {
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(55, 65, 81, 0.95);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+#modeSectionRag details summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+    color: var(--text-main);
+}
+
+/* 다크 모드에서 summary 글씨는 흰색 */
+html[data-theme="dark"] #modeSectionRag details summary {
+    color: #ffffff;
+}
+
+#modeSectionRag details summary::-webkit-details-marker {
+    display: none;
+}
+
+#modeSectionRag details summary::before {
+    content: "▶";
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+#modeSectionRag details[open] summary::before {
+    content: "▼";
+}
+
+/* 내용 부분(사용 설명, 근거 리스트) */
+#modeSectionRag details>div {
+    padding: 8px 12px 10px;
+    font-size: 12px;
+    color: var(--text-sub);
+    border-top: 1px dashed rgba(148, 163, 184, 0.6);
+}
+
+html[data-theme="dark"] #modeSectionRag details>div {
+    color: #cbd5f5;
+    border-top-color: rgba(75, 85, 99, 0.9);
+}
+
+/* ============================================
+   RAG 카드 – "내 자료 검색 사용 설명서" 전용 스타일
+   (card_rag.html 안 details.rag-manual 대상)  ※ 현재는 rag-help-block 사용
+   ============================================ */
+
+#modeSectionRag details.rag-manual {
+    margin-top: 12px;
+}
+
+#modeSectionRag details.rag-manual summary {
+    list-style: none;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 14px;
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.55);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* 열고/닫기 삼각형 아이콘 */
+#modeSectionRag details.rag-manual summary::before {
+    content: "▶";
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+#modeSectionRag details.rag-manual[open] summary::before {
+    content: "▼";
+}
+
+/* 펼쳐졌을 때 안쪽 본문 */
+#modeSectionRag details.rag-manual .rag-manual-body {
+    margin-top: 6px;
+    padding: 10px 14px 12px;
+    border-radius: 14px;
+
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.55);
+
+    font-size: 13px;
+    color: var(--text-sub);
+}
+
+/* 다크 모드 전용 */
+html[data-theme="dark"] #modeSectionRag details.rag-manual summary {
+    background: linear-gradient(90deg,
+            rgba(15, 23, 42, 0.96),
+            rgba(30, 64, 175, 0.94));
+    border-color: rgba(129, 140, 248, 0.85);
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-manual summary::before {
+    color: #ffffff;
+    opacity: 0.95;
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-manual .rag-manual-body {
+    background: rgba(15, 23, 42, 0.97);
+    border-color: rgba(129, 140, 248, 0.75);
+    color: #e5e7eb;
+}
+
+/* =========================================================
+   📎 근거 보기 버튼 전용 — 밝은 알약 스타일
+   (RAG 카드 안 details.rag-evidence-wrapper > summary.btn.info)
+   ========================================================= */
+
+/* 라이트 모드 */
+#modeSectionRag details.rag-evidence-wrapper>summary.btn.info {
+    background: linear-gradient(90deg, #f9fafb, #e5edff);
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.85);
+    color: #0f172a;
+    font-weight: 600;
+    padding: 9px 16px;
+    box-shadow:
+        0 10px 22px rgba(15, 23, 42, 0.18),
+        0 4px 10px rgba(15, 23, 42, 0.15);
+}
+
+/* 다크 모드 */
+html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper>summary.btn.info {
+    background: rgba(248, 250, 252, 0.98);
+    border-color: rgba(191, 219, 254, 1);
+    color: #0f172a;
+}
+
+/* 1️⃣ RAG 설명서 / 근거 보기 summary 버튼은 hover 시 위치 안 움직이게 */
+#modeSectionRag .rag-help-block>summary.btn,
+#modeSectionRag .rag-evidence-wrapper>summary.btn {
+    transition: background 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
+}
+
+#modeSectionRag .rag-help-block>summary.btn:hover,
+#modeSectionRag .rag-evidence-wrapper>summary.btn:hover {
+    transform: none;
+}
+
+/* 2️⃣ 근거 보기 래퍼는 “카드 스타일” 빼고, 단순 토글만 */
+#modeSectionRag details.rag-evidence-wrapper {
+    margin-top: 10px;
+    border-radius: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* ------------------------------
+   Responsive
+   ------------------------------ */
+
+@media (max-width: 960px) {
+    .shell-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .shell-side {
+        order: -1;
+    }
+
+    .app-topbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .nav-links {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 640px) {
+    .page-wrap.app-shell {
+        margin: 16px auto;
+        padding: 14px 14px 18px;
+        border-radius: 18px;
+    }
+
+    .shell-grid {
+        gap: 12px;
+    }
+
+    .mode-section {
+        padding: 12px 12px 14px;
+    }
+
+    .side-card {
+        padding: 8px 10px 10px;
+    }
+}

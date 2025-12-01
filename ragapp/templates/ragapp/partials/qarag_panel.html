@@ -1,0 +1,100 @@
+{# ragapp/templates/ragapp/partials/qarag_panel.html #}
+<div id="qaragPanel" hidden>
+  <div class="qarag-shell">
+    <div class="qarag-header">
+      <div class="dm-left">
+        <span class="dm-avatar"></span>
+        <div class="dm-name-col">
+          <div class="dm-name">질문 챗봇</div>
+          <div class="dm-sub">
+            {{ QARAG_SUBTITLE|default:"AI 학습 기반으로 답변합니다. 필요하면 상담사로도 연결할 수 있어요." }}
+          </div>
+        </div>
+      </div>
+      <div class="qarag-header-right">
+        <!-- 🔸 상담사 버튼 -->
+        <button type="button"
+                class="handoff-btn"
+                id="btnConnectLive"
+                title="상담사 연결">
+          {{ QARAG_CONNECT_LABEL|default:"상담사 연결" }}
+        </button>
+
+        <!-- 🔹 상담 종료 버튼 (처음에는 숨김) -->
+        <button type="button"
+                class="handoff-btn handoff-btn-end"
+                id="btnEndLive"
+                title="상담 종료"
+                hidden>
+          상담 종료
+        </button>
+
+        <!-- 닫기 버튼 -->
+        <button type="button"
+                class="qarag-close-btn"
+                id="qaragCloseBtn"
+                aria-label="QARAG 패널 닫기">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <div class="qarag-body">
+      <div class="qarag-messages" id="qaragMessages"></div>
+
+      {# 🔹 질문 챗봇 피드백 용으로만 남겨두는 빈 영역 (지금은 아무것도 표시 안 함) #}
+      <div class="qarag-feedback" id="qaragFeedback" aria-hidden="true">
+        <!-- (reserved for future 질문 챗봇 피드백 UI) -->
+      </div>
+
+      {# ✅ input → textarea / submit 이벤트는 JS에서 처리 #}
+      <form class="qarag-form-row" autocomplete="off">
+        <textarea class="qarag-input"
+                  id="qaragInput"
+                  rows="1"
+                  placeholder="{{ QARAG_INPUT_PLACEHOLDER|default:'메시지 보내기…' }}"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  maxlength="2000"></textarea>
+
+        <button class="qarag-send-btn"
+                id="qaragSendBtn"
+                type="button">
+          {{ QARAG_SEND_LABEL|default:"전송" }}
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 💬 상담사 연결 전 동의 모달 -->
+<div id="livechatOverlay" class="livechat-overlay" hidden>
+  <div class="livechat-card" role="dialog" aria-modal="true">
+    <h3 class="livechat-title">상담사 연결 전 안내</h3>
+    <p class="livechat-desc">
+      이 서비스는 실제 사람이 응답하는
+      <strong>실시간 상담</strong>입니다.<br />
+      아래 행위가 발생할 경우 상담이 즉시 중단될 수 있어요.
+    </p>
+    <ul class="livechat-rules">
+      <li>욕설, 폭언, 성희롱, 혐오 발언 등 인격 침해 발언</li>
+      <li>협박, 스토킹, 반복적인 괴롭힘 요구</li>
+      <li>타인의 개인정보 요구 또는 유출 시도</li>
+      <li>서비스 범위를 벗어난 무리한 요구</li>
+    </ul>
+    <p class="livechat-desc small">
+      위 내용을 이해하셨다면 아래 버튼을 눌러 상담사 연결을 요청해 주세요.<br />
+      <strong>동의 후에는 상담사 전용 페이지로 이동하여 상담이 진행됩니다.</strong>
+    </p>
+
+    <div class="livechat-actions">
+      <button type="button" class="livechat-btn ghost" id="livechatCancelBtn">
+        취소
+      </button>
+      <button type="button" class="livechat-btn primary" id="livechatAgreeBtn">
+        동의하고 상담 요청
+      </button>
+    </div>
+  </div>
+</div>

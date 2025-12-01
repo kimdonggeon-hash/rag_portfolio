@@ -1,0 +1,160 @@
+{% load static %}
+{% load tz %}{% timezone "Asia/Seoul" %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>개인정보 처리 안내</title>
+  <link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+  <meta name="robots" content="noindex, nofollow" />
+
+  <!-- 페이지 전용 심플 스타일 -->
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --dim:#64748b;
+      --line:#e5e7eb; --accent:#4f46e5; --accent-2:#38bdf8;
+      --ok:#16a34a; --warn:#f59e0b; --bad:#dc2626; --pill:#eef2ff;
+      --radius:14px; --shadow:0 10px 24px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,"Noto Sans KR",Segoe UI,Roboto,Apple SD Gothic Neo,sans-serif;line-height:1.55}
+    .wrap{max-width:980px;margin:36px auto 64px;padding:0 16px}
+    .page-title{font-weight:800;letter-spacing:.2px;margin:0 0 8px 0}
+    .meta{color:var(--dim);font-size:.9rem;margin-bottom:18px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+    .card h2{margin:0 0 10px 0;font-size:1.05rem}
+    .muted{color:var(--dim)}
+    .kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .kv .item{background:#fafbff;border:1px solid #edf0f6;border-radius:12px;padding:10px 12px}
+    .kv b{display:block;font-size:.86rem;margin-bottom:6px;color:#0b1220}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-weight:700;font-size:.78rem}
+    .pill.on{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .pill.off{background:#fff7ed;color:#92400e;border:1px solid #fed7aa}
+    .pill.info{background:var(--pill);color:#3730a3;border:1px solid #c7d2fe}
+    .list{margin:0;padding-left:18px}
+    .list li{margin:6px 0}
+    details[open]{background:#fbfcff}
+    details>summary{list-style:none;cursor:pointer;font-weight:800;color:#0b1220}
+    details>summary::-webkit-details-marker{display:none}
+    details .body{padding-top:10px;color:#1f2937}
+    a.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#fff;text-decoration:none;font-weight:800;border:1px solid rgba(99,102,241,.45);box-shadow:0 10px 24px rgba(79,70,229,.18)}
+    a.btn:hover{filter:brightness(1.05);transform:translateY(-1px)}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .sep{height:1px;background:var(--line);margin:14px 0}
+    @media (max-width:860px){.kv{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1 class="page-title">개인정보 처리 안내</h1>
+  <div class="meta">최종 갱신: {{ last_updated|date:"Y-m-d H:i:s" }}</div>
+
+  <!-- 데이터 처리 원칙 (요약 카드) -->
+  <section class="card">
+    <h2>데이터 처리 원칙</h2>
+    <div class="kv" role="list">
+      <div class="item" role="listitem">
+        <b>요약 우선 저장 (Summary-only)</b>
+        <span class="pill {% if cfg.summary_only %}on{% else %}off{% endif %}">
+          {% if cfg.summary_only %}켜짐{% else %}꺼짐{% endif %}
+        </span>
+      </div>
+      <div class="item" role="listitem">
+        <b>원문 전체 저장</b>
+        <span class="pill {% if cfg.store_fulltext %}on{% else %}off{% endif %}">
+          {% if cfg.store_fulltext %}켜짐{% else %}꺼짐{% endif %}
+        </span>
+      </div>
+      <div class="item" role="listitem">
+        <b>robots.txt 준수</b>
+        <span class="pill {% if cfg.robots_on %}on{% else %}off{% endif %}">
+          {% if cfg.robots_on %}켜짐{% else %}꺼짐{% endif %}
+        </span>
+      </div>
+      <div class="item" role="listitem">
+        <b>안전 모드</b>
+        <span class="pill {% if cfg.safe_mode_enabled %}on{% else %}off{% endif %}">
+          {% if cfg.safe_mode_enabled %}켜짐{% else %}꺼짐{% endif %}
+        </span>
+      </div>
+      <div class="item" role="listitem">
+        <b>IP 해시 저장</b>
+        <span class="pill {% if cfg.log_ip_hashed %}on{% else %}off{% endif %}">
+          {% if cfg.log_ip_hashed %}켜짐{% else %}꺼짐{% endif %}
+        </span>
+      </div>
+      <div class="item" role="listitem">
+        <b>로그 보관 기간</b>
+        <span class="pill info">{{ cfg.retention_days|default:90 }}일</span>
+      </div>
+      <div class="item" role="listitem">
+        <b>생성 모델</b>
+        <span class="pill info">{{ cfg.model_name|default:"gemini" }}</span>
+      </div>
+      <div class="item" role="listitem">
+        <b>서비스 / 운영자</b>
+        <span class="pill info">
+          {{ cfg.service_name|default:"서비스" }} · {{ cfg.operator_name|default:"운영자" }}
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 세부 안내 (간결/접기) -->
+  <section class="card">
+    <h2>세부 안내</h2>
+    <details>
+      <summary>수집 항목과 목적</summary>
+      <div class="body">
+        <ul class="list">
+          <li>질문/검색어, 사용 시각, 선택적 피드백(도움됨/별로임 및 코멘트)</li>
+          <li>서비스 품질 개선(오탐 교정, 추천 품질 개선), 오남용 방지, 통계 분석</li>
+          <li>IP는 원본이 아닌 <b>해시형태</b>로 보관(설정에 따라 미수집 가능)</li>
+        </ul>
+      </div>
+    </details>
+    <div class="sep"></div>
+    <details>
+      <summary>보관 기간과 파기</summary>
+      <div class="body">
+        <p>로그는 기본적으로 <b>{{ cfg.retention_days|default:90 }}일</b>간 보관 후 안전하게 파기됩니다. 법령상 장기 보관 의무가 발생하는 경우 해당 기간 동안 제한적으로 보관할 수 있습니다.</p>
+      </div>
+    </details>
+    <div class="sep"></div>
+    <details>
+      <summary>제3자 제공 및 국외 이전</summary>
+      <div class="body">
+        <p>모델 추론/임베딩 처리를 위해 클라우드 AI 인프라를 이용할 수 있습니다. 이 과정에서 데이터가 국외로 이전될 수 있으며, 당사는 최소한의 전송·보관 원칙을 따릅니다.</p>
+      </div>
+    </details>
+    <div class="sep"></div>
+    <details>
+      <summary>이용자 권리</summary>
+      <div class="body">
+        <ul class="list">
+          <li>열람·정정·삭제 및 처리정지 요청</li>
+          <li>개인정보 침해 신고 및 분쟁 조정 신청</li>
+          <li>권리 행사는 아래 <b>문의</b> 섹션을 통해 접수해 주세요.</li>
+        </ul>
+      </div>
+    </details>
+  </section>
+
+  <!-- 문의 -->
+  <section class="card">
+    <h2>문의</h2>
+    <p class="muted">
+      개인정보 처리방침 관련 문의는 아래 버튼 또는 이메일로 연락해 주세요.<br />
+      이메일: <b>{{ cfg.contact_email|default:"" }}</b>
+    </p>
+    <div class="row">
+      <a class="btn" href="{{ cfg.contact_link }}" target="_blank" rel="noopener noreferrer">자세히 보기</a>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
+{% endtimezone %}

@@ -1,0 +1,568 @@
+:root {
+    /* ===== 전체 톤 (Apple-style Dark) ===== */
+    --bg: #020617;
+    --card: linear-gradient(145deg, #020617, #050b17);
+    --card-solid: #050816;
+    --muted: #9ca3af;
+    --text: #e5e7eb;
+    --accent: #0a84ff;
+    /* Apple 블루 느낌 */
+    --accent-soft: rgba(10, 132, 255, 0.16);
+    --border: rgba(148, 163, 184, 0.25);
+
+    --chip-ok: #30d158;
+    --chip-fail: #ff453a;
+    --chip-warn: #ffd60a;
+
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.45);
+    --shadow-subtle: 0 10px 26px rgba(15, 23, 42, 0.45);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.10), transparent 55%),
+        radial-gradient(circle at bottom right, rgba(129, 140, 248, 0.18), transparent 55%),
+        var(--bg);
+    color: var(--text);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+        "SF Pro Text", "Malgun Gothic", sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 링크 기본 */
+a {
+    color: var(--accent);
+    text-decoration: none;
+    transition: color 0.18s ease, opacity 0.18s ease;
+}
+
+a:hover {
+    color: #63b3ff;
+}
+
+/* 공통 래퍼 */
+.fx-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 18px 32px;
+}
+
+/* ===== 상단 헤더 (Apple-style Blur Bar) ===== */
+.fx-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: saturate(180%) blur(14px);
+    background: linear-gradient(to bottom, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
+    border-bottom: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.fx-row {
+    display: flex;
+    align-items: center;
+}
+
+.fx-center {
+    justify-content: space-between;
+}
+
+/* 브랜드 로고 */
+.fx-brand {
+    font-weight: 800;
+    font-size: 19px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #f9fafb;
+    padding: 10px 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fx-brand::before {
+    content: "";
+    width: 18px;
+    height: 18px;
+    border-radius: 8px;
+    background: radial-gradient(circle at 20% 0%, #ffffff 0, rgba(255, 255, 255, 0.1) 32%, transparent 70%),
+        linear-gradient(135deg, #0ea5e9, #6366f1);
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
+}
+
+/* 네비게이션 */
+.fx-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.fx-nav a {
+    position: relative;
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: #e5e7eb;
+    opacity: 0.78;
+    transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease, transform 0.12s ease;
+}
+
+.fx-nav a:hover {
+    background: rgba(15, 118, 255, 0.16);
+    color: #f9fafb;
+    opacity: 1;
+    transform: translateY(-0.5px);
+}
+
+/* 선택된 상태를 위한 유틸 (원하면 템플릿에서 current 클래스 사용) */
+.fx-nav a.current {
+    background: var(--accent-soft);
+    color: #f9fafb;
+    opacity: 1;
+}
+
+/* ===== 하단 푸터 ===== */
+.fx-footer {
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+    padding: 18px 0 26px;
+    margin-top: 32px;
+    font-size: 13px;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+/* ===== 타이틀 ===== */
+.fx-title {
+    margin: 4px 0 14px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.fx-subtitle {
+    margin: 0 0 10px;
+    font-weight: 600;
+    color: #e5e7eb;
+}
+
+/* ===== 카드 ===== */
+.fx-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 18px 16px;
+    margin: 18px 0;
+    box-shadow: var(--shadow-soft);
+}
+
+/* ===== 폼 ===== */
+.fx-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+}
+
+.fx-form label {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-right: 4px;
+    font-size: 13px;
+    color: #e5e7eb;
+}
+
+.fx-form input[type="text"],
+.fx-form input[type="number"],
+.fx-form input[type="file"],
+.fx-form select {
+    background: #020817;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    color: var(--text);
+    padding: 10px 11px;
+    border-radius: 12px;
+    min-width: 220px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.fx-form input[type="text"]::placeholder,
+.fx-form input[type="number"]::placeholder {
+    color: rgba(148, 163, 184, 0.85);
+}
+
+.fx-form input[type="text"]:focus,
+.fx-form input[type="number"]:focus,
+.fx-form input[type="file"]:focus,
+.fx-form select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 0 6px rgba(15, 118, 255, 0.25);
+    background: #020617;
+}
+
+.fx-hint {
+    color: var(--muted);
+    margin-top: 6px;
+    font-size: 12px;
+}
+
+/* 행 유틸 */
+.fx-row.gap {
+    gap: 10px;
+}
+
+.fx-row.wrap {
+    flex-wrap: wrap;
+}
+
+/* ===== 버튼 (Apple-style pill) ===== */
+.fx-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text);
+    background: rgba(15, 23, 42, 0.98);
+    cursor: pointer;
+    outline: none;
+    transition: background 0.18s ease, border-color 0.18s ease,
+        color 0.18s ease, transform 0.12s ease, box-shadow 0.16s ease;
+}
+
+.fx-btn:hover {
+    background: rgba(15, 23, 42, 1);
+    box-shadow: var(--shadow-subtle);
+    transform: translateY(-0.5px);
+}
+
+.fx-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+/* 투명 버튼 */
+.fx-btn.ghost {
+    background: transparent;
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+/* 메인 버튼 */
+.fx-btn.primary {
+    background: linear-gradient(120deg, #0a84ff, #36c3ff);
+    border-color: transparent;
+    color: #020617;
+    font-weight: 600;
+    box-shadow: 0 14px 30px rgba(15, 118, 255, 0.45);
+}
+
+.fx-btn.primary:hover {
+    box-shadow: 0 18px 36px rgba(15, 118, 255, 0.6);
+}
+
+/* 비활성 */
+.fx-btn.disabled,
+.fx-btn[disabled] {
+    opacity: 0.45;
+    pointer-events: none;
+    box-shadow: none;
+}
+
+/* 체크/토글 옆 텍스트 */
+.fx-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* ===== 알림 박스 ===== */
+.fx-alert {
+    padding: 10px 11px;
+    border-radius: 12px;
+    margin: 10px 0;
+    border: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.98);
+    font-size: 13px;
+}
+
+.fx-alert.error {
+    background: rgba(255, 69, 58, 0.10);
+    border-color: rgba(255, 69, 58, 0.55);
+    color: #ffb4aa;
+}
+
+.fx-alert.warn {
+    background: rgba(255, 204, 0, 0.10);
+    border-color: rgba(255, 204, 0, 0.55);
+    color: #fef3c7;
+}
+
+/* ===== 그리드 (카드 레이아웃) ===== */
+.grid {
+    display: grid;
+    gap: 14px;
+}
+
+.grid.grid-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.grid.grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.grid.grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* 반응형 */
+@media (max-width: 1100px) {
+    .grid.grid-5 {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .grid.grid-4 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .grid.grid-5 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 700px) {
+    .fx-wrap {
+        padding-inline: 14px;
+    }
+
+    .grid.grid-2 {
+        grid-template-columns: 1fr;
+    }
+
+    .grid.grid-4,
+    .grid.grid-5 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+
+    .grid.grid-4,
+    .grid.grid-5 {
+        grid-template-columns: 1fr;
+    }
+
+    .fx-nav {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+}
+
+/* ===== 이미지 카드 ===== */
+.card {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #020817;
+    box-shadow: var(--shadow-subtle);
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.85);
+    border-color: rgba(148, 163, 184, 0.55);
+}
+
+.thumb {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+    background: radial-gradient(circle at top, #020617, #000);
+}
+
+.thumb.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #7c8aa5;
+    font-size: 32px;
+}
+
+/* 카드 메타 정보 */
+.meta {
+    padding: 10px 12px 11px;
+    font-size: 13px;
+}
+
+.meta .title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+/* 상태 뱃지 */
+.chip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+    background: rgba(5, 10, 25, 0.96);
+    backdrop-filter: blur(12px);
+}
+
+.chip.ok {
+    border-color: rgba(48, 209, 88, 0.7);
+    color: #c7f9cc;
+}
+
+.chip.fail {
+    border-color: rgba(255, 69, 58, 0.75);
+    color: #fecaca;
+}
+
+.chip.warn {
+    border-color: rgba(255, 204, 0, 0.75);
+    color: #fef9c3;
+}
+
+/* ===== 페이지 네비게이션 ===== */
+.paginator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 14px;
+    font-size: 13px;
+}
+
+/* ===== key-value 카드 ===== */
+.kv {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: #020817;
+    font-size: 13px;
+}
+
+.kv b {
+    color: #e2e8f0;
+}
+
+/* ===== 상세 설명 블록 ===== */
+.fx-details {
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 9px 10px;
+    background: rgba(15, 23, 42, 0.85);
+    font-size: 13px;
+}
+
+/* ===== 행 카드 ===== */
+.rowcard {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #020817;
+    overflow: hidden;
+    box-shadow: var(--shadow-subtle);
+}
+
+.row-head {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+}
+
+.badge {
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #020617;
+    border: 1px solid var(--border);
+    color: #a5b4fc;
+    font-size: 11px;
+}
+
+.row-body {
+    padding: 10px 12px 11px;
+    font-size: 13px;
+}
+
+/* ===== key-value 테이블 ===== */
+.kvtable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.kvtable th,
+.kvtable td {
+    border-bottom: 1px dashed var(--border);
+    padding: 6px 8px;
+    vertical-align: top;
+}
+
+.kvtable th {
+    width: 180px;
+    color: #c7d2fe;
+    text-align: left;
+}
+
+/* ===== 일반 테이블 ===== */
+.fx-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #020817;
+    font-size: 13px;
+}
+
+.fx-table th,
+.fx-table td {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+}
+
+.fx-table th {
+    background: rgba(15, 23, 42, 0.96);
+    color: #cbd5f5;
+}

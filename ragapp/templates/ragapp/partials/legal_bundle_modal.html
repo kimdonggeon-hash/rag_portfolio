@@ -1,0 +1,55 @@
+{# ragapp/templates/ragapp/partials/legal_bundle_modal.html #}
+<!-- 법적 모달 -->
+<div id="legalBundleBackdrop" hidden></div>
+<div id="legalBundleModal" hidden role="dialog" aria-modal="true" aria-labelledby="legalTitle">
+  <div class="legal-head">
+    <div class="legal-title" id="legalTitle">{{ LEGAL_MODAL_TITLE|default:"이용안내 · 개인정보" }}</div>
+    <button class="btn" data-legal-close type="button">{{ LEGAL_MODAL_CLOSE_LABEL|default:"닫기" }}</button>
+  </div>
+  <div class="legal-tabs">
+    <button class="legal-tab" aria-selected="true"  data-target="#pane-privacy">{{ LEGAL_TAB_PRIVACY|default:"개인정보" }}</button>
+    <button class="legal-tab" aria-selected="false" data-target="#pane-cross">{{ LEGAL_TAB_CROSS|default:"국외 이전" }}</button>
+    <button class="legal-tab" aria-selected="false" data-target="#pane-tester">{{ LEGAL_TAB_TESTER|default:"테스터 안내" }}</button>
+    <button class="legal-tab" aria-selected="false" data-target="#pane-guide">{{ LEGAL_TAB_GUIDE|default:"이용 가이드" }}</button>
+  </div>
+  <div class="legal-body">
+    <section id="pane-privacy" class="legal-pane">
+      {% if legal_privacy_html %}{{ legal_privacy_html|safe }}
+      {% elif LEGAL_PRIVACY_HTML %}{{ LEGAL_PRIVACY_HTML|safe }}
+      {% elif legal_privacy %}{{ legal_privacy|safe }}
+      {% elif privacy_html %}{{ privacy_html|safe }}
+      {% else %}<p>관리자 &gt; 법적설정에서 <b>개인정보처리방침(HTML)</b>을 등록하세요.</p>{% endif %}
+    </section>
+
+    <section id="pane-cross" class="legal-pane" hidden data-auto-preline>
+      {% firstof
+          legal_cross_html LEGAL_CROSS_HTML cross_html overseas_html overseas_transfer_html
+          LEGAL_OVERSEAS_NOTICE LEGAL_CROSSBORDER_HTML
+          transfer_html crossBorder overseasNotice
+          LEGAL_CROSS_TEXT CROSS_TEXT OVERSEAS_TEXT LEGAL_OVERSEAS_TEXT LEGAL_CROSS OVERSEAS_NOTICE_TEXT
+          LEGAL_RAW_OVERSEAS OVERSEAS_NOTICE_TEXT
+          overseas_plain legal_overseas legal_overseas_text legal_overseas_notice legal_cross legal_cross_text cross_notice
+          legal_bundle.cross_html legal_bundle.overseas_html legal_bundle.cross_text legal_bundle.overseas_text legal_bundle.cross legal_bundle.overseas
+          LEGAL_BUNDLE.cross_html LEGAL_BUNDLE.overseas_html LEGAL_BUNDLE.cross_text LEGAL_BUNDLE.overseas_text LEGAL_BUNDLE.cross LEGAL_BUNDLE.overseas
+          as cross_any %}
+      {% if cross_any %}{{ cross_any|safe }}{% else %}<p>관리자에서 <b>국외 이전 고지</b>를 등록하세요.</p>{% endif %}
+    </section>
+
+    <section id="pane-tester" class="legal-pane" hidden>
+      {% if legal_tester_html %}{{ legal_tester_html|safe }}
+      {% elif LEGAL_TESTER_HTML %}{{ LEGAL_TESTER_HTML|safe }}
+      {% elif tester_html %}{{ tester_html|safe }}
+      {% else %}<p>관리자에서 <b>테스터 안내</b> 문서를 등록하세요.</p>{% endif %}
+    </section>
+    <section id="pane-guide" class="legal-pane" hidden>
+      {% if legal_guide_html %}{{ legal_guide_html|safe }}
+      {% elif LEGAL_GUIDE_HTML %}{{ LEGAL_GUIDE_HTML|safe }}
+      {% elif guide_html %}{{ guide_html|safe }}
+      {% elif usage_html %}{{ usage_html|safe }}
+      {% else %}<p>관리자에서 <b>이용 가이드</b>를 등록하세요.</p>{% endif %}
+    </section>
+  </div>
+  <div class="legal-actions">
+    <button class="btn" data-legal-close type="button">{{ LEGAL_MODAL_CLOSE_LABEL|default:"닫기" }}</button>
+  </div>
+</div>

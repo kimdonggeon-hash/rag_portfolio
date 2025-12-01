@@ -1,0 +1,225 @@
+{# ragapp/templates/ragapp/partials/card_rag.html #}
+<!-- 우측 카드: 내 자료(RAG) 검색 -->
+<section class="card" aria-labelledby="rag-card-title">
+  <div class="card-header">
+    <div class="card-title-row">
+      <div class="card-title-left">
+        <h2 id="rag-card-title" class="card-title">
+          📚  AI 요약검색 (RAG)
+          <span class="model-pill">
+            {{ model_name_rag|default:"rag-model" }}
+          </span>
+        </h2>
+      </div>
+    </div>
+
+    {# 질문 입력 + 추가 옵션 + 버튼들 #}
+    <form method="post"
+          action="{% url 'home' %}"
+          class="form-row"
+          onsubmit="return (window.setLoading ? window.setLoading(this) : true);"
+          autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="ragActionField" value="rag_search" />
+
+      <!-- 1. 질문 입력 -->
+      <div class="input-wrap">
+        <input class="input-box"
+               type="text"
+               name="query_rag"
+               placeholder="{{ RAG_QUERY_PLACEHOLDER|default:'예: 내가 저장해 둔 자료 기준으로 커피와 수면 관계만 정리해줘' }}"
+               value="{{ rag_query|default:'' }}"
+               inputmode="search"
+               autocapitalize="off"
+               spellcheck="false"
+               maxlength="2000"
+               aria-label="내 자료에서 찾고 싶은 내용을 입력하세요" />
+      </div>
+
+      <!-- 2. 추가 설정(선택) -->
+      <div class="opt-consent-block"
+           role="group"
+           aria-labelledby="opt-consent-title-rag">
+        <div id="opt-consent-title-rag"
+             class="opt-consent-title">
+          {{ RAG_OPTION_TITLE|default:"추가 설정 (선택)" }}
+        </div>
+
+        <label class="opt-line">
+          <input type="checkbox"
+                 name="opt_rag_keep_history"
+                 value="1" />
+          {{ RAG_OPT_KEEP_HISTORY|default:"이번 질문과 답변을 나중에 다시 볼 수 있도록 기록에 남겨 두기" }}
+        </label>
+
+        <label class="opt-line">
+          <input type="checkbox"
+                 name="opt_rag_save_hits"
+                 value="1" />
+          {{ RAG_OPT_SAVE_HITS|default:"AI가 참고한 문서 목록도 함께 저장하기 (추천)" }}
+        </label>
+      </div>
+
+      <!-- 3. 실행 버튼들 -->
+      <div class="btn-row">
+        <button class="btn info"
+                type="submit"
+                name="action"
+                value="rag_search"
+                data-action="rag_search">
+          {{ RAG_BTN_SEARCH_LABEL|default:"🤖 내 자료에서 답 찾기" }}
+        </button>
+
+        <button class="btn"
+                type="submit"
+                name="action"
+                value="rag_seed"
+                data-action="rag_seed">
+          {{ RAG_BTN_SEED_LABEL|default:"📦 지금 화면 내용까지 저장(시드)" }}
+        </button>
+
+        <button class="btn danger"
+                type="submit"
+                name="action"
+                value="chroma_init"
+                data-action="chroma_init">
+          {{ RAG_BTN_INIT_LABEL|default:"🧹 저장된 자료 새로 시작하기(주의)" }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card-body">
+
+    {# ✅ 1) 메시지 영역 #}
+    <div class="msg-row" id="rag-msg-block">
+      {% if rag_msg %}
+        <div class="msg-ok" role="status">✅ {{ rag_msg }}</div>
+      {% endif %}
+      {% if rag_error %}
+        <div class="msg-err" role="alert">❌ {{ rag_error }}</div>
+      {% endif %}
+    </div>
+
+    {# ✅ 2) RAG 답변 #}
+    <div class="answer-block" id="rag-answer-block">
+      {% if rag_answer %}
+        {{ rag_answer|linebreaksbr }}
+      {% endif %}
+    </div>
+
+    {# ✅ 3) 📎 근거 보기 (버튼 위치 고정, 아래로만 펼쳐짐) #}
+    <details class="rag-evidence-wrapper">
+      <summary class="btn info">
+        {{ RAG_EVIDENCE_BTN|default:"📎 근거 보기" }}
+      </summary>
+      <div class="sources-block answer-evidence">
+        <h3 class="sources-title">
+          {{ RAG_EVIDENCE_TITLE|default:"📎 AI가 참고한 자료 목록" }}
+        </h3>
+
+        {% if rag_sources %}
+          <ul class="sources-list">
+            {% for s in rag_sources %}
+              {# s가 dict({title,url,chunk,snippet,score...}) 일 수도, 그냥 문자열일 수도 있다고 가정 #}
+
+              {% if s.title or s.url or s.chunk or s.snippet or s.text %}
+                <li>
+                  {# 1) 제목/링크 #}
+                  {% if s.url %}
+                    <a href="{{ s.url }}"
+                       class="src-title"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                      {{ s.title|default:s.url }}
+                    </a>
+                  {% else %}
+                    <span class="src-title">
+                      {{ s.title|default:s.id|default:"근거 " |add:forloop.counter }}
+                    </span>
+                  {% endif %}
+
+                  {# 2) 문단/요약(있으면) #}
+                  {% if s.chunk or s.snippet or s.text %}
+                    <span class="src-snippet">
+                      {{ s.chunk|default:s.snippet|default:s.text|truncatechars:150 }}
+                    </span>
+                  {% endif %}
+
+                  {# 3) 점수(있으면) #}
+                  {% if s.score %}
+                    <span class="src-meta">
+                      유사도 점수: {{ s.score|floatformat:3 }}
+                    </span>
+                  {% endif %}
+                </li>
+              {% else %}
+                {# s가 그냥 문자열이면 그대로 보여주기 #}
+                <li>
+                  <span class="src-title">{{ s }}</span>
+                </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">
+            아직 보여 줄 근거가 없습니다.<br />
+            먼저 한 번 검색을 실행하거나, 결과 저장하기를 마친 뒤 다시 확인해 주세요.
+          </p>
+        {% endif %}
+      </div>
+    </details>
+
+    {# ✅ 4) 📘 사용 설명서 – 맨 아래로 내려서, 위쪽 레이아웃 안 흔들리게 #}
+    <details id="ragHelpBlock"
+             class="rag-help-block"
+             data-sanitize-links="1">
+      <summary class="btn legal-btn rag-help-summary">
+        📘 내 자료 검색 사용 설명서
+      </summary>
+
+      <div class="rag-help-body">
+        <p>
+          이 카드는 <strong>웹이 아니라, 내가 따로 저장해 둔 자료</strong> 안에서만 답을 찾습니다.
+          조금만 익숙해지면 “내 전용 검색엔진”처럼 쓸 수 있어요.
+        </p>
+
+        <ol>
+          <li>
+            <strong>언제 쓰면 좋나요?</strong><br />
+            - 회사 내부 문서, 내가 모은 뉴스·PDF 요약본, 정리해 둔 노트처럼<br />
+            &nbsp;&nbsp;외부에 공개되지 않은 내용을 다시 찾고 싶을 때 사용하세요.<br />
+            - 인터넷 전체에서 찾고 싶을 때는 윗쪽의 <strong>“웹에서 답 찾기”</strong> 카드를 쓰면 됩니다.
+          </li>
+          <li style="margin-top:.4rem;">
+            <strong>기본 사용법</strong><br />
+            1) 위 입력 칸에 <em>“내 자료 기준으로 물어보고 싶은 문장”</em>을 적습니다.<br />
+            2) <strong>🤖 내 자료에서 답 찾기</strong> 버튼을 누르면<br />
+            &nbsp;&nbsp;저장된 자료를 뒤져서, 아래에 한글 설명으로 답을 보여줍니다.<br />
+            3) 필요하면 맨 아래 <strong>“📎 근거 보기”</strong>에서 어떤 자료를 참고했는지도 볼 수 있어요.
+          </li>
+          <li style="margin-top:.4rem;">
+            <strong>추가 설정(선택)</strong><br />
+            - <strong>기록에 남겨 두기</strong>: 나중에 관리자 화면에서<br />
+            &nbsp;&nbsp;“어떤 질문을 했고 어떤 답이 나왔는지” 다시 확인할 수 있습니다.<br />
+            - <strong>문서 목록도 함께 저장하기</strong>: AI가 실제로 참고한 문서/뉴스 목록을<br />
+            &nbsp;&nbsp;같이 남겨 두고 싶을 때 켜두면 좋아요.
+          </li>
+          <li style="margin-top:.4rem;">
+            <strong>고급 버튼 안내 (조금 어렵지만, 겁먹지 않아도 돼요)</strong><br />
+            - <strong>📦 지금 화면 내용까지 저장(시드)</strong>:<br />
+            &nbsp;&nbsp;지금 보고 있는 화면의 답변·근거를 <em>내 검색용 자료</em>에 더해 넣는 기능입니다.<br />
+            - <strong>🧹 저장된 자료 새로 시작하기(주의)</strong>:<br />
+            &nbsp;&nbsp;지금까지 쌓아 둔 검색용 자료를 <u>깨끗하게 비우고 처음부터 다시</u> 시작합니다.<br />
+            &nbsp;&nbsp;실수로 누르지 않도록 <strong>관리자/개발자만</strong> 사용하는 것을 권장합니다.
+          </li>
+        </ol>
+
+        <p style="margin-top:.4rem;">
+          잘못 설정해도 서비스가 망가지지는 않지만,<br />
+          <strong>“🧹 새로 시작하기”는 진짜로 데이터가 사라질 수 있으니 꼭 필요할 때만 눌러 주세요.</strong>
+        </p>
+      </div>
+    </details>
+  </div>
+</section>

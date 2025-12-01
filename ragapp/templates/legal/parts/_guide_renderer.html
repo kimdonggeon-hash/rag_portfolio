@@ -1,0 +1,8 @@
+{# v: 가이드 원문 #}
+{% if "<" in v and ">" in v %}
+  {{ v|safe }}
+{% elif v|slice:":8" == "https://" or v|slice:":7" == "http://" or v|slice:":1" == "/" %}
+  <p><a class="link" href="{{ v }}" target="_blank" rel="noopener">{{ v }}</a></p>
+{% else %}
+  <div class="preline">{{ v }}</div>
+{% endif %}

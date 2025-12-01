@@ -1,0 +1,604 @@
+/* 상담사 콘솔 전용 스타일 (PC 전용 가정 · 라이트 테마 제품 버전) */
+
+/* ─────────────────────────────────────────
+   전체 레이아웃 / 기본
+   ───────────────────────────────────────── */
+.lc-body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: #f3f4f6;
+    color: #111827;
+}
+
+.lc-wrap {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────
+   좌측 사이드바
+   ───────────────────────────────────────── */
+.lc-sidebar {
+    width: 340px;
+    max-width: 380px;
+    border-right: 1px solid #e5e7eb;
+    background: #ffffff;
+    padding: 16px 14px;
+    box-sizing: border-box;
+    box-shadow: 1px 0 0 rgba(15, 23, 42, 0.03);
+}
+
+.lc-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.lc-sidebar-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.lc-sidebar-sub {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.lc-sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lc-sidebar-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #6b7280;
+    padding: 6px 4px 4px;
+}
+
+/* 상태 점 (좌측 상단 WebSocket 상태) */
+.lc-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #9ca3af;
+}
+
+/* ─────────────────────────────────────────
+   공통 버튼 스타일
+   ───────────────────────────────────────── */
+.lc-btn {
+    appearance: none;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    background: #ffffff;
+    color: #111827;
+    transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.lc-btn:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+.lc-btn.primary {
+    background: linear-gradient(90deg, #2563eb, #22c1c3);
+    color: #f9fafb;
+    border-color: rgba(37, 99, 235, 0.7);
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+}
+
+.lc-btn.primary:hover:not(:disabled) {
+    box-shadow: 0 12px 30px rgba(37, 99, 235, 0.3);
+}
+
+.lc-btn.primary:disabled {
+    opacity: 0.45;
+    cursor: default;
+    box-shadow: none;
+}
+
+.lc-btn.ghost {
+    background: #ffffff;
+    border-color: #e5e7eb;
+    color: #374151;
+}
+
+.lc-btn.ghost:hover:not(:disabled) {
+    background: #f3f4ff;
+    border-color: #c7d2fe;
+}
+
+/* ─────────────────────────────────────────
+   세션 리스트 (왼쪽 컬럼)
+   ───────────────────────────────────────── */
+.lc-session-list {
+    list-style: none;
+    margin: 0;
+    margin-top: 10px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: calc(100vh - 130px);
+    overflow-y: auto;
+}
+
+.lc-session-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: #f9fafb;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.lc-session-item:hover {
+    border-color: #e5e7eb;
+    background: #eef2ff;
+    box-shadow: 0 4px 10px rgba(148, 163, 184, 0.3);
+}
+
+.lc-session-item.is-active {
+    border-color: #4f46e5;
+    background: #e0ebff;
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35);
+}
+
+.lc-session-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.lc-session-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lc-session-meta {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.lc-session-right {
+    display: flex;
+    align-items: center;
+}
+
+/* 작은 칩 버튼 (상태 표시) */
+.lc-chip-btn {
+    appearance: none;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #374151;
+    cursor: pointer;
+    min-width: 64px;
+    text-align: center;
+}
+
+.lc-chip-btn:hover {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+}
+
+.lc-session-empty {
+    padding: 10px 8px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+/* ─────────────────────────────────────────
+   우측 메인 영역
+   ───────────────────────────────────────── */
+.lc-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 20px;
+    box-sizing: border-box;
+    gap: 10px;
+}
+
+.lc-main-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.lc-main-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.lc-main-sub {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.lc-main-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.lc-link-admin {
+    font-size: 12px;
+    color: #6b7280;
+    text-decoration: none;
+}
+
+.lc-link-admin:hover {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+/* ─────────────────────────────────────────
+   인입 콜 배너
+   ───────────────────────────────────────── */
+.lc-incoming {
+    display: none;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #eff6ff, #e0f2fe);
+    border: 1px solid #bfdbfe;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.lc-incoming.is-visible {
+    display: flex;
+}
+
+.lc-incoming-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.lc-incoming-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lc-incoming-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
+}
+
+.lc-incoming-text-main {
+    font-weight: 600;
+    color: #111827;
+}
+
+.lc-incoming-text-sub {
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.lc-incoming-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* ─────────────────────────────────────────
+   채팅 영역 (우측 상단 카드)
+   ───────────────────────────────────────── */
+.lc-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-top: 4px;
+    padding: 14px 16px;
+    background: #ffffff;
+    border-radius: 18px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.05);
+}
+
+.lc-chat-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.lc-chat-room-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.lc-chat-room-sub {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.lc-chat-header-meta {
+    font-size: 11px;
+    color: #6b7280;
+    text-align: right;
+}
+
+.lc-messages {
+    flex: 1;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    padding: 10px 12px;
+    overflow-y: auto;
+    box-shadow: inset 0 0 0 1px rgba(243, 244, 246, 0.9);
+    min-height: 260px;
+    /* ✅ 채팅 영역 최소 높이 확보 */
+    max-height: 420px;
+    /* 너무 길어지지 않도록 상한 */
+}
+
+/* 말풍선 */
+.lc-msg {
+    display: flex;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.lc-msg-user {
+    justify-content: flex-start;
+}
+
+.lc-msg-operator {
+    justify-content: flex-end;
+}
+
+.lc-msg-system {
+    justify-content: center;
+}
+
+.lc-msg-bubble {
+    max-width: 70%;
+    padding: 7px 10px;
+    border-radius: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+}
+
+.lc-msg-user .lc-msg-bubble {
+    background: #e5e7eb;
+    color: #111827;
+    border-bottom-left-radius: 4px;
+}
+
+.lc-msg-operator .lc-msg-bubble {
+    background: #2563eb;
+    color: #ffffff;
+    border-bottom-right-radius: 4px;
+}
+
+.lc-msg-system .lc-msg-bubble {
+    background: #e0f2fe;
+    color: #0369a1;
+    text-align: center;
+    max-width: 90%;
+    font-size: 12px;
+}
+
+/* 빠른 응답 / 입력 영역 */
+.lc-chat-form {
+    margin-top: 10px;
+}
+
+.lc-quick-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.lc-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    align-items: flex-end;
+}
+
+.lc-input {
+    flex: 1;
+    min-height: 40px;
+    max-height: 120px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #111827;
+    padding: 8px 10px;
+    font-size: 13px;
+    resize: none;
+    box-sizing: border-box;
+}
+
+.lc-input::placeholder {
+    color: #9ca3af;
+}
+
+.lc-input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.lc-input:disabled {
+    opacity: 0.6;
+    background: #f3f4f6;
+}
+
+/* ─────────────────────────────────────────
+   상담 기록 카드 (우측 하단 · 제품화 포인트)
+   ───────────────────────────────────────── */
+.lc-record {
+    margin-top: 14px;
+    padding: 16px 18px;
+    background: #ffffff;
+    border-radius: 18px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+}
+
+.lc-record-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.lc-record-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.lc-record-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+}
+
+.lc-record-sub {
+    margin: 4px 0 10px;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* 그리드 레이아웃 (위쪽 줄 2컬럼 + 아래 메모 1컬럼) */
+.lc-record-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+    gap: 10px 12px;
+    margin-bottom: 10px;
+}
+
+.lc-record-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lc-record-col-full {
+    grid-column: 1 / -1;
+}
+
+/* 폼 요소들 */
+.lc-record-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.lc-record-select,
+.lc-record-input,
+.lc-record-textarea {
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    padding: 7px 9px;
+    font-size: 13px;
+    font-family: inherit;
+    box-sizing: border-box;
+    background: #f9fafb;
+    color: #111827;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.lc-record-select:focus,
+.lc-record-input:focus,
+.lc-record-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.lc-record-textarea {
+    resize: vertical;
+    min-height: 140px;
+    /* ✅ 상담 기록 영역 기본 높이 확보 */
+    max-height: 260px;
+}
+
+/* 하단 버튼 + 상태 영역 */
+.lc-record-footer {
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+
+.lc-record-left {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.lc-record-status {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* ─────────────────────────────────────────
+   스크롤바 커스터마이징 (옵션)
+   ───────────────────────────────────────── */
+.lc-session-list::-webkit-scrollbar,
+.lc-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.lc-session-list::-webkit-scrollbar-thumb,
+.lc-messages::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 999px;
+}
+
+.lc-session-list::-webkit-scrollbar-track,
+.lc-messages::-webkit-scrollbar-track {
+    background: transparent;
+}

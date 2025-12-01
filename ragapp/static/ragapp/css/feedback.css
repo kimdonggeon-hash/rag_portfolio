@@ -1,0 +1,306 @@
+/* =========================================================
+   RAG Console — Web / RAG 답변 피드백 전용 스타일
+   File: ragapp/static/ragapp/css/feedback.css
+   ---------------------------------------------------------
+   - JS에서 만들어주는 HTML 구조에 맞춰서만 스타일 적용
+   - 버튼/칩/코멘트 박스는 여기에서만 관리
+   ========================================================= */
+
+/* 기본 셸: 답변 박스 바로 아래에 붙는 섹션 */
+.fb-shell {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+/* 웹 / RAG 구분용 점 색상만 다르게 */
+.fb-shell .fb-card {
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    box-shadow:
+        0 10px 22px rgba(15, 23, 42, 0.16),
+        0 4px 10px rgba(15, 23, 42, 0.14);
+    padding: 10px 12px 12px;
+}
+
+/* 다크 모드 카드 톤 */
+html[data-theme="dark"] .fb-shell .fb-card {
+    background: rgba(15, 23, 42, 0.97);
+    border-color: rgba(55, 65, 81, 0.95);
+    box-shadow:
+        0 14px 30px rgba(0, 0, 0, 0.7),
+        0 6px 16px rgba(0, 0, 0, 0.55);
+}
+
+/* 제목 줄 */
+.fb-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.fb-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #22c55e;
+    /* 기본: RAG용 초록색 */
+}
+
+/* 웹 피드백이면 노랑, RAG면 초록 */
+.fb-shell-web .fb-dot {
+    background: #f59e0b;
+}
+
+.fb-shell-rag .fb-dot {
+    background: #22c55e;
+}
+
+.fb-title-text {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* 보조 설명 */
+.fb-sub {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: var(--text-sub);
+}
+
+/* 👍 / 👎 버튼 줄 */
+.fb-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0 8px;
+}
+
+/* 엄지 버튼 기본 */
+.fb-thumb-btn {
+    appearance: none;
+    border: none;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    background: #4b5563;
+    color: #f9fafb;
+
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.25);
+    transition: background 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.fb-thumb-btn .emoji {
+    font-size: 14px;
+}
+
+/* 선택 시 살짝 강조 */
+.fb-thumb-btn.is-active {
+    background: #111827;
+    box-shadow:
+        0 8px 18px rgba(15, 23, 42, 0.45),
+        0 3px 8px rgba(15, 23, 42, 0.35);
+}
+
+.fb-thumb-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* ---------- "어떤 점이 아쉬웠나요?" 영역 ---------- */
+
+.fb-reason-row {
+    margin: 4px 0 6px;
+}
+
+.fb-reason-hint {
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--text-sub);
+}
+
+.fb-reason-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* 칩 버튼 */
+.fb-reason-chip {
+    appearance: none;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.9);
+    background: rgba(148, 163, 184, 0.18);
+    padding: 4px 9px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--text-main);
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.fb-reason-chip.is-active {
+    background: rgba(56, 189, 248, 0.16);
+    border-color: #38bdf8;
+    color: #0f172a;
+}
+
+/* 다크 모드 칩 톤 */
+html[data-theme="dark"] .fb-reason-chip {
+    background: rgba(31, 41, 55, 0.9);
+    border-color: rgba(75, 85, 99, 0.95);
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] .fb-reason-chip.is-active {
+    background: rgba(56, 189, 248, 0.22);
+    border-color: rgba(56, 189, 248, 0.9);
+    color: #020617;
+}
+
+/* ---------- 코멘트 입력 영역 ---------- */
+
+.fb-comment-row {
+    margin-top: 4px;
+}
+
+.fb-comment-input {
+    width: 100%;
+    min-height: 54px;
+    resize: vertical;
+
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.8);
+    background: rgba(248, 250, 252, 0.96);
+
+    font-size: 12px;
+    padding: 6px 8px;
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+
+.fb-comment-input::placeholder {
+    color: rgba(148, 163, 184, 0.9);
+}
+
+/* 다크 모드 textarea */
+html[data-theme="dark"] .fb-comment-input {
+    background: rgba(15, 23, 42, 0.96);
+    border-color: rgba(55, 65, 81, 0.95);
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] .fb-comment-input::placeholder {
+    color: rgba(148, 163, 184, 0.9);
+}
+
+/* 코멘트 하단 버튼들 */
+.fb-comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.fb-comment-skip,
+.fb-comment-send {
+    appearance: none;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.85);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    background: rgba(249, 250, 251, 0.96);
+    color: var(--text-main);
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.fb-comment-skip {
+    background: transparent;
+}
+
+.fb-comment-send {
+    background: linear-gradient(90deg, #4f46e5, #6366f1);
+    border-color: rgba(79, 70, 229, 0.95);
+    color: #f9fafb;
+}
+
+/* 다크 모드 버튼 */
+html[data-theme="dark"] .fb-comment-skip,
+html[data-theme="dark"] .fb-comment-send {
+    border-color: rgba(55, 65, 81, 0.95);
+}
+
+html[data-theme="dark"] .fb-comment-skip {
+    background: rgba(15, 23, 42, 0.96);
+    color: #e5e7eb;
+}
+
+/* ---------- 감사 문구 ---------- */
+
+.fb-thanks {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-sub);
+    display: none;
+    /* 기본은 숨김 */
+}
+
+/* =========================================================
+   동작 모드별 표시
+   ---------------------------------------------------------
+   - data-mode="collapsed" : 👍/👎만 보이는 상태
+   - data-mode="detail"    : "조금 아쉬웠어요" 이후 상세 카드
+   - data-state="sent"     : 전송 완료 → 버튼/입력 숨기고 감사 문구만
+   ========================================================= */
+
+/* 1) 기본: collapsed → 이유/코멘트 숨김 */
+.fb-shell[data-mode="collapsed"] .fb-reason-row,
+.fb-shell[data-mode="collapsed"] .fb-comment-row {
+    display: none;
+}
+
+/* 2) detail 모드일 때는 그대로 다 보이게 (CSS로 따로 지정 안 해도 됨) */
+
+/* 3) 전송 완료 후: 버튼/입력 숨기고 감사 문구만 노출 */
+.fb-shell[data-state="sent"] .fb-btn-row,
+.fb-shell[data-state="sent"] .fb-reason-row,
+.fb-shell[data-state="sent"] .fb-comment-row {
+    display: none;
+}
+
+.fb-shell[data-state="sent"] .fb-thanks {
+    display: block;
+}
+
+/* 모바일에서 줄 간격/폭 살짝 조정 */
+@media (max-width: 640px) {
+    .fb-card {
+        padding: 8px 9px 10px;
+    }
+
+    .fb-btn-row {
+        gap: 6px;
+    }
+
+    .fb-thumb-btn {
+        padding: 5px 8px;
+        font-size: 11px;
+    }
+
+    .fb-reason-chip {
+        font-size: 10px;
+        padding: 3px 7px;
+    }
+}

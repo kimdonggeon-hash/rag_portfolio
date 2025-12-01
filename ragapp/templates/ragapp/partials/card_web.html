@@ -1,0 +1,165 @@
+{# ragapp/templates/ragapp/partials/card_web.html #}
+<!-- 좌측 카드: 웹 검색 -->
+<section id="cardWeb" class="card card-main card-main--web" data-card-kind="web">
+  <div class="card-header">
+    <div class="card-title-row">
+      <div class="card-title-left">
+        <h2 class="card-title">
+          🌐 웹에서 답 찾기 &amp; 결과 저장
+          <span class="model-pill">{{ model_name_gemini|default:"gemini" }}</span>
+        </h2>
+      </div>
+
+      {# 👉 오른쪽 상단: 📘 아이콘 + "사용설명서" 버튼 #}
+      <div class="card-title-right">
+        <details class="card-help card-help--manual" aria-label="웹 검색 사용설명서">
+          <summary class="card-help-summary" style="list-style: none;">
+            <span class="help-icon" aria-hidden="true">📘</span>
+            <span class="card-help-label">사용설명서</span>
+          </summary>
+          <div class="card-help-panel">
+            <ol>
+              <li><strong>웹에서 검색하기</strong> 버튼으로 인터넷에서 답을 찾습니다.</li>
+              <li>위쪽에 요약과 참고 링크가 표시됩니다.</li>
+              <li>
+                <strong>결과 저장하기</strong> 버튼을 누르면
+                질문·요약·참고 링크가
+                아래에 표시된 <strong>벡터 DB 파일</strong>에 보관됩니다.
+              </li>
+              <li>
+                나중에는 <strong>내 RAG 검색</strong>에서 다시 질문할 때
+                이 저장된 내용까지 함께 참고해 답을 만들어 드립니다.
+              </li>
+            </ol>
+            <p class="help-note">
+              자세한 보관 방식과 개인정보 관련 안내는
+              화면 맨 아래의 <strong>개인정보처리방침</strong>을 참고해 주세요.
+            </p>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div id="web-hint" class="small-hint">
+      {{ WEB_HINT_TEXT|default:"인터넷에서 답을 찾고, 마음에 드는 결과를 아래의 ‘내 자료 검색 DB’에 저장해 둘 수 있어요." }}
+    </div>
+
+    <form method="post"
+          action="{% url 'home' %}"
+          class="form-row form-row--web"
+          onsubmit="return (window.ensureConsentGate ? window.ensureConsentGate(this) : true) && (window.beforeWebSubmit ? window.beforeWebSubmit(this) : true);"
+          data-require-consent="1"
+          autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="webActionField" value="web_search" />
+      <input type="hidden" name="keep_rag_query" value="" />
+      <textarea name="keep_rag_answer" class="hidden-textarea" style="display:none;"></textarea>
+      <input type="hidden" name="keep_rag_msg" value="" />
+
+      {# 🔹 질문 입력창 #}
+      <div class="input-wrap">
+        <input class="input-box"
+               id="query_web"
+               type="text"
+               name="query_web"
+               placeholder="{{ WEB_QUERY_PLACEHOLDER|default:'예: 커피가 잠에 미치는 영향은?' }}"
+               value="{{ web_query|default:'' }}"
+               inputmode="search"
+               autocapitalize="off"
+               spellcheck="false"
+               maxlength="2000"
+               aria-label="질문 또는 검색어"
+               aria-describedby="web-hint" />
+      </div>
+
+      <div class="opt-consent-block" role="group" aria-labelledby="opt-consent-title-web">
+        <div id="opt-consent-title-web" class="opt-consent-title">
+          {{ WEB_OPTION_TITLE|default:"선택 설정" }}
+        </div>
+
+        <label class="opt-line">
+          <input type="checkbox"
+                 name="opt_web_save_sources"
+                 value="1"
+                 {% if web_save_sources %}checked{% endif %} />
+          <span>
+            {{ WEB_OPT_SAVE_SOURCES|default:"참고 링크도 함께 저장하기 (선택)" }}
+          </span>
+        </label>
+
+        <label class="opt-line">
+          <input type="checkbox"
+                 name="opt_web_anon_metrics"
+                 value="1"
+                 {% if web_anon_metrics %}checked{% endif %} />
+          <span>
+            {{ WEB_OPT_ANON_METRICS|default:"서비스 개선을 위한 사용 통계를 익명으로 수집 허용 (선택)" }}
+          </span>
+        </label>
+      </div>
+
+      <div class="btn-row btn-row--web">
+        <button class="btn info"
+                type="submit"
+                data-action="web_search">
+          {{ WEB_BTN_SEARCH_LABEL|default:"🔍 웹에서 검색하기" }}
+        </button>
+        <button class="btn heart"
+                type="submit"
+                data-action="web_ingest">
+          {{ WEB_BTN_INGEST_LABEL|default:"💾 결과 저장하기" }}
+        </button>
+      </div>
+
+      {# 인덱싱용: 현재 답변/소스 내용을 숨겨서 폼으로 같이 전송 #}
+      <textarea name="web_answer_payload"
+                id="web_answer_payload"
+                style="display:none;">{{ web_answer|default:'' }}</textarea>
+      <textarea name="web_sources_payload"
+                id="web_sources_payload"
+                style="display:none;">{{ web_sources_json|default:"[]" }}</textarea>
+    </form>
+  </div>
+
+  <div class="card-body card-body--web">
+    <div class="msg-row">
+      {% if web_msg %}
+        <div class="msg-ok" role="status">✅ {{ web_msg }}</div>
+      {% endif %}
+      {% if web_error %}
+        <div class="msg-err" role="alert">❌ {{ web_error }}</div>
+      {% endif %}
+    </div>
+
+    <div class="answer-block" id="web-answer-block">
+      {% if web_answer %}{{ web_answer|linebreaksbr }}{% endif %}
+    </div>
+
+    {% if web_sources %}
+      <div class="sources-block" data-sanitize-links>
+        <div class="sources-title">
+          {{ WEB_SOURCES_TITLE|default:"참고로 사용된 웹 문서" }}
+        </div>
+        <ul class="sources-list">
+          {% for src in web_sources %}
+            <li>
+              {% if src.url %}
+                <a class="src-title"
+                   href="{{ src.url }}"
+                   target="_blank"
+                   rel="noopener noreferrer nofollow"
+                   referrerpolicy="strict-origin-when-cross-origin">
+                  {{ src.title|default:src.url }}
+                </a>
+              {% else %}
+                <span class="src-title">
+                  {{ src.title|default:"(제목 없음)" }}
+                </span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</section>

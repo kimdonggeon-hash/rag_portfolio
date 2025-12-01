@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>웹 기반 Q&A</title>
+<body style="font-family: system-ui, sans-serif; max-width: 760px; margin: 48px auto;">
+  <h1 style="margin-bottom:24px;">웹 기반 Q&A</h1>
+
+  <form id="f" style="display:grid; gap:14px;">
+    <label>
+      질문
+      <input name="question" id="q" size="80" placeholder="무엇이든 물어보세요" required>
+    </label>
+    <button id="go" type="submit" style="width:120px; height:36px;">질문하기</button>
+  </form>
+
+  <pre id="out" style="white-space: pre-wrap; margin-top:24px;"></pre>
+
+  <script>
+    const f = document.getElementById('f');
+    const q = document.getElementById('q');
+    const out = document.getElementById('out');
+
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = q.value.trim();
+      if (!question) return;
+      out.textContent = "질의 중...";
+      try {
+        const r = await fetch('/web-qa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })  // ← URL 없이 질문만 보냄
+        });
+        const j = await r.json();
+        out.textContent = JSON.stringify(j, null, 2);
+      } catch (err) {
+        out.textContent = String(err);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+{# ragapp/templates/ragadmin/legal_config.html #}
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#ffffff; --text:#0f172a; --dim:#6b7280; --line:#e5e7eb;
+    --accent:#38bdf8; --accent-strong:#0ea5e9; --radius:14px;
+  }
+  .wrap{max-width:960px;margin:0 auto}
+  .head h1{margin:0 0 6px;font-weight:800}
+  .head p{margin:0 0 14px;color:var(--dim)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+        box-shadow:0 8px 20px rgba(15,23,42,.06);padding:16px;margin-top:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);
+       padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:800;
+       text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+  .btn.primary{border-color:transparent;background:linear-gradient(180deg,var(--accent),var(--accent-strong));color:#fff}
+  .btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .tag{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:#f1f5f9;color:#475569;font-size:12px}
+  dl.kv{display:grid;grid-template-columns:160px 1fr;gap:10px;margin:0}
+  dl.kv dt{color:#111827;font-weight:700}
+  dl.kv dd{margin:0;color:#111827}
+  .muted{color:var(--dim)}
+  @media (max-width:720px){ dl.kv{grid-template-columns:1fr} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="head">
+    <h1>법적 설정</h1>
+    <p class="muted">필수 링크와 표시 옵션을 간단히 확인하세요. 수정은 Admin 모델에서 진행합니다.</p>
+  </div>
+
+  <!-- 빠른 작업 -->
+  <div class="card">
+    <div class="row">
+      {# 🔹 ragadmin 쪽 LegalConfig 리스트로 바로 이동 (URL 직접 지정) #}
+      <a class="btn primary" href="/ragadmin/ragapp/legalconfig/">
+        RAG Admin에서 편집
+      </a>
+
+      <a class="btn" href="{% url 'ragadmin:guide' %}">가이드</a>
+      {% if AUTO_INGEST_AFTER_GEMINI is not None %}
+        <span class="tag">AUTO_INGEST {{ AUTO_INGEST_AFTER_GEMINI|yesno:"ON,OFF" }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 현재 설정 -->
+  <div class="card">
+    <dl class="kv">
+      <dt>서비스명</dt>
+      <dd>
+        {% if legal_config and legal_config.service_name %}
+          {{ legal_config.service_name }}
+        {% else %}<span class="muted">(미설정)</span>{% endif %}
+      </dd>
+
+      <dt>운영자명</dt>
+      <dd>
+        {% if legal_config and legal_config.operator_name %}
+          {{ legal_config.operator_name }}
+        {% else %}<span class="muted">(미설정)</span>{% endif %}
+      </dd>
+
+      <dt>연락 이메일</dt>
+      <dd>
+        {% if legal_config and legal_config.contact_email %}
+          {{ legal_config.contact_email }}
+        {% else %}<span class="muted">(미설정)</span>{% endif %}
+      </dd>
+
+      <dt>개인정보처리방침</dt>
+      <dd>
+        {% if legal_config and legal_config.privacy_url %}
+          <a href="{{ legal_config.privacy_url }}" target="_blank">{{ legal_config.privacy_url }}</a>
+        {% else %}<span class="muted">(미설정)</span>{% endif %}
+      </dd>
+
+      <dt>이용약관</dt>
+      <dd>
+        {% if legal_config and legal_config.tos_url %}
+          <a href="{{ legal_config.tos_url }}" target="_blank">{{ legal_config.tos_url }}</a>
+        {% else %}<span class="muted">(미설정)</span>{% endif %}
+      </dd>
+
+      <dt>국외이전 고지</dt>
+      <dd>
+        {% if legal_config and legal_config.overseas_transfer_url %}
+          <a href="{{ legal_config.overseas_transfer_url }}" target="_blank">{{ legal_config.overseas_transfer_url }}</a>
+        {% else %}<span class="muted">(미설정)</span>{% endif %}
+      </dd>
+
+      <dt>초기 동의 게이트</dt>
+      <dd>
+        {% if legal_config and legal_config.enable_consent_gate %}
+          사용
+        {% else %}<span class="muted">미사용</span>{% endif %}
+      </dd>
+
+      <dt>푸터 링크 표시</dt>
+      <dd>
+        {% if legal_config and legal_config.show_footer_links %}
+          표시
+        {% else %}<span class="muted">숨김</span>{% endif %}
+      </dd>
+
+      <dt>메모</dt>
+      <dd>
+        {% if legal_config and legal_config.memo %}
+          {{ legal_config.memo }}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+
+  <!-- 간단 프리뷰 -->
+  <div class="card">
+    <dl class="kv">
+      <dt>푸터 링크</dt>
+      <dd>
+        {% if legal_config and legal_config.privacy_url %}
+          <a href="{{ legal_config.privacy_url }}" target="_blank">개인정보처리방침</a>
+        {% else %}<span class="muted">개인정보처리방침(미설정)</span>{% endif %}
+        &nbsp;·&nbsp;
+        {% if legal_config and legal_config.tos_url %}
+          <a href="{{ legal_config.tos_url }}" target="_blank">이용약관</a>
+        {% else %}<span class="muted">이용약관(미설정)</span>{% endif %}
+        {% if legal_config and legal_config.overseas_transfer_url %}
+          &nbsp;·&nbsp;<a href="{{ legal_config.overseas_transfer_url }}" target="_blank">국외이전 고지</a>
+        {% endif %}
+      </dd>
+
+      <dt>동의 게이트</dt>
+      <dd>
+        {% if legal_config and legal_config.enable_consent_gate %}
+          <span class="tag">표시됨</span>
+        {% else %}
+          <span class="muted">표시 안 함</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+</div>
+{% endblock %}

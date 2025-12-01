@@ -1,0 +1,93 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>실시간 상담 | {{ SERVICE_NAME|default:"김동건의 포트폴리오" }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+  <link rel="stylesheet" href="{% static 'ragapp/css/livechat_client.css' %}?v=20251201-light1" />
+</head>
+<body>
+  <div class="lc-wrap">
+    <main class="lc-card" aria-label="실시간 상담">
+
+      <!-- 헤더 -->
+      <header class="lc-header">
+        <div class="lc-header-left">
+          <div class="lc-avatar"></div>
+          <div class="lc-title-block">
+            <div class="lc-title">
+              실시간 상담
+              <span class="lc-badge">베타</span>
+            </div>
+            <div class="lc-sub">
+              상담사가 접속하면 이 창에서 바로 대화할 수 있어요.
+            </div>
+          </div>
+        </div>
+        <div class="lc-header-right">
+          <span class="lc-status-dot lc-status-wait"></span>
+          <span class="lc-status-text">상담 채널 연결 대기 중</span>
+        </div>
+      </header>
+
+      <!-- ✅ 메시지 영역 (고정 높이 카드 안에서만 스크롤) -->
+      <section id="lc-messages"
+               class="lc-messages"
+               aria-live="polite"
+               aria-label="상담 메시지 영역">
+
+        <!-- ✅ 기본 안내 문구: 상담사 연결 전 항상 보이게 -->
+        <div class="lc-msg lc-msg-system">
+          <p>상담사 연결을 요청하셨습니다. 잠시만 기달려 주시길 바랍니다.</p>
+          <p>상담중 새로고침 누를시 초기 화면으로 돌아갈 수 있습니다. 다만 상담은 개속 유지 됩니다.</p>
+        </div>
+
+      </section>
+
+      <!-- 입력 줄 -->
+      <form class="lc-input-row" onsubmit="return false;">
+        <label class="sr-only" for="lc-input">상담사에게 보낼 내용</label>
+        <textarea id="lc-input"
+                  class="lc-input"
+                  rows="1"
+                  placeholder="상담사에게 보낼 내용을 적어 주세요. (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
+
+        <button type="button"
+                id="lc-sendBtn"
+                class="lc-send-btn">
+          전송
+        </button>
+        <button type="button"
+                id="lc-endBtn"
+                class="lc-end-btn">
+          종료
+        </button>
+      </form>
+
+      <!-- 푸터 -->
+      <footer class="lc-footer">
+        <div class="lc-footer-left">
+          ※ 상담 내용은 포트폴리오용 데모를 위한 테스트 용도로 저장·분석될 수 있습니다.
+        </div>
+        <div class="lc-footer-right">
+          <a href="/" class="lc-home-link">홈으로 돌아가기</a>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- JS 설정 + 클라이언트 스크립트 -->
+  <script>
+    window.__LIVECHAT_CONFIG__ = {
+      roomToken: "{{ room_token|default:room }}",
+      room: "{{ room_token|default:room }}",
+      sessionId: {{ session_id|default:"null" }},
+      apiEnd: "{{ LIVECHAT_END_URL|default:'/api/livechat/end/' }}"
+    };
+  </script>
+  <script src="{% static 'ragapp/javascript/livechat_client.js' %}" defer></script>
+</body>
+</html>

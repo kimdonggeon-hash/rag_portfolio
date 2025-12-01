@@ -1,0 +1,19 @@
+{# ragapp/templates/ragapp/partials/news_header.html #}
+<!-- 헤더 -->
+  <header class="page-header">
+    <div class="title-block">
+      <h1 class="page-title">
+        {{ SERVICE_NAME_SHORT|default:SERVICE_NAME|default:"통합 검색 콘솔" }}
+        <span class="badge">{{ SERVICE_BADGE_LABEL|default:"베타" }}</span>
+      </h1>
+      <div class="subline">
+        {{ SERVICE_SUBTITLE|default:"상단: 🌐 웹 검색 & 인덱싱 / 하단: 📚 내 RAG 검색 (+시드/초기화)" }}
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <button type="button" id="qaragLaunchBtn" class="qa-launch-btn">
+        <span class="qa-launch-icon">💬</span><span>QARAG</span>
+      </button>
+    </nav>
+  </header>

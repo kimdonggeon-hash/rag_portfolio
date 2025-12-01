@@ -1,0 +1,36 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{% block title %}RAG 도구 모음{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'ragapp/css/feature.css' %}?v={{ STATIC_VERSION }}" />
+<link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+</head>
+<body>
+<header class="fx-header">
+  <div class="fx-wrap fx-row fx-center">
+    <a class="fx-brand" href="/">김동건의 포토폴리오</a>
+    <nav class="fx-nav" aria-label="기능 선택">
+      <!-- 이미지 관련 -->
+      <a href="{% url 'media_index' %}">이미지 올려두기</a>
+      <a href="{% url 'media_search' %}">이미지에서 찾아보기</a>
+      <!-- 표(테이블) 관련 -->
+      <a href="{% url 'table_index' %}">표 파일 저장하기</a>
+      <a href="{% url 'table_search' %}">표에서 검색하기</a>
+    </nav>
+  </div>
+</header>
+
+<main class="fx-wrap">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="fx-footer">
+  <div class="fx-wrap">
+    <div class="muted">© {{ now|default:"" }} RAG · 실험용 검색 도구</div>
+  </div>
+</footer>
+</body>
+</html>

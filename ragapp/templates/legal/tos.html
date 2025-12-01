@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>이용약관</title>
+  <style>
+    body{
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+      margin:0;
+      background:#f6f8fc;
+      color:#0f172a;
+    }
+
+    .wrap{
+      max-width:840px;
+      margin:32px auto;
+      padding:0 16px;
+    }
+
+    .card{
+      background:#ffffff;
+      border:1px solid rgba(15,23,42,.12);
+      border-radius:12px;
+      box-shadow:0 12px 24px rgba(15,23,42,.08);
+      padding:20px 22px;
+    }
+
+    h1{
+      font-size:20px;
+      margin:0 0 8px 0;
+      color:#0b1220;
+    }
+
+    h2{
+      font-size:16px;
+      margin:18px 0 8px;
+      color:#1d4ed8;
+    }
+
+    p,li{
+      font-size:14px;
+      line-height:1.6;
+      color:#0f172a;
+    }
+
+    a{
+      color:#1d4ed8;
+      text-decoration:underline;
+      text-underline-offset:2px;
+    }
+
+    a:hover{
+      color:#1e40af;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>이용약관 <small style="font-size:12px;color:#9ca3af">({{ version }}, 시행 {{ effective_date }})</small></h1>
+
+    <h2>1. 서비스 성격</h2>
+    <p>정보 제공용 실험 서비스로, 정확성·적시성을 보장하지 않습니다.</p>
+
+    <h2>2. 금지행위</h2>
+    <ul>
+      <li>원문 무단복제·재배포, 자동수집 남용, 법령·권리침해 행위 금지</li>
+    </ul>
+
+    <h2>3. 저작권</h2>
+    <p>뉴스 등 제3자 콘텐츠의 권리는 각 권리자에게 귀속됩니다.</p>
+
+    <h2>4. 면책</h2>
+    <p>서비스·콘텐츠 이용으로 발생한 손해에 대해 당사는 법이 허용하는 범위 내에서 책임을 지지 않습니다.</p>
+
+    <h2>5. 분쟁</h2>
+    <p>대한민국 법을 따르며, 관할은 서울중앙지방법원으로 합니다.</p>
+
+    <p style="color:#9ca3af;font-size:12px;margin-top:16px">문서 생성 시각: {{ now }}</p>
+  </div>
+</div>
+</body>
+</html>

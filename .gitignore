@@ -1,0 +1,67 @@
+# Python/Django
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+env/
+venv/
+db.sqlite3
+
+# Django 정적/미디어
+media/
+uploads/
+staticfiles/
+
+# 로그
+*.log
+*.log.*
+logs/
+consent_logs/
+feedback_logs/
+
+# 테스트/툴 캐시
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Env/Creds
+.env
+.env.*
+.envrc
+*.key
+*.pem
+*service-account*.json
+google-credentials*.json
+vertex-*.json
+keys/
+keys/*.json
+
+# RAG / Vector DB (Chroma/SQLite/duckdb/parquet)
+chroma_db*/
+chroma*/
+*duckdb*/
+*.duckdb
+*.parquet
+*.sqlite
+*.sqlite3
+vector_store*/
+embeddings*/
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.python-version
+
+# Front/빌드 산출물 (쓰고 있다면)
+node_modules/
+dist/
+build/
+*.map
+portfolio/Lib/
+portfolio/
+.history/

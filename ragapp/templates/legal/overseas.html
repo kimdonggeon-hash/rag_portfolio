@@ -1,0 +1,90 @@
+<!-- ragapp/templates/legal/overseas.html -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>개인정보의 국외 이전</title>
+  <style>
+    :root{
+      --bg:#f7f8fb; --card:#fff; --text:#0f172a; --dim:#64748b; --line:#e5e7eb; --radius:16px;
+      --accent:#38bdf8; --accent-strong:#0ea5e9;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);
+      font-family:ui-sans-serif,system-ui,Segoe UI,Malgun Gothic,Apple SD Gothic Neo,Apple Color Emoji}
+    .wrap{max-width:920px;margin:48px auto;padding:0 20px}
+    .doc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      box-shadow:0 10px 28px rgba(15,23,42,.06);padding:24px}
+    h1{margin:0 0 8px;font-size:28px;font-weight:800;letter-spacing:.2px}
+    .desc{margin:0 0 18px;color:var(--dim)}
+    h2{margin:22px 0 10px;font-size:18px}
+    h3{margin:16px 0 8px;font-size:16px}
+    p{margin:8px 0}
+    ul{margin:6px 0 12px 18px}
+    li{margin:4px 0}
+    .note{background:#f8fafc;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;color:#0f172a}
+    .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#e0f2fe;color:#075985;font-weight:700;font-size:12px;border:1px solid #bae6fd}
+    .footer{margin-top:16px;color:var(--dim);font-size:12px}
+    a{color:var(--accent-strong);text-decoration:none;border-bottom:1px dashed rgba(14,165,233,.4)}
+    a:hover{border-bottom-color:transparent}
+    @media print{
+      body{background:#fff}
+      .doc{box-shadow:none;border:none;padding:0}
+      a{color:#0369a1;border-bottom:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="doc">
+      <h1>개인정보의 국외 이전</h1>
+      <p class="desc">본 서비스는 외부 AI/클라우드 인프라를 활용할 수 있으며, 그 과정에서 개인정보가 국외로 이전될 수 있습니다.</p>
+
+      <div class="note">
+        <b>요약</b> · 모델 추론/임베딩 처리 목적의 <span class="pill">네트워크 전송</span>이 발생할 수 있으며,
+        전송 구간에는 <span class="pill">TLS 암호화</span>가 적용됩니다. 최소한의 항목만 전송합니다.
+      </div>
+
+      <h2>1. 이전받는 자(수탁자)</h2>
+      <ul>
+        <li>회사명: <b>[예: Google Cloud / OpenAI / 기타]</b></li>
+        <li>국가: <b>[예: 미국 등]</b></li>
+        <li>연락처/정책: <b>[예: 고객지원 링크]</b></li>
+      </ul>
+
+      <h2>2. 이전 일시 및 방법</h2>
+      <ul>
+        <li>사용자가 기능을 이용하는 시점에 API 호출 등 네트워크를 통해 전송</li>
+        <li>전송 시 TLS 등 전송 구간 암호화 적용</li>
+      </ul>
+
+      <h2>3. 이전 항목</h2>
+      <ul>
+        <li>(필수) 질의문·요약문 등 기능 수행에 필요한 입력 데이터</li>
+        <li>(선택) 익명화된 사용 통계(활성화한 경우에 한함)</li>
+      </ul>
+
+      <h2>4. 이용 목적 및 보유 기간</h2>
+      <ul>
+        <li>이용 목적: 모델 추론/임베딩 처리, 품질 및 안정성 제공</li>
+        <li>보유 기간: 수탁자 약관/정책 또는 관련 법령이 정한 기간(가능한 최소화)</li>
+      </ul>
+
+      <h2>5. 보호 조치</h2>
+      <ul>
+        <li>계약/약관 기반의 비밀유지·보안 의무</li>
+        <li>접근 통제, 암호화 등 보호 조치 적용</li>
+        <li>최소 수집·최소 보유 원칙 준수</li>
+      </ul>
+
+      <h2>6. 동의 거부권 및 영향</h2>
+      <p>국외 이전에 대한 동의를 거부할 권리가 있으나, 이 경우 일부 기능 이용이 제한될 수 있습니다.</p>
+
+      <div class="footer">
+        시행일: <time datetime="[2025-11-10]">[2025-11-10]</time>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

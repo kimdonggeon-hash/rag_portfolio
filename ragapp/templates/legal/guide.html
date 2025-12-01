@@ -1,0 +1,68 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>이용 가이드</title>
+<link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+<style>
+  :root{
+    --bg:#0b1220;--card:#0f172a;--text:#e5e7eb;--dim:#9ca3af;
+    --border:rgba(148,163,184,.22);--a:#6366f1;--b:#4f46e5;--radius:14px
+  }
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,Segoe UI,Apple SD Gothic Neo,Malgun Gothic,Apple Color Emoji,Noto Color Emoji}
+  .wrap{max-width:960px;margin:40px auto;padding:0 20px}
+  .card{background:linear-gradient(180deg,#0f172a,#0d1528 60%);border:1px solid #1f2937;border-radius:var(--radius);
+        box-shadow:0 12px 32px rgba(0,0,0,.35)}
+  .head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border)}
+  .title{font-size:20px;font-weight:800}
+  .actions{display:flex;gap:8px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#0b1220;color:#e5e7eb;
+       height:36px;padding:0 12px;border-radius:10px;font-weight:700;text-decoration:none}
+  .btn.accent{border-color:transparent;background:linear-gradient(90deg,var(--a),var(--b));color:#fff;
+              box-shadow:0 10px 24px rgba(79,70,229,.35)}
+  .body{padding:18px 18px 24px;line-height:1.7}
+  .hint{color:var(--dim);font-size:13px;margin-top:6px}
+  .link{color:#93c5fd;text-decoration:none;font-weight:600}
+  .link:hover{text-decoration:underline}
+  .preline{white-space:pre-line}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="head">
+      <div class="title">이용 가이드</div>
+      <div class="actions">
+        <a class="btn" href="/ragadmin/" rel="noopener">Admin</a>
+        <a class="btn accent" href="/" rel="noopener">콘솔로 돌아가기</a>
+      </div>
+    </div>
+    <div class="body">
+      {# 컨텍스트에 실제로 존재하는 키만 사용: guide_html → LEGAL_GUIDE_HTML 순서 #}
+      {% with v=guide_html|default:LEGAL_GUIDE_HTML %}
+        {% if v %}
+          {% if "<" in v and ">" in v %}
+            {{ v|safe }}
+          {% elif v|slice:":8" == "https://" or v|slice:":7" == "http://" or v|slice:":1" == "/" %}
+            <p><a class="link" href="{{ v }}" target="_blank" rel="noopener">{{ v }}</a></p>
+          {% else %}
+            <div class="preline">{{ v }}</div>
+          {% endif %}
+        {% else %}
+          <h3>무엇을 할 수 있나요?</h3>
+          <ol>
+            <li><b>웹 검색 & 인덱싱</b> — 검색 후 ❤️ 를 눌러 현재 벡터 DB에 업서트</li>
+            <li><b>내 RAG 검색</b> — 저장된 벡터를 근거로 답변</li>
+            <li><b>관리자</b> — 크롤링/업로드/FAQ/법적설정 관리</li>
+          </ol>
+          <p class="hint">관리자 &gt; 법적설정에서 <b>이용 가이드(HTML)</b>를 채우면 이 자리의 기본 문구 대신 표시됩니다.</p>
+        {% endif %}
+      {% endwith %}
+    </div>
+  </div>
+</div>
+</body>
+</html>

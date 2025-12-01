@@ -1,0 +1,313 @@
+{% extends "ragapp/_base_feature.html" %}
+{% load static %}
+{% block title %}글로 이미지 찾기{% endblock %}
+{% block content %}
+
+<style>
+  /* ====== minimal, pretty, accessible ====== */
+  .ms-wrap{max-width:1100px;margin:0 auto;display:grid;gap:16px}
+  .ms-card{background:var(--card-bg, #0f172a);border:1px solid var(--line, rgba(148,163,184,.18));
+           border-radius:16px;padding:18px}
+  .ms-title{font-size:20px;margin:0 0 12px}
+  .ms-muted{color:#94a3b8}
+  .ms-err{padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.08);
+          border:1px solid rgba(239,68,68,.35);color:#fecaca}
+
+  .ms-form{display:grid;gap:12px}
+  .ms-row{display:grid;gap:10px;grid-template-columns:1fr;align-items:end}
+  .ms-input,.ms-num{
+    width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line, rgba(148,163,184,.18));
+    background:var(--card-sub,#0b1326);color:var(--ink,#e5e7eb);outline:none
+  }
+  .ms-input:focus,.ms-num:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+
+  .ms-btnbar{display:flex;gap:8px;flex-wrap:wrap}
+  .ms-btn{
+    padding:10px 14px;border-radius:10px;border:1px solid var(--line, rgba(148,163,184,.18));
+    background:#111b34;color:#e5e7eb;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer
+  }
+  .ms-btn.primary{background:linear-gradient(90deg,#6366f1,#4f46e5);border-color:transparent}
+  .ms-btn.ghost{background:#0b1326}
+
+  .ms-topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+  .ms-chip{font-size:12px;color:#94a3b8;border:1px solid var(--line, rgba(148,163,184,.18));
+           padding:4px 8px;border-radius:999px}
+
+  .ms-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill, minmax(180px,1fr))}
+  .ms-item{border:1px solid var(--line, rgba(148,163,184,.18));border-radius:14px;overflow:hidden;background:#0b1326}
+  .ms-thumb{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#0b152a}
+  .ms-meta{padding:10px}
+  .ms-cap{font-size:14px;line-height:1.4}
+  .ms-dim{font-size:12px;color:#94a3b8;margin-top:4px;word-break:break-all}
+
+  .ms-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px}
+  .ms-pill{padding:6px 10px;border-radius:999px;border:1px solid var(--line, rgba(148,163,184,.18))}
+  .ms-pill.disabled{opacity:.5;pointer-events:none}
+
+  @media (min-width:720px){
+    .ms-row{grid-template-columns:1fr 120px 120px 140px}
+  }
+
+  /* ====== 사용 설명서 카드 ====== */
+  .ms-help-card{
+    background:
+      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 55%),
+      radial-gradient(circle at bottom right, rgba(129,140,248,.18), transparent 55%),
+      #020617;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,.45);
+    padding:18px 20px;
+    box-shadow:0 18px 45px rgba(15,23,42,.75);
+    color:#e5e7eb;
+  }
+  .ms-help-header{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .ms-help-title{display:flex;align-items:center;gap:8px}
+  .ms-help-title h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;color:#f9fafb}
+  .ms-help-pill{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:2px 8px;border-radius:999px;
+    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
+    background:linear-gradient(90deg,#38bdf8,#6366f1);
+    color:#020617;
+  }
+  .ms-help-sub{margin:0;font-size:12px;color:#9ca3af}
+
+  .ms-help-body{
+    display:grid;
+    grid-template-columns:minmax(0,2.1fr) minmax(0,1.3fr);
+    gap:18px;
+    margin-top:6px;
+  }
+  @media (max-width:900px){
+    .ms-help-body{grid-template-columns:minmax(0,1fr)}
+  }
+
+  .ms-help-steps{
+    margin:0;
+    padding-left:18px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    font-size:13px;
+    color:#d1d5db;
+  }
+  .ms-help-steps li strong{color:#e5e7eb}
+  .ms-help-steps li em{font-style:normal;color:#a5b4fc}
+
+  .ms-help-notes{
+    padding:12px 13px 10px;
+    border-radius:14px;
+    background:rgba(15,23,42,.96);
+    border:1px dashed rgba(148,163,184,.7);
+  }
+  .ms-help-notes h3{
+    margin:0 0 6px;
+    font-size:13px;font-weight:600;color:#e5e7eb;
+  }
+  .ms-help-notes ul{
+    margin:0;
+    padding-left:16px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:12px;
+    color:#9ca3af;
+  }
+</style>
+
+<div class="ms-wrap">
+  <!-- 검색 패널 -->
+  <section class="ms-card" aria-labelledby="search-title">
+    <h1 id="search-title" class="ms-title">글로 이미지 찾기</h1>
+    {% if error %}<div class="ms-err" role="alert">❌ {{ error }}</div>{% endif %}
+
+    <form class="ms-form" method="get" action="{% url 'media_search' %}">
+      <div class="ms-row">
+        <div>
+          <label class="ms-muted" for="q">찾고 싶은 내용</label>
+          <input id="q" class="ms-input" type="text" name="q"
+                 value="{{ q|default:'' }}" placeholder="예: 노을 진 바다 풍경, 카페에서 공부하는 사람" required />
+        </div>
+        <div>
+          <label class="ms-muted" for="size">한 번에 볼 개수</label>
+          <input id="size" class="ms-num" type="number" name="size" min="1" max="48" value="{{ size|default:12 }}"/>
+        </div>
+        <div>
+          <label class="ms-muted" for="page">페이지 번호</label>
+          <input id="page" class="ms-num" type="number" name="page" min="1" value="{{ page|default:1 }}"/>
+        </div>
+        <div>
+          <label class="ms-muted" for="k">검색 범위(고급 설정)</label>
+          <input id="k" class="ms-num" type="number" name="k" min="1" max="600" value="{{ k|default:120 }}"/>
+        </div>
+      </div>
+      <div class="ms-btnbar">
+        <button class="ms-btn primary" type="submit" aria-label="검색 실행">🔎 검색하기</button>
+        <a class="ms-btn ghost" href="{% url 'media_index' %}">← 이미지 모아두기</a>
+        {% if q %}
+          <a class="ms-btn" href="{% url 'media_search' %}">입력 지우고 새로 검색</a>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+
+  <!-- ✅ 사용 설명서 카드 (일반인용 설명) -->
+  <section class="ms-help-card" aria-label="글로 이미지 찾기 사용 안내">
+    <div class="ms-help-header">
+      <div class="ms-help-title">
+        <span class="ms-help-pill">Guide</span>
+        <h2>찾고 싶은 그림을 글로 말해 주세요</h2>
+      </div>
+      <p class="ms-help-sub">
+        이 화면은 <b>문장이나 키워드로 사진을 찾는 검색창</b>이에요.  
+        “어떤 장면인지”를 글로 적으면, 그와 비슷한 느낌의 사진들을 보여줍니다.
+      </p>
+    </div>
+
+    <div class="ms-help-body">
+      <ol class="ms-help-steps">
+        <li>
+          <strong>보고 싶은 장면을 문장으로 쓰기</strong><br />
+          예를 들어 <em>“노을 진 바다를 멀리서 바라본 사진”</em>,  
+          <em>“카페에서 노트북으로 일을 하는 사람”</em>처럼  
+          머릿속에 떠오르는 장면을 자연스럽게 글로 적어 주세요.
+        </li>
+        <li>
+          <strong>한 번에 볼 개수 · 페이지 번호</strong><br />
+          한 화면에서 보고 싶은 사진 개수는 <em>“한 번에 볼 개수”</em>에서 정할 수 있어요.  
+          더 많은 결과를 보고 싶으면 <em>“페이지 번호”</em>를 2, 3처럼 바꿔가며 넘겨보면 됩니다.
+        </li>
+        <li>
+          <strong>검색 범위(고급 설정) 이해하기</strong><br />
+          아래 <em>“검색 범위(고급 설정)”</em> 숫자는  
+          안에서 미리 살펴보는 사진 개수를 정하는 옵션이에요.  
+          숫자가 클수록 더 많은 후보를 확인하지만, 결과가 나오는 속도가 조금 느려질 수 있습니다.  
+          잘 모르시겠다면 <b>그대로 두셔도 충분해요.</b>
+        </li>
+        <li>
+          <strong>검색 실행 & 사진 더 올리기</strong><br />
+          <em>“검색하기”</em> 버튼을 눌러 결과를 확인해 보세요.  
+          원하는 사진이 보이지 않으면 <em>“이미지 모아두기”</em> 화면으로 돌아가  
+          새 사진을 올린 뒤, 다시 검색해 볼 수 있습니다.
+        </li>
+      </ol>
+
+      <div class="ms-help-notes">
+        <h3>주의 & 작은 팁</h3>
+        <ul>
+          <li>검색이 잘 안 될 때는 문장을 조금 더 길게 쓰거나, 핵심 단어만 남기고 다시 검색해 보세요.</li>
+          <li>방금 올린 사진은 사진 저장 작업이 끝난 뒤에야 검색 결과에 나타납니다.</li>
+          <li>결과 카드에 보이는 <b>“저장 위치”</b>와 <b>“사진 번호”</b>는  
+              문제가 생겼을 때 운영자나 개발자에게 알려줄 수 있는 참고 정보예요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  {% if page_obj or hits %}
+  <!-- 결과 패널 -->
+  <section class="ms-card" aria-labelledby="result-title">
+    <div class="ms-topline">
+      <h2 id="result-title" class="ms-title" style="margin:0">검색 결과</h2>
+      {% if page_obj %}
+        <div class="ms-muted">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 페이지</div>
+      {% endif %}
+    </div>
+
+    {% if page_obj %}
+      <div style="margin-bottom:8px">
+        <span class="ms-chip">총 {{ page_obj.paginator.count }}개</span>
+        {% if q %}<span class="ms-chip">“{{ q }}”</span>{% endif %}
+      </div>
+
+      <div class="ms-grid">
+        {% for h in page_obj.object_list %}
+          <div class="ms-item">
+            {% if h.thumbnail or h.url %}
+              <img class="ms-thumb"
+                   src="{{ h.thumbnail|default:h.url }}"
+                   alt="{{ h.caption|default:'사진' }}"
+                   loading="lazy"
+                   onerror="this.onerror=null; this.src='{% static 'ragapp/img/placeholder.png' %}'">
+            {% else %}
+              <img class="ms-thumb" src="{% static 'ragapp/img/placeholder.png' %}" alt="사진 없음" loading="lazy">
+            {% endif %}
+            <div class="ms-meta">
+              <div class="ms-cap">{{ h.caption|default:"(설명 없음)" }}</div>
+              <div class="ms-dim">저장 위치: {{ h.path }}</div>
+              <div class="ms-dim">사진 번호: {{ h.pid }}</div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="ms-muted">조건에 맞는 사진이 없습니다.</div>
+        {% endfor %}
+      </div>
+
+      <nav class="ms-pager" aria-label="페이지 이동">
+        {% if page_obj.has_previous %}
+          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page_obj.previous_page_number }}">← 앞 페이지</a>
+        {% else %}
+          <span class="ms-pill disabled">← 앞 페이지</span>
+        {% endif %}
+        <span class="ms-muted">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page_obj.next_page_number }}">다음 페이지 →</a>
+        {% else %}
+          <span class="ms-pill disabled">다음 페이지 →</span>
+        {% endif %}
+      </nav>
+
+    {% else %}
+      <div style="margin-bottom:8px">
+        {% if q %}<span class="ms-chip">“{{ q }}”</span>{% endif %}
+        <span class="ms-chip">총 {{ hits|length }}개</span>
+      </div>
+
+      <div class="ms-grid">
+        {% for h in hits %}
+          <div class="ms-item">
+            {% if h.thumbnail or h.url %}
+              <img class="ms-thumb"
+                   src="{{ h.thumbnail|default:h.url }}"
+                   alt="{{ h.caption|default:'사진' }}"
+                   loading="lazy"
+                   onerror="this.onerror=null; this.src='{% static 'ragapp/img/placeholder.png' %}'">
+            {% else %}
+              <img class="ms-thumb" src="{% static 'ragapp/img/placeholder.png' %}" alt="사진 없음" loading="lazy">
+            {% endif %}
+            <div class="ms-meta">
+              <div class="ms-cap">{{ h.caption|default:"(설명 없음)" }}</div>
+              <div class="ms-dim">저장 위치: {{ h.path }}</div>
+              <div class="ms-dim">사진 번호: {{ h.pid }}</div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="ms-muted">조건에 맞는 사진이 없습니다.</div>
+        {% endfor %}
+      </div>
+
+      <nav class="ms-pager" aria-label="페이지 이동">
+        {% if has_prev %}
+          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page|add:-1 }}">← 앞 페이지</a>
+        {% else %}
+          <span class="ms-pill disabled">← 앞 페이지</span>
+        {% endif %}
+        <span class="ms-muted">page {{ page }}</span>
+        {% if has_next %}
+          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page|add:1 }}">다음 페이지 →</a>
+        {% else %}
+          <span class="ms-pill disabled">다음 페이지 →</span>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </section>
+
+  {% elif q and not error %}
+  <section class="ms-card">
+    <div class="ms-muted">
+      검색 결과가 없습니다. 글을 조금 바꾸거나, 숫자 설정을 줄여서 다시 검색해 보세요.
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,300 @@
+/* ragapp/static/ragapp/css/admin-dashboard.css */
+
+:root {
+    --bg: #050816;
+    --bg2: #020617;
+    --card: #0b1120;
+    --card-soft: #020617;
+    --border: rgba(148, 163, 184, .28);
+    --text: #e5e7eb;
+    --dim: #9ca3af;
+    --accent: #60a5fa;
+    --accent2: #a855f7;
+    --radius: 18px;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background: radial-gradient(circle at top, #1d2648 0, #020617 55%, #000 100%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: inherit;
+}
+
+.wrap {
+    max-width: 1120px;
+    margin: 32px auto 40px;
+    padding: 0 20px;
+}
+
+/* ── HERO 영역 ─────────────────────────────────── */
+
+.hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 24px;
+}
+
+.hero-main {
+    position: relative;
+    padding: 18px 20px 20px;
+    border-radius: 24px;
+    border: 1px solid rgba(148, 163, 184, .35);
+    background:
+        radial-gradient(circle at 0 0, rgba(96, 165, 250, .22), transparent 55%),
+        radial-gradient(circle at 100% 0, rgba(168, 85, 247, .22), transparent 60%),
+        linear-gradient(135deg, #020617, #020617);
+    box-shadow: 0 24px 80px rgba(15, 23, 42, .9);
+    overflow: hidden;
+}
+
+/* HERO 안 첫 줄: 왼쪽 칩들 + 오른쪽 상태 배지 */
+.hero-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+/* 기존 chip-row는 아래처럼 margin-bottom만 0으로 줄이기 */
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 0;
+    /* 🔹 기존 10px → 0 */
+    font-size: 11px;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 11px;
+}
+
+.chip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .5);
+    background: rgba(15, 23, 42, .8);
+    color: #cbd5f5;
+}
+
+.hero-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+
+.hero-sub {
+    font-size: 13px;
+    color: var(--dim);
+}
+
+.hero-badge {
+    position: static;
+    /* 🔹 absolute 제거 */
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, .9);
+    border: 1px solid rgba(148, 163, 184, .45);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #e5e7eb;
+    white-space: nowrap;
+    /* 한 줄 유지 (줄바꿈 방지) */
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: radial-gradient(circle, #22c55e 0, #22c55e 40%, transparent 60%);
+    box-shadow: 0 0 12px rgba(34, 197, 94, .7);
+}
+
+/* HERO 오른쪽 사이드 카드 */
+
+.hero-side {
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--dim);
+}
+
+.hero-side-card {
+    border-radius: 18px;
+    background: rgba(15, 23, 42, .85);
+    border: 1px solid rgba(148, 163, 184, .35);
+    padding: 10px 12px;
+}
+
+.hero-side-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text);
+}
+
+.hero-side-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.hero-side-label {
+    color: var(--dim);
+}
+
+.hero-side-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: #e5e7eb;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 160px;
+    text-align: right;
+}
+
+/* ── 메인 카드 그리드 ───────────────────────────── */
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.card {
+    background: linear-gradient(145deg, rgba(15, 23, 42, .98), rgba(15, 23, 42, .92));
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 16px 16px 14px;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, .6);
+    position: relative;
+    overflow: hidden;
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    inset: auto -40px -70px;
+    height: 120px;
+    background: radial-gradient(circle at 50% 0, rgba(96, 165, 250, .22), transparent 60%);
+    opacity: .35;
+    pointer-events: none;
+}
+
+.card h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.card p {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--dim);
+}
+
+/* 버튼들 */
+
+.btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .45);
+    background: rgba(15, 23, 42, .9);
+    color: #e5e7eb;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-accent {
+    border-color: rgba(96, 165, 250, .7);
+    background: linear-gradient(90deg, #60a5fa, #a855f7);
+    color: #0b1120;
+    box-shadow: 0 10px 30px rgba(37, 99, 235, .6);
+}
+
+.btn-ghost {
+    background: transparent;
+}
+
+/* 기타 */
+
+.pill {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .45);
+    background: rgba(15, 23, 42, .9);
+    color: #cbd5f5;
+    font-size: 11px;
+}
+
+.rows {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.foot {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--dim);
+}
+
+code {
+    background: #020617;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, .35);
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* 반응형 */
+
+@media (max-width: 900px) {
+    .hero {
+        flex-direction: column;
+    }
+
+    .hero-side-value {
+        max-width: 120px;
+    }
+}

@@ -1,0 +1,601 @@
+{% load static versioned_static %}
+{% url 'legal_privacy'  as legal_privacy_url %}
+{% url 'legal_tos'      as legal_tos_url %}
+{% url 'legal_overseas' as legal_overseas_url %}
+{% url 'legal_tester'   as legal_tester_url %}
+{% url 'livechat:livechat_status_api' as livechat_status_url %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ SERVICE_NAME|default:"RAG 통합 검색 콘솔" }}</title>
+
+  <link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="color-scheme" content="light dark" />
+
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+
+  {% if csp_nonce %}
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 img-src 'self' data: https:;
+                 font-src 'self' data:;
+                 style-src 'self';
+                 script-src 'self' 'nonce-{{ csp_nonce }}';
+                 connect-src 'self' https: ws: wss:;
+                 object-src 'none';
+                 frame-src 'none';
+                 frame-ancestors 'none';
+                 base-uri 'self';
+                 form-action 'self';
+                 upgrade-insecure-requests">
+  {% endif %}
+
+  <!-- ✅ CSS: QARAG/법무/메인 순서 -->
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/legal-bundle.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/qarag_chat.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/news.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/feedback.css' %}">
+  
+</head>
+
+<!-- ✅ 도킹이 아니라 overlay 토글 구조 + 상담 가능 여부 API 경로 -->
+<body data-layout="overlay"
+      data-livechat-availability-url="{{ livechat_status_url }}">
+
+  <noscript>
+    <div class="noscript-banner">
+      이 페이지는 자바스크립트가 필요합니다. 브라우저 설정에서 JavaScript를 활성화해 주세요.
+    </div>
+  </noscript>
+
+  {% include "ragapp/partials/consent_overlay.html" %}
+
+  <div class="page-wrap app-shell" data-mode="web">
+
+    <!-- ============================== -->
+    <!-- 헤더 영역 -->
+    <!-- ============================== -->
+    <header class="page-header app-topbar">
+      <div class="title-block">
+        <h1>
+          {{ SERVICE_NAME|default:"김동건의 포트폴리오" }}
+          <span class="badge">베타</span>
+        </h1>
+        <p class="subline">
+          위쪽에서 검색 방법(웹 / 내 문서 / PDF)을 고르고, 오른쪽에서 질문 챗봇을 바로 사용할 수 있어요.
+        </p>
+      </div>
+
+      <div class="nav-links">
+        <div class="header-right">
+
+          <div class="theme-toggle" aria-label="화면 모드 변경" role="group">
+            <button type="button"
+                    class="theme-btn"
+                    data-theme-choice="light"
+                    aria-pressed="false"
+                    title="라이트 모드">☀️</button>
+            <button type="button"
+                    class="theme-btn"
+                    data-theme-choice="system"
+                    aria-pressed="false"
+                    title="시스템 설정 따라가기">💻</button>
+            <button type="button"
+                    class="theme-btn"
+                    data-theme-choice="dark"
+                    aria-pressed="false"
+                    title="다크 모드">🌙</button>
+          </div>
+
+          <!-- ✅ 버튼은 토글: 누르면 열고, 다시 누르면 닫음 -->
+          <button id="qaragLaunchBtn"
+                  class="qa-launch-btn"
+                  type="button"
+                  aria-expanded="false">
+            <span class="qa-launch-icon">💬</span>
+            질문 챗봇
+          </button>
+
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================== -->
+    <!-- 메인 + 사이드 레이아웃 -->
+    <!-- ============================== -->
+    <div class="shell-grid">
+
+      <!-- 메인 콘텐츠 -->
+      <main class="shell-main" aria-label="검색 및 결과">
+
+        <div class="mode-tabs" role="tablist" aria-label="검색 모드 선택">
+          <button type="button"
+                  class="mode-tab is-active"
+                  data-mode="web"
+                  role="tab"
+                  aria-selected="true">
+            웹 검색
+          </button>
+          <button type="button"
+                  class="mode-tab"
+                  data-mode="rag"
+                  role="tab"
+                  aria-selected="false">
+            AI 요약 검색
+          </button>
+          <button type="button"
+                  class="mode-tab"
+                  data-mode="pdf"
+                  role="tab"
+                  aria-selected="false">
+            PDF 검색
+          </button>
+        </div>
+
+        <div id="modeSectionWeb"
+             class="mode-section mode-anim"
+             data-section="web"
+             aria-hidden="false">
+          {% include "ragapp/partials/card_web.html" %}
+        </div>
+
+        <div id="modeSectionRag"
+             class="mode-section"
+             data-section="rag"
+             hidden
+             aria-hidden="true">
+          {% include "ragapp/partials/card_rag.html" %}
+        </div>
+
+        <div id="modeSectionPdf"
+             class="mode-section"
+             data-section="pdf"
+             hidden
+             aria-hidden="true">
+          {% include "ragapp/partials/card_pdf.html" %}
+        </div>
+
+      </main>
+
+      <!-- ✅ 우측은 “사이드 카드”만 (챗봇 전용 공간 X) -->
+      <aside class="shell-side" aria-label="바로가기 및 가이드">
+        <div class="side-stack">
+
+          <section class="side-card" aria-label="바로가기">
+            <div class="side-card-head">
+              <div class="side-card-title">Quick Tools</div>
+              <div class="side-meta">한 번에 이동</div>
+            </div>
+            <div class="side-card-body">
+              <a class="side-link" href="{% url 'media_index' %}">
+                🖼️ 이미지 모아두기 <span class="side-meta">이미지 저장</span>
+              </a>
+              <a class="side-link" href="{% url 'media_search' %}">
+                🔎 글로 이미지 찾기 <span class="side-meta">이미지 검색</span>
+              </a>
+
+              <div class="side-sep"></div>
+
+              <a class="side-link" href="{% url 'table_index' %}">
+                📄 표 파일 저장하기 <span class="side-meta">표 저장</span>
+              </a>
+              <a class="side-link" href="{% url 'table_search' %}">
+                📊 표에서 찾기 <span class="side-meta">표 검색</span>
+              </a>
+            </div>
+          </section>
+
+          <section class="side-card" aria-label="사용 가이드">
+            <div class="side-card-head">
+              <div class="side-card-title">User Manual</div>
+              <div class="side-meta">접어서 보기</div>
+            </div>
+            <div class="side-card-body">
+              <details class="manual-item" open>
+                <summary>처음 사용하는 순서</summary>
+                <div class="manual-body">
+                  1) 모드 선택 → 2) 질문 입력 → 3) 결과 확인 → 4) 필요 시 결과 저장하기
+                </div>
+              </details>
+
+              <details class="manual-item">
+                <summary>웹 검색 / 결과 저장하기</summary>
+                <div class="manual-body">
+                  웹 검색 결과를 보고 “저장” 기능을 사용할 때는 동의가 필요할 수 있어요.
+                </div>
+              </details>
+
+              <details class="manual-item">
+                <summary>AI 요약 검색</summary>
+                <div class="manual-body">
+                  내 문서/데이터 기반 요약·답변을 확인합니다.
+                </div>
+              </details>
+
+              <details class="manual-item">
+                <summary>PDF 검색</summary>
+                <div class="manual-body">
+                  PDF 요약/표 정리 등은 PDF 탭에서 확인합니다.
+                </div>
+              </details>
+            </div>
+          </section>
+
+        </div>
+      </aside>
+    </div><!-- /shell-grid -->
+  </div><!-- /page-wrap -->
+
+  <!-- ✅ 질문 챗봇 오버레이 -->
+  {% include "ragapp/partials/qarag_panel.html" %}
+
+  <!-- ============================== -->
+  <!-- 푸터: 테스터 고지 + 법무 링크 -->
+  <!-- ============================== -->
+  <div class="page-footer-wrap">
+    {% include "ragapp/partials/tester_notice.html" %}
+    <div class="legal-footer-bar">
+      <a href="{{ legal_privacy_url }}"  class="legal-link">개인정보처리방침</a>
+      <span class="dot">·</span>
+      <a href="{{ legal_tos_url }}"      class="legal-link">이용약관</a>
+      <span class="dot">·</span>
+      <a href="{{ legal_overseas_url }}" class="legal-link">국외이전 고지</a>
+    </div>
+  </div>
+
+  {% include "ragapp/partials/legal_bundle_modal.html" %}
+
+  <!-- =============================== -->
+  <!-- Scripts: 순서 유지 (로깅 → 테마 → 동의 → 메인 JS) -->
+  <!-- =============================== -->
+
+  <!-- 로깅/디버그 -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+  (function(){
+    const buf = [];
+    window.dglog = function(tag, obj){
+      try{
+        const ts = new Date().toISOString().slice(11,23);
+        const line = { t:Date.now(), tag:String(tag||''), data: obj };
+        buf.push(line); if (buf.length>500) buf.shift();
+        const color = tag && /ERR|FAIL|ERROR|HTTP \d{3}/i.test(tag) ? 'color:#f87171' : 'color:#93c5fd';
+        console.log('%c[news '+ts+'] '+tag, color, obj||'');
+      }catch(_){}
+    };
+    window.__DG_EVENTS__ = buf;
+
+    window.newReqId = function(prefix){
+      return (prefix||'req')+'-'+Math.random().toString(36).slice(2,8)+'-'+Date.now().toString(36);
+    };
+  })();
+  </script>
+
+  <!-- 테마 토글 -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+  (function(){
+    const STORAGE_KEY = 'dg-theme-mode';
+    const root = document.documentElement;
+    const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+
+    function resolveTheme(mode){
+      if (mode === 'system'){
+        if (mq && mq.matches) return 'dark';
+        return 'light';
+      }
+      return (mode === 'dark') ? 'dark' : 'light';
+    }
+
+    function applyTheme(mode){
+      const resolved = resolveTheme(mode);
+      root.dataset.themeMode = mode;
+      root.dataset.theme = resolved;
+
+      document.querySelectorAll('[data-theme-choice]').forEach(btn=>{
+        const active = btn.getAttribute('data-theme-choice') === mode;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    function loadMode(){
+      try{
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
+      }catch(_){}
+      return 'system';
+    }
+
+    function setMode(mode){
+      try{ localStorage.setItem(STORAGE_KEY, mode); }catch(_){}
+      applyTheme(mode);
+    }
+
+    applyTheme(loadMode());
+
+    if (mq && mq.addEventListener){
+      mq.addEventListener('change', function(){
+        const mode = root.dataset.themeMode || 'system';
+        if (mode === 'system') applyTheme('system');
+      });
+    }
+
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest && e.target.closest('[data-theme-choice]');
+      if (!btn) return;
+      setMode(btn.getAttribute('data-theme-choice') || 'system');
+    });
+  })();
+  </script>
+
+  <!-- 동의/폼/링크 정리 + “매 진입마다” 동의 모달 열기 -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+  (function () {
+    const CONSENT_KEY = 'rag_legal_consent_v2';   // 지금은 session 용도만 (로컬 저장 X)
+    let _queued = null;
+
+    // 페이지 안에서만 쓰는 플래그
+    window.__SESSION_CONSENT__ = window.__SESSION_CONSENT__ || { ok: false };
+
+    function openConsentOverlay(showError){
+      try{
+        var ov  = document.getElementById('consentOverlay');
+        var err = document.getElementById('consentErr');
+        if (ov) ov.hidden = false;
+        if (err) err.hidden = !showError;
+        try { document.body.classList.add('legal-open'); } catch(_){}
+      }catch(e){
+        try { window.dglog && window.dglog('CONSENT_OPEN_ERR', e.message || e); } catch(_){}
+      }
+    }
+
+    function closeConsentOverlay(){
+      try{
+        var ov  = document.getElementById('consentOverlay');
+        if (ov) ov.hidden = true;
+        try { document.body.classList.remove('legal-open'); } catch(_){}
+      }catch(e){
+        try { window.dglog && window.dglog('CONSENT_CLOSE_ERR', e.message || e); } catch(_){}
+      }
+    }
+
+    // 다른 스크립트에서 필요하면 쓸 수 있게만 열어 줌 (있으면 덮어쓰지 않음)
+    if (typeof window.__openConsentOverlay !== 'function') {
+      window.__openConsentOverlay = function(){ openConsentOverlay(false); };
+    }
+    if (typeof window.__closeConsentOverlay !== 'function') {
+      window.__closeConsentOverlay = closeConsentOverlay;
+    }
+
+    function sanitizeAnchors(scopeSel){
+      try{
+        var root = document.querySelector(scopeSel) || document;
+        root.querySelectorAll('a[href]').forEach(function(a){
+          var href = a.getAttribute('href') || '';
+          try{
+            var u = new URL(href, location.origin);
+            if(!/^https?:$/i.test(u.protocol) && !u.pathname.startsWith('/')){
+              var span = document.createElement('span'); span.className = a.className;
+              span.textContent = a.textContent || href; a.replaceWith(span); return;
+            }
+            a.setAttribute('rel','noopener noreferrer nofollow');
+            a.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
+          }catch(_){
+            var s=document.createElement('span'); s.className=a.className; s.textContent=a.textContent||href; a.replaceWith(s);
+          }
+        });
+      }catch(_){}
+    }
+
+    window.collectWebSourcesFromDOM = window.collectWebSourcesFromDOM || function(){
+      var out=[];
+      document.querySelectorAll('.sources-list a[href^="http"]').forEach(function(a){
+        out.push({ title:(a.textContent||'').trim(), url:a.href });
+      });
+      return out;
+    };
+
+    function installForceAction(hiddenId, defaultAction) {
+      var hid=document.getElementById(hiddenId);
+      var form=hid?hid.closest('form'):null;
+      if(!form) return;
+      form.addEventListener('click', function (e) {
+        var btn=e.target.closest('button[type="submit"][data-action]');
+        if(!btn||!form.contains(btn)) return;
+        if (hid) hid.value = btn.dataset.action || hid.value || defaultAction;
+      }, true);
+    }
+
+    function installEnterSubmitFallback(form, defaultAction) {
+      form.addEventListener('submit', function () {
+        try {
+          var h=form.querySelector('input[name="action"][type="hidden"]');
+          if (h && !h.value) h.value = defaultAction;
+        } catch (_){}
+        return true;
+      }, { capture:true });
+    }
+
+    window.beforeWebSubmit = function(form){
+      try {
+        var ansBlock=document.getElementById('web-answer-block');
+        var ansField=document.getElementById('web_answer_payload');
+        if (ansBlock && ansField) ansField.value=(ansBlock.innerText||'').trim();
+        var srcField=document.getElementById('web_sources_payload');
+        if (srcField) {
+          var srcs=(window.collectWebSourcesFromDOM?collectWebSourcesFromDOM():[]);
+          try{ srcField.value=JSON.stringify(srcs||[]);}catch(_){ srcField.value='[]';}
+        }
+      } catch(_){}
+      return true;
+    };
+
+    window.ensureConsentGate = function(form){
+      try{
+        const requireConsent = form && form.matches('[data-require-consent="1"]');
+        const action = (form.querySelector('input[name="action"]')?.value || '').trim();
+        const hasSessionConsent = !!(window.__SESSION_CONSENT__ && window.__SESSION_CONSENT__.ok);
+
+        const need = requireConsent && action === 'web_ingest' && !hasSessionConsent;
+        if (!need) return true;
+
+        _queued = { form, action };
+
+        // 이 시점에도 오버레이 열기
+        openConsentOverlay(false);
+        return false;
+      }catch(_){}
+      return true;
+    };
+
+    sanitizeAnchors('[data-sanitize-links]');
+    installForceAction('webActionField','web_search');
+    installForceAction('ragActionField','rag_search');
+
+    var webForm=document.getElementById('webActionField')?.closest('form');
+    var ragForm=document.getElementById('ragActionField')?.closest('form');
+    if (webForm) installEnterSubmitFallback(webForm,'web_search');
+    if (ragForm) installEnterSubmitFallback(ragForm,'rag_search');
+
+    window.__CONSENT_QUEUE__ = {
+      get queued(){ return _queued; },
+      resume(){
+        const q = _queued; _queued = null;
+        if (!q || !q.form) return;
+        if (typeof q.form.requestSubmit === 'function') q.form.requestSubmit();
+        else q.form.submit();
+      },
+      key: CONSENT_KEY
+    };
+
+    // ✅ 페이지에 들어올 때마다 무조건 동의창 표시
+    document.addEventListener('DOMContentLoaded', function(){
+      openConsentOverlay(false);
+    });
+  })();
+  </script>
+
+  <!-- RAG 메인 API 엔드포인트 -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+    window.RAG_QA_MAIN = "{% url 'api_rag_qa' %}";
+  </script>
+
+  <!-- 외부 JS 번들 -->
+  <script src="{% versioned_static 'ragapp/javascript/news.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/legal-bundle.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/qarag_chat.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <!-- ✅ 리뉴얼된 실시간 상담 클라이언트 JS -->
+  <script src="{% versioned_static 'ragapp/javascript/livechat_client.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/pdf_tab.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+
+  <!-- 탭 전환 / 모드 상태 -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+  (function(){
+    const wrap = document.querySelector('.page-wrap');
+    if (!wrap) return;
+
+    const tabs = Array.from(document.querySelectorAll('.mode-tab'));
+    if (!tabs.length) return;
+
+    const sections = {
+      web: document.getElementById('modeSectionWeb'),
+      rag: document.getElementById('modeSectionRag'),
+      pdf: document.getElementById('modeSectionPdf'),
+    };
+
+    function restartAnim(el){
+      if (!el) return;
+      el.classList.remove('mode-anim');
+      void el.offsetWidth;
+      el.classList.add('mode-anim');
+    }
+
+    function setMode(mode){
+      if (!sections[mode]) mode = 'web';
+      wrap.dataset.mode = mode;
+
+      tabs.forEach(tab=>{
+        const active = tab.dataset.mode === mode;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+
+      Object.entries(sections).forEach(([key, el])=>{
+        if (!el) return;
+        const on = (key === mode);
+        el.hidden = !on;
+        el.setAttribute('aria-hidden', on ? 'false' : 'true');
+        if (on) restartAnim(el);
+      });
+    }
+
+    tabs.forEach(tab=>{
+      tab.addEventListener('click', function(e){
+        e.preventDefault();
+        setMode(tab.dataset.mode);
+      });
+    });
+
+    setMode('web');
+  })();
+  </script>
+
+  <!-- 동의 버튼 동작 (체크 확인 + 재실행) -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+  (function () {
+    function handleConsentConfirm() {
+      try {
+        var chk = document.getElementById('consent_required');
+        var err = document.getElementById('consentErr');
+
+        if (!chk || !chk.checked) {
+          if (err) err.hidden = false;
+          return;
+        }
+
+        if (err) err.hidden = true;
+
+        // 이 페이지에서만 유효한 동의 플래그
+        try {
+          window.__SESSION_CONSENT__ = window.__SESSION_CONSENT__ || {};
+          window.__SESSION_CONSENT__.ok = true;
+        } catch (_) {}
+
+        // 오버레이 닫기
+        try {
+          if (typeof window.__closeConsentOverlay === 'function') {
+            window.__closeConsentOverlay();
+          } else {
+            var ov = document.getElementById('consentOverlay');
+            if (ov) ov.hidden = true;
+          }
+        } catch (_) {}
+
+        // 대기 중이던 폼 제출 다시 실행
+        try {
+          if (window.__CONSENT_QUEUE__ && typeof window.__CONSENT_QUEUE__.resume === 'function') {
+            window.__CONSENT_QUEUE__.resume();
+          }
+        } catch (_) {}
+      } catch (e) {
+        try {
+          if (window.dglog) window.dglog('CONSENT_CONFIRM_ERR', e && e.message ? e.message : e);
+        } catch (_) {}
+      }
+    }
+
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target.closest && ev.target.closest('#consentConfirmBtn');
+      if (!btn) return;
+      ev.preventDefault();
+      handleConsentConfirm();
+    });
+  })();
+  </script>
+
+</body>
+</html>

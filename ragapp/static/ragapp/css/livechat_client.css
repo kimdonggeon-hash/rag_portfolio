@@ -1,0 +1,336 @@
+/* ragapp/static/ragapp/css/livechat_client.css
+   실시간 상담 전용 클라이언트 페이지 스타일 (/c/<room>/)
+   - 화이트 톤 + 중앙 안내 문구 버전
+*/
+
+:root {
+    color-scheme: light;
+    --lc-bg: #f3f4f6;
+    --lc-card-bg: #ffffff;
+    --lc-border: rgba(209, 213, 219, 1);
+    --lc-border-strong: rgba(148, 163, 184, 0.9);
+    --lc-text-main: #111827;
+    --lc-text-soft: #6b7280;
+    --lc-accent: #3b82f6;
+    --lc-accent2: #0ea5e9;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR",
+        sans-serif;
+    background: radial-gradient(circle at top, #e0f2fe 0%, #f3f4f6 55%, #f3f4f6 100%);
+    color: var(--lc-text-main);
+}
+
+/* 화면 중앙 정렬 래퍼 */
+.lc-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+}
+
+/* 카드 높이 고정 + 내부 스크롤 구조 */
+.lc-card {
+    width: min(960px, 100%);
+    background: var(--lc-card-bg);
+    border-radius: 24px;
+    border: 1px solid var(--lc-border);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+
+    display: flex;
+    flex-direction: column;
+    height: min(1024px, calc(100vh - 80px));
+}
+
+/* 상단 헤더 */
+.lc-header {
+    padding: 18px 24px 12px;
+    border-bottom: 1px solid var(--lc-border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+    background: linear-gradient(90deg, #eff6ff 0%, #e0f2fe 50%, #eef2ff 100%);
+}
+
+.lc-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lc-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 15%, #60a5fa, #2563eb);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9);
+}
+
+.lc-title-block {
+    display: flex;
+    flex-direction: column;
+}
+
+.lc-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: #0f172a;
+}
+
+.lc-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #1d4ed8;
+    border: 1px solid rgba(129, 140, 248, 0.9);
+    background: rgba(224, 231, 255, 0.9);
+}
+
+.lc-sub {
+    font-size: 12px;
+    color: var(--lc-text-soft);
+}
+
+.lc-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--lc-text-soft);
+}
+
+.lc-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+}
+
+.lc-status-wait {
+    background: #22c55e;
+}
+
+/* 메시지 영역: 여기만 스크롤 */
+.lc-messages,
+#lc-messages {
+    flex: 1;
+    padding: 18px 24px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    background: linear-gradient(180deg,
+            #f9fafb 0%,
+            #f3f4f6 40%,
+            #eef2ff 100%);
+}
+
+/* ✅ 실제 채팅 말풍선(.lc-line)이 생기면 대기 안내(.lc-msg-system)는 숨기기 */
+#lc-messages:has(.lc-line) .lc-msg-system {
+    display: none;
+}
+
+/* 말풍선 공통 (실제 채팅용) */
+.lc-line {
+    max-width: 80%;
+    margin-bottom: 10px;
+    padding: 9px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* 고객 말풍선 */
+.lc-user {
+    margin-left: auto;
+    background: linear-gradient(135deg, var(--lc-accent), var(--lc-accent2));
+    color: #f9fafb;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+}
+
+/* 상담사 말풍선 */
+.lc-bot {
+    margin-right: auto;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    color: var(--lc-text-main);
+    border-bottom-left-radius: 4px;
+}
+
+/* ✅ 초기 안내 문구 말풍선 (가운데 정렬) */
+.lc-msg-system {
+    max-width: 420px;
+    margin: 18vh auto 24px auto;
+    /* 세로도 적당히 가운데 쯤 */
+    padding: 14px 18px;
+    border-radius: 18px;
+    background: #eef2ff;
+    color: #1e3a8a;
+    font-size: 13px;
+    line-height: 1.6;
+    border: 1px solid rgba(129, 140, 248, 0.5);
+    text-align: center;
+    box-shadow: 0 14px 30px rgba(148, 163, 184, 0.45);
+}
+
+/* 입력 영역 */
+.lc-input-row {
+    padding: 14px 24px 14px;
+    border-top: 1px solid var(--lc-border-strong);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: #f9fafb;
+}
+
+.lc-input {
+    flex: 1;
+    border-radius: 999px;
+    border: 1px solid rgba(209, 213, 219, 1);
+    background: #ffffff;
+    color: var(--lc-text-main);
+    padding: 10px 16px;
+    font-size: 14px;
+    resize: none;
+    min-height: 40px;
+    max-height: 90px;
+    line-height: 1.5;
+    overflow-y: auto;
+}
+
+.lc-input::placeholder {
+    color: rgba(156, 163, 175, 0.9);
+}
+
+.lc-input:focus {
+    outline: none;
+    border-color: var(--lc-accent);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.7);
+}
+
+/* 버튼들 */
+.lc-send-btn,
+.lc-end-btn {
+    border-radius: 999px;
+    border: none;
+    padding: 9px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.lc-send-btn {
+    background: linear-gradient(90deg, var(--lc-accent), var(--lc-accent2));
+    color: #f9fafb;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.35);
+}
+
+.lc-send-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+    box-shadow: none;
+}
+
+.lc-end-btn {
+    background: #ffffff;
+    color: var(--lc-text-main);
+    border: 1px solid rgba(209, 213, 219, 1);
+}
+
+.lc-end-btn:hover {
+    background: #f3f4f6;
+}
+
+/* 푸터 */
+.lc-footer {
+    padding: 8px 24px 14px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 11px;
+    color: var(--lc-text-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    background: #f9fafb;
+}
+
+.lc-footer-right {
+    text-align: right;
+}
+
+.lc-home-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 11px;
+}
+
+.lc-home-link:hover {
+    text-decoration: underline;
+}
+
+/* 접근성용 숨김 텍스트 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+/* 모바일 대응 */
+@media (max-width: 640px) {
+    .lc-card {
+        height: calc(100vh - 80px);
+        border-radius: 18px;
+    }
+
+    .lc-header,
+    .lc-messages,
+    .lc-input-row,
+    .lc-footer {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .lc-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .lc-header-right {
+        align-self: flex-end;
+    }
+
+    .lc-line {
+        max-width: 88%;
+        font-size: 12px;
+    }
+
+    .lc-msg-system {
+        margin: 16vh auto 18px auto;
+        max-width: 90%;
+        font-size: 12px;
+    }
+}

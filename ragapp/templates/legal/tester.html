@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>테스터 안내</title>
+  <style>
+    body{
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+      margin:0;
+      background:#f6f8fc;
+      color:#0f172a;
+    }
+
+    .wrap{
+      max-width:840px;
+      margin:32px auto;
+      padding:0 16px;
+    }
+
+    .card{
+      background:#ffffff;
+      border:1px solid rgba(15,23,42,.12);
+      border-radius:12px;
+      box-shadow:0 12px 24px rgba(15,23,42,.08);
+      padding:20px 22px;
+    }
+
+    h1{
+      font-size:20px;
+      margin:0 0 8px 0;
+      color:#0b1220;
+    }
+
+    h2{
+      font-size:16px;
+      margin:18px 0 8px;
+      color:#1d4ed8; /* heading accent */
+    }
+
+    p,li{
+      font-size:14px;
+      line-height:1.6;
+      color:#0f172a;
+    }
+
+    a{
+      color:#1d4ed8;
+      text-decoration:underline;
+      text-underline-offset:2px;
+    }
+
+    a:hover{
+      color:#1e40af;
+    }
+
+    .muted{
+      color:#64748b;
+      font-size:12px;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>테스터 안내 <small class="muted">({{ version }} · 시행 {{ effective_date }})</small></h1>
+
+    <h2>참여 범위</h2>
+    <ul>
+      <li>기능 체험, 버그 제보, 사용성 피드백 제공</li>
+      <li>모델 응답 품질·안정성 평가(선택)</li>
+    </ul>
+
+    <h2>수집되는 정보</h2>
+    <ul>
+      <li>질의/응답 일부, 클릭/오류 로그, 시간/브라우저 정보</li>
+      <li>개인정보가 포함되지 않도록 입력 시 주의해 주세요.</li>
+    </ul>
+
+    <h2>보관 기간 및 이용</h2>
+    <ul>
+      <li>오류 로그 최대 90일, 피드백 최대 1년 보관 후 파기</li>
+      <li>서비스 품질 개선, 악성 요청 방지 목적에만 사용</li>
+    </ul>
+
+    <h2>연락처</h2>
+    <p>문의/철회 요청: <a href="mailto:{% firstof contact_email 'you@example.com' %}">{% firstof contact_email 'you@example.com' %}</a></p>
+
+    <p class="muted">문서 생성 시각: {{ now }}</p>
+  </div>
+</div>
+</body>
+</html>

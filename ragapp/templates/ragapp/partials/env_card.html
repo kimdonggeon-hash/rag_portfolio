@@ -1,0 +1,59 @@
+{# ragapp/templates/ragapp/partials/env_card.html #}
+<section class="env-card" aria-label="환경 정보">
+  {# 1행: 사람 눈에 보이는 요약 정보 #}
+  <div class="env-grid">
+    <div class="env-item">
+      <strong>{{ ENV_DB_LABEL|default:"지금 사용하는 검색 저장소" }}</strong><br />
+      {{ CHROMA_COLLECTION|default:"(미설정)" }}
+      <small>
+        AI가 요약·출처를 저장해 두는 <strong>저장소 이름</strong>이라고 생각하시면 됩니다.
+      </small>
+    </div>
+
+    <div class="env-item">
+      <strong>{{ ENV_HINT_LABEL|default:"이 블록은 참고용(개발자용)" }}</strong><br />
+      <small>
+        화면이 잘 동작하는지만 보시면 됩니다.  
+        <strong>테스터·일반 사용자는 아래 내용은 신경 쓰지 않으셔도 돼요.</strong>
+      </small>
+    </div>
+  </div>
+
+  {# 2행: 주의 문구 (인덱싱 설명) #}
+  <div class="env-grid env-note">
+    <div class="env-item">
+      <strong>{{ ENV_WARN_TITLE|default:"주의" }}</strong><br />
+      {{ ENV_WARN_TEXT|default:"이 화면에서 ‘결과 저장하기’를 누르면, 현재 보이는 답변/출처 내용을 그대로 저장합니다." }}
+    </div>
+  </div>
+
+  {# 3행: 개발자용 상세 정보 (경로 / 컬렉션 / 버튼) #}
+  <div class="env-bar">
+    <div class="env-bar-left">
+      <span class="env-bar-label">
+        {{ ENV_BAR_DB_LABEL|default:"개발자용: 실제 저장 위치" }}
+      </span>
+      <code id="db-path">{{ VECTOR_DB_PATH|default:"(미설정)" }}</code>
+
+      <span class="env-bar-sep">·</span>
+
+      <span class="env-bar-label">
+        {{ ENV_BAR_COLLECTION_LABEL|default:"컬렉션 이름" }}
+      </span>
+      <code>{{ CHROMA_COLLECTION|default:"-" }}</code>
+
+      <small class="env-bar-help">
+        문제가 생겼을 때 개발자가 어디에 저장됐는지 확인할 수 있도록 보여주는 정보입니다.
+      </small>
+    </div>
+
+    <div class="env-actions">
+      <button id="btn-copy-db" class="btn btn-tiny" type="button">
+        {{ ENV_BTN_COPY_DB|default:"경로 복사" }}
+      </button>
+      <a href="/ragadmin/" class="btn btn-tiny">
+        {{ ENV_BTN_ADMIN|default:"Admin(관리자 화면)" }}
+      </a>
+    </div>
+  </div>
+</section>

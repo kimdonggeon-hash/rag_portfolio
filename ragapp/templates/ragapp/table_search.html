@@ -1,0 +1,337 @@
+{% extends "ragapp/_base_feature.html" %}
+{% load static rag_extras %}
+{% block title %}표에서 검색하기{% endblock %}
+{% block content %}
+
+<style>
+  :root{--card:#0f172a;--ink:#e5e7eb;--dim:#94a3b8;--line:rgba(148,163,184,.2)}
+  *{box-sizing:border-box}
+  .wrap{max-width:1100px;margin:32px auto;padding:0 16px}
+  .panel{background:var(--card,#0f172a);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:22px}
+  .row{display:grid;grid-template-columns:1fr 140px 140px 160px 1fr;gap:12px}
+  .row + .row{margin-top:10px}
+  .label{font-size:12px;color:var(--dim);margin-bottom:6px}
+  .ctl input,.ctl select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#0b1326;color:var(--ink);outline:none}
+  .ctl input:focus,.ctl select:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+  .btnbar{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+  .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:#111b34;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+  .btn.info{background:linear-gradient(90deg,#6366f1,#4f46e5);border-color:transparent}
+  .btn.link{background:#0b1326}
+  details.opt{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+  .help{font-size:13px;color:var(--dim);margin-top:6px}
+  .msg-err{margin-top:12px;padding:10px 12px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#fecaca;border-radius:10px}
+  .muted{color:var(--dim)}
+  /* table */
+  .tbl-wrap{overflow:auto;border-radius:12px;border:1px solid var(--line)}
+  table.tbl{width:100%;border-collapse:separate;border-spacing:0}
+  .tbl thead th{position:sticky;top:0;background:#0f162b;border-bottom:1px solid var(--line);color:var(--dim);text-align:left;padding:10px}
+  .tbl tbody td{border-bottom:1px solid rgba(148,163,184,.12);padding:10px;vertical-align:top}
+  .tbl tbody tr:hover{background:rgba(99,102,241,.08)}
+  /* pager */
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+  .pager .btn{min-width:84px}
+  .count{font-size:13px;color:var(--dim)}
+
+  /* 브랜드 링크 (혹시 다른 페이지에서도 쓸 수 있게 유지) */
+  .brand-link{color:var(--ink);text-decoration:none}
+  .brand-link:hover{color:#a5b4ff}
+
+  /* ===== 안내 카드 ===== */
+  .ts-help-card{
+    margin-top:18px;
+    background:
+      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 55%),
+      radial-gradient(circle at bottom right, rgba(129,140,248,.18), transparent 55%),
+      #020617;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,.45);
+    padding:18px 20px;
+    box-shadow:0 18px 45px rgba(15,23,42,.75);
+    color:#e5e7eb;
+  }
+  .ts-help-header{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .ts-help-title{display:flex;align-items:center;gap:8px}
+  .ts-help-title h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;color:#f9fafb}
+  .ts-help-pill{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:2px 8px;border-radius:999px;
+    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
+    background:linear-gradient(90deg,#38bdf8,#6366f1);
+    color:#020617;
+  }
+  .ts-help-sub{margin:0;font-size:12px;color:#9ca3af}
+
+  .ts-help-body{
+    display:grid;
+    grid-template-columns:minmax(0,2.1fr) minmax(0,1.3fr);
+    gap:18px;
+    margin-top:6px;
+  }
+  @media (max-width:900px){
+    .ts-help-body{grid-template-columns:minmax(0,1fr)}
+  }
+
+  .ts-help-steps{
+    margin:0;
+    padding-left:18px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    font-size:13px;
+    color:#d1d5db;
+  }
+  .ts-help-steps li strong{color:#e5e7eb}
+  .ts-help-steps li em{font-style:normal;color:#a5b4fc}
+
+  .ts-help-notes{
+    padding:12px 13px 10px;
+    border-radius:14px;
+    background:rgba(15,23,42,.96);
+    border:1px dashed rgba(148,163,184,.7);
+  }
+  .ts-help-notes h3{
+    margin:0 0 6px;
+    font-size:13px;font-weight:600;color:#e5e7eb;
+  }
+  .ts-help-notes ul{
+    margin:0;
+    padding-left:16px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:12px;
+    color:#9ca3af;
+  }
+</style>
+
+<div class="wrap">
+  <div class="panel">
+    <h2 style="font-size:18px;margin:0 0 14px">표 내용 검색</h2>
+
+    <!-- ✅ GET 폼 + 명시적 action -->
+    <form id="tableSearchForm" method="get" action="{% url 'table_search' %}">
+      <div class="row">
+        <div class="ctl" style="grid-column:1/3">
+          <div class="label">알고 싶은 내용 적기</div>
+          <input name="q"
+                 value="{{ q|default:'' }}"
+                 placeholder="예: 지난주 노래 차트 10위까지만 보여줘"
+                 inputmode="search"
+                 autocapitalize="off"
+                 spellcheck="false" />
+          <div class="help">
+            글로 적은 질문과 비슷한 내용을 <b>올려둔 표 데이터 안에서 찾아줍니다.</b>
+          </div>
+        </div>
+
+        <div class="ctl">
+          <div class="label">한 번에 볼 개수</div>
+          <input type="number" name="size" min="1" max="200" value="{{ size|default:12 }}">
+        </div>
+
+        <div class="ctl">
+          <div class="label">페이지 번호</div>
+          <input type="number" name="page" min="1" value="{{ page|default:1 }}">
+        </div>
+
+        <div class="ctl">
+          <div class="label">검색 범위(고급 설정)</div>
+          <input type="number" name="k" min="1" max="1000" value="{{ k|default:200 }}">
+          <div class="help">숫자를 크게 할수록 더 많은 후보를 살펴보지만, 검색 시간이 약간 늘어날 수 있어요.</div>
+        </div>
+      </div>
+
+      <div class="row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;margin-top:10px">
+        <div class="ctl" style="grid-column:1/3">
+          <div class="label">어느 표에서 찾을지 선택 (선택)</div>
+          <input name="table"
+                 list="tableNames"
+                 value="{{ table|default:'' }}"
+                 placeholder="비워두면 모든 표에서 찾습니다.">
+          <datalist id="tableNames">
+            {% for t in table_names %}
+              <option value="{{ t }}"></option>
+            {% endfor %}
+          </datalist>
+        </div>
+
+        <div class="ctl">
+          <div class="label">묶을 기준 칸 (선택)</div>
+          <input name="group_by" value="{{ group_by|default:'' }}" placeholder="예: region (지역)">
+        </div>
+
+        <div class="ctl">
+          <div class="label">숫자 계산에 쓸 칸 (선택)</div>
+          <input name="agg_field" value="{{ agg_field|default:'' }}" placeholder="예: sales (매출)">
+        </div>
+
+        <div class="ctl">
+          <div class="label">계산 방식 (선택)</div>
+          <select name="agg">
+            {% with a=agg|default_if_none:'' %}
+              <option value="" {% if not a %}selected{% endif %}>(그냥 행 목록 보기)</option>
+              <option value="count" {% if a == 'count' %}selected{% endif %}>개수 세기</option>
+              <option value="sum"   {% if a == 'sum'   %}selected{% endif %}>합계</option>
+              <option value="avg"   {% if a == 'avg'   %}selected{% endif %}>평균</option>
+              <option value="max"   {% if a == 'max'   %}selected{% endif %}>최댓값</option>
+              <option value="min"   {% if a == 'min'   %}selected{% endif %}>최솟값</option>
+            {% endwith %}
+          </select>
+        </div>
+      </div>
+
+      <details class="opt">
+        <summary>▶ 고급 설정 / 표 정리해서 보기</summary>
+        <div class="help">
+          예를 들어 <b>지역별 매출 합계</b>를 보고 싶다면  
+          ‘묶을 기준 칸’에 <em>region</em>, ‘숫자 계산에 쓸 칸’에 <em>sales</em>,  
+          ‘계산 방식’에서 <em>합계</em>를 선택하면 됩니다.  
+          잘 모르겠다면 이 부분은 비워두고 사용하셔도 괜찮아요.
+        </div>
+      </details>
+
+      <div class="btnbar">
+        <button type="submit" class="btn info">검색하기</button>
+        <a href="{% url 'table_index' %}" class="btn link">← 표 데이터 올려두기</a>
+      </div>
+    </form>
+
+    {% if error_msg %}
+      <div class="msg-err">❌ {{ error_msg }}</div>
+    {% endif %}
+  </div>
+
+  <!-- ✅ 네가 만든 상세 설명서 카드 (엑셀·CSV 기준으로 문구만 조금 수정) -->
+  <section class="ts-help-card" aria-label="표 내용 검색 사용 안내">
+    <div class="ts-help-header">
+      <div class="ts-help-title">
+        <span class="ts-help-pill">Guide</span>
+        <h2>엑셀·CSV로 올린 표에서 원하는 정보만 골라보기</h2>
+      </div>
+      <p class="ts-help-sub">
+        이 화면은 앞에서 올려둔 <b>표 데이터(엑셀·CSV)</b> 안에서  
+        <b>질문이나 키워드로 원하는 줄만 골라서 보여주는 검색창</b>입니다.
+      </p>
+    </div>
+
+    <div class="ts-help-body">
+      <ol class="ts-help-steps">
+        <li>
+          <strong>알고 싶은 내용을 자연스럽게 쓰기</strong><br />
+          예를 들어 <em>“지난주 노래 차트 10위까지만 보여줘”</em>,  
+          <em>“서울 지역 매출만 보고 싶어”</em>처럼 상황을 떠올리며 써 주세요.
+        </li>
+        <li>
+          <strong>어느 표에서 찾을지 선택하기</strong><br />
+          <em>“어느 표에서 찾을지 선택 (선택)”</em>에서  
+          표를 올릴 때 정해둔 <b>표 이름</b>을 고르면 해당 표 안에서만 검색합니다.  
+          여러 표를 한꺼번에 보고 싶으면 이 칸을 비워두면 됩니다.
+        </li>
+        <li>
+          <strong>한 번에 볼 개수 · 페이지 번호 이해하기</strong><br />
+          <em>한 번에 볼 개수</em>는 화면에 한 번에 보여줄 줄 수이고,  
+          <em>페이지 번호</em>를 2, 3으로 바꾸면 이어지는 결과를 볼 수 있습니다.  
+          결과가 너무 많아 느리면 한 번에 볼 개수를 줄여 보세요.
+        </li>
+        <li>
+          <strong>표를 묶어서 합계·평균만 보고 싶을 때</strong><br />
+          예를 들어 <b>지역별 매출 합계</b>를 보고 싶다면  
+          - <em>묶을 기준 칸</em>: region  
+          - <em>숫자 계산에 쓸 칸</em>: sales  
+          - <em>계산 방식</em>: 합계  
+          처럼 채워서 검색하면 됩니다.  
+          이런 계산이 필요 없다면 모두 비워두고 <b>그냥 행 목록</b>만 보셔도 됩니다.
+        </li>
+        <li>
+          <strong>표 데이터 올려두기 화면과 함께 사용하기</strong><br />
+          아직 원하는 표를 올리지 않았다면, 위 버튼의  
+          <em>“표 데이터 올려두기”</em>로 이동해서 먼저 <b>엑셀 파일(.xlsx)이나 CSV 파일</b>을 등록해 주세요.
+        </li>
+      </ol>
+
+      <div class="ts-help-notes">
+        <h3>주의 & 작은 팁</h3>
+        <ul>
+          <li>질문이 너무 짧거나 추상적이면 결과가 없을 수 있어요. <b>조금 더 구체적으로</b> 적어 보세요.</li>
+          <li>파일을 새로 올린 직후에는 표 저장이 끝난 뒤에야 검색 결과에 나타납니다.</li>
+          <li>검색이 느릴 때는 한 번에 볼 개수나 검색 범위(고급 설정)의 숫자를 줄여 보세요.</li>
+          <li>표에 민감한 개인정보가 있다면, 검색 결과를 공유하거나 캡처할 때 주의해 주세요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 검색 결과 -->
+  {% if rows %}
+    <div style="margin-top:18px" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3 style="margin:0">검색 결과</h3>
+        <div class="count">
+          총 {{ total|default:rows|length }}개 · {{ page|default:1 }}/{{ page_count|default:1 }}페이지
+        </div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              {% for col in columns %}
+                <th>{{ col }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                {% for col in columns %}
+                  <td>{{ r|get_item:col }}</td>
+                {% endfor %}
+              </tr>
+            {% empty %}
+              <tr><td class="muted" style="padding:12px">표시할 결과가 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if page_count and page_count|add:'0' > 1 %}
+      <div class="pager">
+        {% with prev=page|add:'-1' next=page|add:'1' %}
+          <a class="btn{% if page <= 1 %} muted{% endif %}"
+             href="{% if page > 1 %}?q={{ q|urlencode }}&size={{ size }}&page={{ prev }}&k={{ k }}&table={{ table|urlencode }}&group_by={{ group_by|urlencode }}&agg_field={{ agg_field|urlencode }}&agg={{ agg }}{% else %}#{% endif %}">
+            ← 앞 페이지
+          </a>
+          <span class="count">{{ page }}/{{ page_count }}</span>
+          <a class="btn{% if page >= page_count %} muted{% endif %}"
+             href="{% if page < page_count %}?q={{ q|urlencode }}&size={{ size }}&page={{ next }}&k={{ k }}&table={{ table|urlencode }}&group_by={{ group_by|urlencode }}&agg_field={{ agg_field|urlencode }}&agg={{ agg }}{% else %}#{% endif %}">
+            다음 페이지 →
+          </a>
+        {% endwith %}
+      </div>
+      {% endif %}
+    </div>
+  {% elif q %}
+    <!-- 질의는 있었지만 결과가 비어있을 때 안내 -->
+    <div style="margin-top:18px" class="panel">
+      <div class="muted">
+        조건에 맞는 결과가 없습니다.  
+        질문을 조금 바꾸거나, 숫자 설정을 줄여서 다시 검색해 보세요.
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<!-- 안전 폴백: 폼이 가로채여도 이동 보장 -->
+<script>
+(function(){
+  var f = document.getElementById('tableSearchForm');
+  if(!f) return;
+  f.addEventListener('submit', function(){
+    try{
+      if(!f.getAttribute('action')) f.setAttribute('action', location.pathname);
+    }catch(_){}
+  }, true);
+})();
+</script>
+
+{% endblock %}

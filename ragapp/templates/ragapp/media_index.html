@@ -1,0 +1,286 @@
+{% extends "ragapp/_base_feature.html" %}
+{% load static %}
+{% block title %}이미지 모아두기{% endblock %}
+{% block content %}
+
+<style>
+  /* --- minimal, pretty, self-contained --- */
+  .mi-wrap{max-width:1100px;margin:0 auto;display:grid;gap:16px}
+  .mi-card{background:var(--card-bg,#0f172a);border:1px solid var(--line,rgba(148,163,184,.18));
+           border-radius:16px;padding:16px}
+  .mi-title{font-size:20px;margin:0 0 10px}
+  .mi-muted{color:#94a3b8}
+  .mi-row{display:grid;gap:10px}
+  .mi-hint{font-size:13px;color:#94a3b8;margin-top:6px}
+  .mi-btnbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .mi-btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line,rgba(148,163,184,.18));
+          background:#111b34;color:#e5e7eb;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+  .mi-btn.primary{background:linear-gradient(90deg,#6366f1,#4f46e5);border-color:transparent}
+  .mi-btn.ghost{background:#0b1326}
+  .mi-check{display:inline-flex;gap:8px;align-items:center;margin-top:8px}
+  /* dropzone */
+  .mi-drop{display:flex;align-items:center;justify-content:center;text-align:center;min-height:160px;
+           border:1.5px dashed var(--line,rgba(148,163,184,.28));border-radius:14px;background:#0b1326;padding:16px;
+           transition:.15s ease-in-out}
+  .mi-drop:hover{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+  .mi-drop.is-drag{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+  .mi-drop input[type=file]{display:none}
+  .mi-drop .mi-icon{font-size:28px;margin-bottom:6px}
+  /* preview grid */
+  .mi-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));margin-top:12px}
+  .mi-item{border:1px solid var(--line,rgba(148,163,184,.18));border-radius:12px;overflow:hidden;background:#0b1326}
+  .mi-thumb{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+  .mi-meta{padding:8px}
+  .mi-cap{font-size:13px;line-height:1.35;word-break:break-all}
+  .mi-tag{font-size:12px;color:#94a3b8}
+  /* result chips */
+  .mi-chip{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);color:#94a3b8}
+  .mi-chip.ok{border-color:rgba(34,197,94,.35);color:#86efac}
+  .mi-chip.fail{border-color:rgba(239,68,68,.35);color:#fecaca}
+
+  /* --- 사용 설명서 카드 --- */
+  .mi-help-card{
+    background:
+      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 55%),
+      radial-gradient(circle at bottom right, rgba(129,140,248,.18), transparent 55%),
+      #020617;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,.45);
+    padding:18px 20px;
+    box-shadow:0 18px 45px rgba(15,23,42,.75);
+    color:#e5e7eb;
+  }
+  .mi-help-header{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .mi-help-title{display:flex;align-items:center;gap:8px}
+  .mi-help-title h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;color:#f9fafb}
+  .mi-help-pill{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:2px 8px;border-radius:999px;
+    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
+    background:linear-gradient(90deg,#38bdf8,#6366f1);
+    color:#020617;
+  }
+  .mi-help-sub{margin:0;font-size:12px;color:#9ca3af}
+
+  .mi-help-body{
+    display:grid;
+    grid-template-columns:minmax(0,2.1fr) minmax(0,1.3fr);
+    gap:18px;
+    margin-top:6px;
+  }
+  @media (max-width:900px){
+    .mi-help-body{grid-template-columns:minmax(0,1fr)}
+  }
+
+  .mi-help-steps{
+    margin:0;
+    padding-left:18px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    font-size:13px;
+    color:#d1d5db;
+  }
+  .mi-help-steps li strong{color:#e5e7eb}
+  .mi-help-steps li em{font-style:normal;color:#a5b4fc}
+
+  .mi-help-notes{
+    padding:12px 13px 10px;
+    border-radius:14px;
+    background:rgba(15,23,42,.96);
+    border:1px dashed rgba(148,163,184,.7);
+  }
+  .mi-help-notes h3{
+    margin:0 0 6px;
+    font-size:13px;font-weight:600;color:#e5e7eb;
+  }
+  .mi-help-notes ul{
+    margin:0;
+    padding-left:16px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:12px;
+    color:#9ca3af;
+  }
+</style>
+
+<div class="mi-wrap">
+
+  <section class="mi-card">
+    <h1 class="mi-title">이미지 모아두기</h1>
+    {% if error %}<div class="fx-alert error">❌ {{ error }}</div>{% endif %}
+
+    {% if not allow_upload %}
+      <div class="fx-alert warn">지금은 이미지를 올릴 수 없는 상태입니다.</div>
+    {% else %}
+      <form id="miForm" class="mi-row" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <!-- 드래그&드롭 + 클릭 업로드 -->
+        <label id="miDrop" class="mi-drop">
+          <input id="miInput" type="file" name="images" accept="image/*" multiple required />
+          <div>
+            <div class="mi-icon">🖼️</div>
+            <div><b>여기로 사진을 끌어다 놓거나 눌러서 선택해 주세요</b></div>
+            <div class="mi-hint">최대 {{ max_files }}장 · 한 장당 {{ max_file_mb }}MB까지</div>
+          </div>
+        </label>
+
+        <label class="mi-check">
+          <input type="checkbox" name="caption_from_name" value="1"/>
+          <span class="mi-muted">파일 이름을 사진 설명으로 같이 저장하기</span>
+        </label>
+
+        <!-- 선택한 파일 미리보기 -->
+        <div id="miPreview" class="mi-grid" aria-live="polite"></div>
+
+        <div class="mi-btnbar">
+          <button class="mi-btn primary" type="submit">사진 저장하기</button>
+          <a class="mi-btn ghost" href="{% url 'media_search' %}">🔎 말로 사진 찾기</a>
+        </div>
+      </form>
+    {% endif %}
+  </section>
+
+  <!-- ✅ 사용 설명서 카드 -->
+  <section class="mi-help-card" aria-label="이미지 모아두기 사용 안내">
+    <div class="mi-help-header">
+      <div class="mi-help-title">
+        <span class="mi-help-pill">Guide</span>
+        <h2>처음 오셨다면 이렇게 사용해 보세요</h2>
+      </div>
+      <p class="mi-help-sub">
+        이 화면은 사진을 미리 올려 두고, 나중에 <b>말이나 키워드로 쉽게 찾을 수 있게</b> 모아두는 공간이에요.
+      </p>
+    </div>
+
+    <div class="mi-help-body">
+      <ol class="mi-help-steps">
+        <li>
+          <strong>올리고 싶은 사진 선택하기</strong><br />
+          위에 있는 큰 상자에 사진을 끌어다 놓거나, 상자를 눌러서 파일을 선택해 주세요.  
+          여러 장을 한 번에 올려도 괜찮아요. (최대 {{ max_files }}장 · 한 장당 {{ max_file_mb }}MB)
+        </li>
+        <li>
+          <strong>사진 설명 자동으로 넣기 (선택)</strong><br />
+          <em>“파일 이름을 사진 설명으로 같이 저장하기”</em>를 켜면  
+          파일 이름이 사진 설명으로 함께 저장돼요.  
+          예: <em>노을_바다.png</em> → 나중에 “노을 바다”로 찾기 쉬워집니다.
+        </li>
+        <li>
+          <strong>사진 저장하기 버튼 누르기</strong><br />
+          <em>“사진 저장하기”</em> 버튼을 누르면 서비스가 사진을 읽고,  
+          나중에 검색에서 바로 찾을 수 있도록 뒤에서 정리해 둡니다.  
+          사진이 많으면 조금 오래 걸릴 수 있어요.
+        </li>
+        <li>
+          <strong>검색 화면에서 잘 들어갔는지 확인하기</strong><br />
+          저장이 끝난 뒤 <em>“말로 사진 찾기”</em> 버튼을 눌러  
+          보고 싶은 장면을 문장으로 적어 보세요.  
+          방금 올린 사진이 검색 결과에 잘 나오는지 테스트할 수 있습니다.
+        </li>
+      </ol>
+
+      <div class="mi-help-notes">
+        <h3>주의 & 작은 팁</h3>
+        <ul>
+          <li>주민등록번호, 계좌번호, 건강 정보처럼 <b>개인정보가 들어간 사진</b>은 올리지 않는 것을 추천드려요.</li>
+          <li>같은 사진을 여러 번 올리면 <b>중복으로 저장</b>될 수 있어요.</li>
+          <li>너무 큰 파일이나 지원하지 않는 파일 형식은 자동으로 저장에 실패할 수 있어요.</li>
+          <li>저장이 안 된 사진이 있다면, 아래 <em>저장 결과</em> 영역에서 안내 문구를 확인해 주세요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  {% if cards %}
+  <section class="mi-card">
+    <div class="mi-btnbar" style="justify-content:space-between;align-items:center">
+      <div class="mi-muted">저장 결과</div>
+      <div>
+        <span class="mi-chip ok">저장 성공 {{ ok }}</span>
+        <span class="mi-chip fail" style="margin-left:6px">저장 실패 {{ fail }}</span>
+      </div>
+    </div>
+
+    <div class="mi-grid" style="margin-top:12px">
+      {% for c in cards %}
+        <div class="mi-item">
+          {% if c.url and c.url != "(비공개 경로)" %}
+            <img class="mi-thumb"
+                 src="{{ c.url }}"
+                 alt="저장된 사진"
+                 loading="lazy"
+                 onerror="this.onerror=null; this.src='{% static 'ragapp/img/placeholder.png' %}'">
+          {% else %}
+            <img class="mi-thumb" src="{% static 'ragapp/img/placeholder.png' %}" alt="placeholder" loading="lazy">
+          {% endif %}
+          <div class="mi-meta">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+              <span class="mi-chip {% if c.status|lower == 'ok' %}ok{% else %}fail{% endif %}">{{ c.status }}</span>
+              {% if c.mime %}<span class="mi-chip">{{ c.mime }}</span>{% endif %}
+            </div>
+            {% if c.pid %}<div class="mi-cap"><b>사진 번호</b> {{ c.pid }}</div>{% endif %}
+            {% if c.sha16 %}<div class="mi-cap"><b>추가 정보</b> {{ c.sha16 }}</div>{% endif %}
+            {% if c.msg %}<div class="mi-cap mi-muted">안내: {{ c.msg }}</div>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+
+<!-- lightweight UX: drag&drop + previews (local only) -->
+<script>
+(function(){
+  const input = document.getElementById('miInput');
+  const drop  = document.getElementById('miDrop');
+  const prev  = document.getElementById('miPreview');
+  if(!input || !drop || !prev) return;
+
+  const maxFiles = {{ max_files|default:10 }};
+  const maxMB    = {{ max_file_mb|default:15 }};
+
+  function renderPreview(files){
+    prev.innerHTML = '';
+    const slice = Array.prototype.slice.call(files, 0, maxFiles);
+    slice.forEach(file=>{
+      const url = URL.createObjectURL(file);
+      const item = document.createElement('div');
+      item.className = 'mi-item';
+      item.innerHTML = `
+        <img class="mi-thumb" src="${url}" alt="">
+        <div class="mi-meta">
+          <div class="mi-cap">${file.name}</div>
+          <div class="mi-tag">${(file.size/1024/1024).toFixed(2)} MB</div>
+        </div>`;
+      prev.appendChild(item);
+    });
+  }
+
+  input.addEventListener('change', ()=> renderPreview(input.files));
+
+  ['dragenter','dragover'].forEach(ev=>{
+    drop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); drop.classList.add('is-drag'); });
+  });
+  ['dragleave','drop'].forEach(ev=>{
+    drop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); drop.classList.remove('is-drag'); });
+  });
+  drop.addEventListener('drop', e=>{
+    const files = Array.from(e.dataTransfer.files || []).filter(f=> f.type.startsWith('image/'));
+    if(!files.length) return;
+    // 용량/개수 간단 검증
+    const filtered = files.slice(0, maxFiles).filter(f=> (f.size/1024/1024) <= maxMB);
+    // DataTransfer를 만들어 input에 주입
+    const dt = new DataTransfer();
+    filtered.forEach(f=> dt.items.add(f));
+    input.files = dt.files;
+    renderPreview(input.files);
+  });
+})();
+</script>
+
+{% endblock %}

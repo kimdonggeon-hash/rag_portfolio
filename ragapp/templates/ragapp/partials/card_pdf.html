@@ -1,0 +1,135 @@
+{# ragapp/templates/ragapp/partials/card_pdf.html #}
+<section class="card" aria-labelledby="pdf-card-title">
+  <div class="card-header">
+    <div class="card-title-row">
+      <div class="card-title-left">
+        <h2 id="pdf-card-title" class="card-title">
+          📄  PDF 요약 · 표로 정리
+          <span class="model-pill">
+            {{ model_name_pdf|default:"vertex-gemini" }}
+          </span>
+        </h2>
+      </div>
+    </div>
+
+    {# ✅ pdf_tab.js와 맞춘 폼 #}
+    <form id="pdf-form"
+          method="post"
+          enctype="multipart/form-data"
+          class="form-row"
+          data-api-url="{% url 'api_pdf_analyze' %}"
+          autocomplete="off">
+      {% csrf_token %}
+
+      <!-- 1. PDF 파일 (name='pdf') -->
+      <div class="input-wrap">
+        <input class="input-box"
+               type="file"
+               name="pdf"
+               accept="application/pdf"
+               required
+               aria-label="요약하거나 표로 정리할 PDF 파일을 골라 주세요" />
+      </div>
+
+      <!-- 2. 질문 (name='question') -->
+      <div class="input-wrap">
+        <input class="input-box"
+               type="text"
+               name="question"
+               placeholder="{{ PDF_QUERY_PLACEHOLDER|default:'예: 이 문서 핵심을 5줄로 요약해줘 / 과목별 점수를 표로 정리해줘' }}"
+               value=""
+               inputmode="search"
+               autocapitalize="off"
+               spellcheck="false"
+               maxlength="2000"
+               aria-label="PDF 내용에 대해 물어보고 싶은 내용을 입력하세요" />
+      </div>
+
+      <!-- 3. 출력 형식 (name='mode') -->
+      <div class="opt-consent-block pdf-output-block"
+           role="group"
+           aria-labelledby="opt-consent-title-pdf">
+        <div id="opt-consent-title-pdf"
+             class="opt-consent-title">
+          {{ PDF_OPTION_TITLE|default:"출력 방식 · 추가 설정 (선택)" }}
+        </div>
+
+        <div class="pdf-output-row">
+          <span class="pdf-output-label">출력 형식:</span>
+
+          <label class="pdf-output-pill">
+            <input type="radio"
+                   name="mode"
+                   value="summary"
+                   checked />
+            <span>
+              {{ PDF_MODE_SUMMARY_LABEL|default:"일반 요약" }}
+            </span>
+          </label>
+
+          <label class="pdf-output-pill">
+            <input type="radio"
+                   name="mode"
+                   value="table" />
+            <span>
+              {{ PDF_MODE_TABLE_LABEL|default:"표로 정리" }}
+            </span>
+          </label>
+
+          <span class="pdf-output-note">
+            {{ PDF_MODE_HINT|default:"“표로 정리”를 고르면, 결과를 마크다운 표(열·행이 있는 표) 위주로 만들어 줍니다." }}
+          </span>
+        </div>
+      </div>
+
+      <!-- 4. 실행 버튼 (위치는 항상 고정) -->
+      <div class="btn-row pdf-btn-row">
+        <button class="btn info" type="button" id="pdf-run-btn">
+          {{ PDF_BTN_RUN_LABEL|default:"📄 PDF 분석하기 (Vertex)" }}
+        </button>
+      </div>
+
+      <!-- 5. 사용 설명서: 버튼 줄 아래에서 카드 가로 전체를 차지 -->
+      <details class="pdf-manual">
+        <summary>
+          📘 PDF 분석 사용 설명서
+        </summary>
+        <div class="pdf-manual-body">
+          <p>
+            이 기능은 PDF 파일 안의 내용을 AI에게 맡겨
+            <strong>요약</strong>하거나 <strong>표 형식</strong>으로 정리해 주는 기능이에요.
+          </p>
+          <ol>
+            <li><strong>PDF 파일 선택</strong>에서 리포트·과제·계약서 등 분석할 파일을 고릅니다.</li>
+            <li>
+              <strong>질문 입력</strong> 칸에
+              “핵심만 5줄로 요약해줘”, “과목별 점수만 표로 정리해줘”처럼
+              원하는 지시를 적어 주세요.
+            </li>
+            <li>
+              <strong>출력 형식</strong>에서
+              <em>일반 요약</em> 또는 <em>표로 정리</em>를 고른 뒤
+              <strong>PDF 분석하기</strong> 버튼을 누르면 결과가 아래 박스에 표시됩니다.
+            </li>
+            <li>
+              다시 분석하고 싶으면 질문이나 출력 형식을 바꾼 뒤,
+              같은 버튼을 한 번 더 눌러 주면 됩니다.
+            </li>
+          </ol>
+          <p class="help-note">
+            실제 PDF 파일 자체는 서버에 오래 보관하지 않고,
+            결과·로그 처리 방식은 화면 아래 <strong>개인정보처리방침</strong>을 참고해 주세요.
+          </p>
+        </div>
+      </details>
+    </form>
+  </div>
+
+  <div class="card-body">
+    {# ✅ 결과 박스: pdf_tab.js가 여기 채움 #}
+    <div id="pdf-result-box" class="answer-block">
+      <!-- ✅ 여기로 HTML 결과(표 포함)가 들어감 -->
+      <div id="pdf-result-text" class="pdf-result-text"></div>
+    </div>
+  </div>
+</section>
