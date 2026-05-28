@@ -71,6 +71,7 @@ job.env
 
 .env
 job.env
+job.yaml
 db.sqlite3
 vector_store.sqlite3
 env_job_*.yaml
