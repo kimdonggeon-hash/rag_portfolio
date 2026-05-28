@@ -37,23 +37,33 @@ RAG 통합 검색 콘솔 + 질문 챗봇 + 실시간 상담
 ---
 
 ## 3) 기술 스택
+
 # Backend
 - Django
 - Django REST Framework
 
+# Frontend
+- Django Templates
+- HTML/CSS
+- JavaScript
+
 # Database
-- PostgreSQL
+- PostgreSQL (Cloud SQL)
 - ChromaDB
 
 # AI
-- Vertex AI Gemini API
+- Vertex AI
+- Gemini API
 
-# DevOps
-- Docker
-- GitHub Actions
+# Infrastructure / Deployment
+- Google Cloud Platform (GCP)
+  - Cloud Run
+  - Cloud SQL
+  - Artifact Registry
 
 # Tools
 - Git
+- GitHub
 - VSCode
 
 ---
