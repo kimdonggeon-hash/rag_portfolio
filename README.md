@@ -37,10 +37,23 @@ RAG 통합 검색 콘솔 + 질문 챗봇 + 실시간 상담
 ---
 
 ## 3) 기술 스택
-- Backend: **Python, Django, Django ORM, Django Channels(WebSocket)**
-- Frontend: **HTML/CSS, JavaScript(AJAX/Fetch)**
-- DB: **SQLite** (서비스/벡터 저장), (선택) ChromaDB 사용 경험
-- Crawling: **requests, BeautifulSoup, robotparser**
-- Etc: Git, .env 환경변수
+# Backend
+- Django
+- Django REST Framework
+
+# Database
+- PostgreSQL
+- ChromaDB
+
+# AI
+- Vertex AI Gemini API
+
+# DevOps
+- Docker
+- GitHub Actions
+
+# Tools
+- Git
+- VSCode
 
 ---
