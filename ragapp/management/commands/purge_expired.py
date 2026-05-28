@@ -1,3 +1,4 @@
+# ragapp/management/commands/purge_expired.py
 from __future__ import annotations
 
 from datetime import timedelta
@@ -15,6 +16,13 @@ def _get_days(name: str, default: int) -> int:
         return default
 
 
+def _field_names(Model) -> set[str]:
+    try:
+        return {f.name for f in Model._meta.get_fields() if hasattr(f, "name")}
+    except Exception:
+        return set()
+
+
 class Command(BaseCommand):
     help = "delete_at(또는 created_at) 기준으로 보존기간 지난 레코드를 배치 삭제합니다."
 
@@ -30,10 +38,8 @@ class Command(BaseCommand):
 
         now = timezone.now()
 
-        # ✅ 여기서 “지울 대상”만 명확히 allowlist로 관리 (안전)
+        # ✅ allowlist: 여기만 관리
         targets = [
-            # (app_label, model_name, mode, retention_setting_name, default_days)
-
             # 개인정보 가능성 높은 로그 → 짧게
             ("ragapp", "ChatQueryLog", "delete_at", "RETENTION_DAYS_CHATLOG", 30),
             ("ragapp", "Feedback", "delete_at", "RETENTION_DAYS_FEEDBACK", 180),
@@ -50,34 +56,50 @@ class Command(BaseCommand):
             ("ragapp", "AuditEvent", "created_at", "RETENTION_DAYS_AUDIT", 1095),
             ("ragapp", "DataErasureTicket", "created_at", "RETENTION_DAYS_DSR", 1095),
 
-            # 라이브챗(원하면)
-            ("ragapp", "LiveChatSession", "created_at", "RETENTION_DAYS_LIVECHAT", 180),
-            ("ragapp", "LiveChatRoom", "created_at", "RETENTION_DAYS_LIVECHATROOM", 90),
+            # ⚠️ 라이브챗 세션/룸은 CASCADE 때문에 증빙/홀드까지 같이 날릴 수 있어 일단 제외 추천
+            # ("ragapp", "LiveChatSession", "created_at", "RETENTION_DAYS_LIVECHAT", 180),
+            # ("ragapp", "LiveChatRoom", "created_at", "RETENTION_DAYS_LIVECHATROOM", 90),
         ]
 
         total_candidates = 0
         plan = []
 
         for app_label, model_name, mode, setting_name, default_days in targets:
-            Model = apps.get_model(app_label, model_name)
-            days = _get_days(setting_name, default_days)
+            try:
+                Model = apps.get_model(app_label, model_name)
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f"SKIP {app_label}.{model_name}: model not found ({e})"))
+                continue
 
+            days = _get_days(setting_name, default_days)
             if days <= 0:
                 continue
 
+            fns = _field_names(Model)
+
             if mode == "delete_at":
+                if "delete_at" not in fns:
+                    self.stdout.write(self.style.WARNING(f"SKIP {Model._meta.label}: no delete_at field"))
+                    continue
+
                 qs = Model.objects.all()
-                field_names = {f.name for f in Model._meta.get_fields() if hasattr(f, "name")}
-                if "legal_hold" in field_names:
+                if "legal_hold" in fns:
                     qs = qs.filter(legal_hold=False)
-                qs = qs.filter(delete_at__isnull=False, delete_at__lt=now)
+
+                # delete_at 기준(<=now가 일반적으로 기대와 맞음)
+                qs = qs.filter(delete_at__isnull=False, delete_at__lte=now)
+
             else:
+                if "created_at" not in fns:
+                    self.stdout.write(self.style.WARNING(f"SKIP {Model._meta.label}: no created_at field"))
+                    continue
+
                 cutoff = now - timedelta(days=days)
                 qs = Model.objects.filter(created_at__lt=cutoff)
 
             cnt = qs.count()
             if cnt:
-                plan.append((Model, qs, cnt, days, mode))
+                plan.append((Model, qs.order_by("pk"), cnt, days, mode))
                 total_candidates += cnt
 
         if not plan:
@@ -100,8 +122,7 @@ class Command(BaseCommand):
                 return
 
         deleted_total = 0
-        for Model, qs, cnt, days, mode in plan:
-            # 큰 delete는 쪼개서 안전하게
+        for Model, qs, _cnt, _days, _mode in plan:
             while True:
                 pks = list(qs.values_list("pk", flat=True)[:batch])
                 if not pks:

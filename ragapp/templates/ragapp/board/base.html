@@ -1,0 +1,126 @@
+{% load static versioned_static %}
+<!doctype html>
+<html lang="ko"
+      data-theme="{% if request and request.COOKIES and request.COOKIES.theme %}{{ request.COOKIES.theme }}{% endif %}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>{% block title %}{{ SERVICE_NAME|default:"김동건의 포트폴리오" }}{% endblock %}</title>
+
+  {% include "ragapp/partials/favicon.html" %}
+  
+  <meta name="theme-color" content="#35328eff" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+
+  {% if csp_nonce %}
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 img-src 'self' data: https:;
+                 font-src 'self' data:;
+                 style-src 'self';
+                 script-src 'self' 'nonce-{{ csp_nonce }}';
+                 connect-src 'self' https: ws: wss:;
+                 object-src 'none';
+                 frame-src 'none';
+                 frame-ancestors 'none';
+                 base-uri 'self';
+                 form-action 'self';
+                 upgrade-insecure-requests">
+  {% endif %}
+
+  <!-- 글로벌 -->
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/legal-bundle.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/base.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/board.css' %}">
+
+  <!-- 테마 스위치 UI -->
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/board_theme_switch.css' %}">
+
+  {% block page_css %}{% endblock %}
+  {% block extra_css %}{% endblock %}
+
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %}>
+  (function(){
+    try{
+      var root=document.documentElement;
+      var keys=["theme","dg_theme","board_theme"];
+      for(var i=0;i<keys.length;i++){
+        var v=localStorage.getItem(keys[i]);
+        if(v==="dark"||v==="light"){ root.setAttribute("data-theme", v); return; }
+      }
+    }catch(e){}
+  })();
+  </script>
+</head>
+
+<body>
+
+  <button id="boardThemeSwitch"
+          class="board-theme-switch"
+          type="button"
+          aria-label="테마 전환"
+          aria-pressed="false"
+          title="테마 전환">
+    <span class="bts-ico" aria-hidden="true">🌙</span>
+  </button>
+
+  {% block body %}
+    {% block content %}{% endblock %}
+  {% endblock %}
+
+  {# ✅ 토스트는 base에만 1개 #}
+  <div id="boardToast" class="board-toast" hidden></div>
+
+  {# ✅ 신고 모달도 base에만 1개 #}
+  <dialog id="reportModal" class="board-modal">
+    <form id="reportModalForm" method="post" class="board-modal-card">
+      {% csrf_token %}
+
+      <div class="board-modal-head">
+        <div>
+          <div id="reportModalTitle" class="board-modal-title">신고</div>
+          <div id="reportModalSub" class="board-modal-sub"></div>
+        </div>
+        <button type="button" class="board-btn is-ghost js-modal-close">닫기</button>
+      </div>
+
+      <div class="board-modal-body">
+        {% if report_form %}
+          {{ report_form.website }}
+
+          <div class="field">
+            <label class="board-label" for="{{ report_form.reason.id_for_label }}">{{ report_form.reason.label }}</label>
+            {{ report_form.reason }}
+          </div>
+
+          <div class="field">
+            <label class="board-label" for="{{ report_form.message.id_for_label }}">{{ report_form.message.label }}</label>
+            {{ report_form.message }}
+          </div>
+        {% else %}
+          <div class="board-empty">
+            신고 폼이 준비되지 않았습니다. (이 페이지에서는 신고를 사용할 수 없어요.)
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="board-modal-foot">
+        <button class="board-btn is-primary" type="submit" {% if not report_form %}disabled aria-disabled="true"{% endif %}>
+          신고 접수
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- scripts -->
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %} defer src="{% versioned_static 'ragapp/javascript/board.js' %}"></script>
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %} defer src="{% versioned_static 'ragapp/javascript/base.js' %}"></script>
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %} defer src="{% versioned_static 'ragapp/javascript/board_theme_switch.js' %}"></script>
+
+  {% block page_js %}{% endblock %}
+</body>
+</html>

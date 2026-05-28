@@ -1,0 +1,69 @@
+{# ragapp/templates/ragapp/partials/signal_guide_cards_modal.html #}
+
+<div id="guideModal" class="gd-modal" aria-hidden="true" hidden>
+  <div class="gd-backdrop" data-gd-close></div>
+
+  <section class="gd-panel" role="dialog" aria-modal="true" aria-labelledby="gdTitle" tabindex="-1">
+    <header class="gd-head">
+      <div class="gd-head-left">
+        <div class="gd-pill">GUIDE</div>
+        <h2 id="gdTitle" class="gd-title">사용 방법</h2>
+      </div>
+      <button type="button" class="gd-close" data-gd-close aria-label="닫기">✕</button>
+    </header>
+
+    <div class="gd-body">
+      <div class="gd-track" id="gdTrack" aria-live="polite">
+        <!-- 카드 1: 이미지 모아두기 -->
+        <article class="gd-card" data-gd-card>
+          <div class="gd-card-top">
+            <div class="gd-emoji">🖼️</div>
+            <div>
+              <div class="gd-card-title">이미지 모아두기</div>
+              <div class="gd-card-sub">먼저 사진을 올려두면, 나중에 말로 쉽게 찾을 수 있어요.</div>
+            </div>
+          </div>
+
+          <ol class="gd-steps">
+            <li><b>사진 선택</b>: 큰 상자에 드래그하거나 눌러서 선택</li>
+            <li><b>설명/태그(선택)</b>: 캡션·태그를 적으면 검색이 더 잘 돼요</li>
+            <li><b>저장</b>: “사진 저장하기” 누르면 준비 완료</li>
+          </ol>
+
+          <div class="gd-tip">
+            사진 업로드시 평균 3일에서 7일 후에 반영이 됩니다. 그 후에 다시 검색해 주세요
+          </div>
+        </article>
+
+        <!-- 카드 2: 글로 이미지 찾기 -->
+        <article class="gd-card" data-gd-card>
+          <div class="gd-card-top">
+            <div class="gd-emoji">🔎</div>
+            <div>
+              <div class="gd-card-title">글로 이미지 찾기</div>
+              <div class="gd-card-sub">원하는 장면을 한 문장으로 적어보세요.</div>
+            </div>
+          </div>
+
+          <ol class="gd-steps">
+            <li><b>문장으로 설명</b>: “노을 진 바다”, “카페에서 공부하는 사람”처럼</li>
+            <li><b>0개면</b>: 문장을 조금 더 구체적으로 바꿔보기</li>
+            <li><b>사진 업로드 후</b>: 바로 검색이 안돼고 이미지 승인 되는데 3일에서 7일 소요됩니다 승인 후 다시 시도해 주세요</li>
+          </ol>
+
+          <div class="gd-tip">
+            팁: 너무 짧은 단어 1개보다, “장소+상황”을 같이 쓰면 정확도가 올라갑니다.
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <footer class="gd-foot">
+      <div class="gd-dots" id="gdDots" aria-label="가이드 페이지 표시"></div>
+      <div class="gd-actions">
+        <button type="button" class="gd-btn" id="gdPrev">이전</button>
+        <button type="button" class="gd-btn primary" id="gdNext">다음</button>
+      </div>
+    </footer>
+  </section>
+</div>

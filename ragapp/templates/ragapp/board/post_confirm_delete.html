@@ -1,0 +1,73 @@
+{% extends "ragapp/board/board_base.html" %}
+
+{% block content %}
+<section class="board-section">
+  <div class="board-card confirm-card">
+    <div class="confirm-head">
+      <div>
+        <div class="confirm-title">글 삭제</div>
+        <div class="confirm-sub">
+          삭제하면 목록에서 숨겨집니다. 복구는 운영자만 가능하게 유지하는 걸 추천해요.
+        </div>
+      </div>
+      <span class="chip chip-danger">삭제 확인</span>
+    </div>
+
+    {% if err %}
+      <div class="board-alert is-danger">
+        {{ err }}
+      </div>
+    {% endif %}
+
+    <div class="confirm-summary">
+      <div class="confirm-summary-title">{{ post.title }}</div>
+      <div class="confirm-summary-meta">
+        #{{ post.id }} · {{ post.created_at|date:"Y-m-d H:i" }}
+        {% if post.category %}<span class="sep">·</span>{{ post.category.name }}{% endif %}
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'board:delete' post.pk %}" class="board-form">
+      {% csrf_token %}
+
+      {% if needs_guest_name %}
+        <div class="board-field">
+          <label class="board-label" for="id_guest_name">비회원 이름</label>
+          <input id="id_guest_name"
+                 class="board-control"
+                 name="guest_name"
+                 autocomplete="off"
+                 placeholder="작성할 때 입력한 이름"
+                 required />
+        </div>
+      {% endif %}
+
+      {% if needs_guest_pw %}
+        <div class="board-field">
+          <label class="board-label" for="id_guest_pw">비회원 비밀번호</label>
+          <input id="id_guest_pw"
+                 class="board-control"
+                 name="guest_pw"
+                 type="password"
+                 autocomplete="current-password"
+                 placeholder="작성할 때 입력한 비밀번호"
+                 required />
+        </div>
+      {% endif %}
+
+      <div class="confirm-actions">
+        <button type="submit" class="qa-launch-btn is-danger">
+          삭제 확정
+        </button>
+        <a class="qa-launch-btn is-ghost" href="{% url 'board:detail' post.pk %}">
+          취소
+        </a>
+      </div>
+    </form>
+
+    <div class="confirm-footnote">
+      <span class="muted">Tip:</span> 실수 방지를 위해 삭제는 “소프트 삭제”로만 처리됩니다.
+    </div>
+  </div>
+</section>
+{% endblock %}

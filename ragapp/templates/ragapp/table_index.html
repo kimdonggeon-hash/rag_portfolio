@@ -1,129 +1,200 @@
 {% extends "ragapp/_base_feature.html" %}
-{% block title %}표 파일 저장하기{% endblock %}
+{% block title %}표 데이터 올려두기{% endblock %}
 {% block content %}
+
+{% url 'ragadmin_table_index' as table_index_url %}
+{% url 'ragadmin_table_search' as table_search_url %}
+{% url 'ragadmin:usage' as ragadmin_usage_url %}
+{% url 'ragadmin:index' as ragadmin_index_url %}
 
 <style>
   /* ====== minimal, pretty, accessible ====== */
   .ci-wrap{max-width:1100px;margin:0 auto;display:grid;gap:16px}
-  .ci-card{background:var(--card-bg,#0f172a);border:1px solid var(--line,rgba(148,163,184,.18));
-           border-radius:16px;padding:18px}
-  .ci-title{font-size:20px;margin:0 0 12px}
-  .ci-muted{color:#94a3b8}
-  .ci-err{padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.08);
-          border:1px solid rgba(239,68,68,.35);color:#fecaca;margin-bottom:8px}
 
-  .ci-form{display:grid;gap:12px}
-  .ci-row{display:grid;gap:10px}
-  .ci-label{font-size:12px;color:#94a3b8;margin-bottom:6px}
-  .ci-input,.ci-file,.ci-num{
-    width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line,rgba(148,163,184,.18));
-    background:#0b1326;color:#e5e7eb;outline:none
+  .ci-card{
+    background:var(--card-bg,#0f172a);
+    border:1px solid var(--line,rgba(148,163,184,.18));
+    border-radius:18px;
+    padding:18px;
+    box-shadow:0 18px 40px rgba(0,0,0,.28);
   }
-  .ci-input:focus,.ci-file:focus,.ci-num:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+
+  .ci-title{font-size:20px;margin:0}
+  .ci-sub{color:#94a3b8;font-size:13px;line-height:1.5;margin-top:6px}
+  .ci-muted{color:#94a3b8}
+  .ci-err{
+    padding:10px 12px;border-radius:12px;
+    background:rgba(239,68,68,.08);
+    border:1px solid rgba(239,68,68,.35);
+    color:#fecaca;margin-top:10px
+  }
+
+  .ci-form{display:grid;gap:12px;margin-top:12px}
+  .ci-row{display:grid;gap:12px}
+  .ci-label{font-size:12px;color:#94a3b8;margin-bottom:6px}
+
+  .ci-input,.ci-file,.ci-num{
+    width:100%;
+    padding:11px 12px;
+    border-radius:12px;
+    border:1px solid var(--line,rgba(148,163,184,.18));
+    background:#0b1326;
+    color:#e5e7eb;
+    outline:none
+  }
+  .ci-input:focus,.ci-file:focus,.ci-num:focus{
+    border-color:#6366f1;
+    box-shadow:0 0 0 3px rgba(99,102,241,.25)
+  }
 
   /* 드래그&드롭 영역 */
-  .ci-drop{display:flex;align-items:center;justify-content:center;text-align:center;min-height:140px;
-           border:1.5px dashed var(--line,rgba(148,163,184,.28));border-radius:14px;background:#0b1326;padding:16px;
-           transition:.15s ease-in-out}
-  .ci-drop:hover{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.20)}
-  .ci-drop.is-drag{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.20)}
+  .ci-drop{
+    display:flex;align-items:center;justify-content:center;
+    text-align:center;min-height:150px;
+    border:1.5px dashed rgba(148,163,184,.30);
+    border-radius:16px;background:#0b1326;
+    padding:16px;transition:.15s ease-in-out
+  }
+  .ci-drop:hover{
+    border-color:#6366f1;
+    box-shadow:0 0 0 3px rgba(99,102,241,.20)
+  }
+  .ci-drop.is-drag{
+    border-color:#22c55e;
+    box-shadow:0 0 0 3px rgba(34,197,94,.20)
+  }
   .ci-drop input[type=file]{display:none}
 
-  .ci-btnbar{display:flex;gap:8px;flex-wrap:wrap}
+  .ci-btnbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
   .ci-btn{
-    padding:10px 14px;border-radius:10px;border:1px solid var(--line,rgba(148,163,184,.18));
-    background:#111b34;color:#e5e7eb;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer
+    padding:10px 14px;border-radius:12px;
+    border:1px solid rgba(148,163,184,.22);
+    background:#111b34;color:#e5e7eb;text-decoration:none;
+    display:inline-flex;align-items:center;justify-content:center;
+    cursor:pointer;gap:8px
   }
+  .ci-btn:hover{filter:brightness(1.03)}
   .ci-btn.primary{background:linear-gradient(90deg,#6366f1,#4f46e5);border-color:transparent}
   .ci-btn.ghost{background:#0b1326}
+  .ci-btn.soft{
+    background:linear-gradient(90deg, rgba(59,130,246,.14), rgba(99,102,241,.10));
+    border-color:rgba(99,102,241,.35);
+  }
 
   /* 미리보기 표 */
   .ci-preview{margin-top:10px}
-  .ci-twrap{overflow:auto;border-radius:12px;border:1px solid var(--line,rgba(148,163,184,.18))}
+  .ci-twrap{overflow:auto;border-radius:12px;border:1px solid rgba(148,163,184,.18)}
   table.ci-tbl{width:100%;border-collapse:separate;border-spacing:0}
-  .ci-tbl thead th{position:sticky;top:0;background:#0f162b;border-bottom:1px solid var(--line,rgba(148,163,184,.18));
-                   color:#94a3b8;text-align:left;padding:8px}
+  .ci-tbl thead th{
+    position:sticky;top:0;background:#0f162b;
+    border-bottom:1px solid rgba(148,163,184,.18);
+    color:#94a3b8;text-align:left;padding:8px;white-space:nowrap
+  }
   .ci-tbl tbody td{border-bottom:1px solid rgba(148,163,184,.12);padding:8px;vertical-align:top}
   .ci-hint{font-size:13px;color:#94a3b8}
   .ci-kv{display:grid;grid-template-columns:120px 1fr;gap:8px}
-  .ci-chip{display:inline-block;font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);color:#94a3b8}
-
-  /* ====== 사용 설명서 카드 ====== */
-  .ci-help-card{
-    background:
-      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 55%),
-      radial-gradient(circle at bottom right, rgba(129,140,248,.18), transparent 55%),
-      #020617;
-    border-radius:18px;
-    border:1px solid rgba(148,163,184,.45);
-    padding:18px 20px;
-    box-shadow:0 18px 45px rgba(15,23,42,.75);
-    color:#e5e7eb;
+  .ci-chip{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;padding:4px 10px;border-radius:999px;
+    border:1px solid rgba(148,163,184,.25);
+    color:#cbd5e1;background:rgba(2,6,23,.45)
   }
-  .ci-help-header{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
-  .ci-help-title{display:flex;align-items:center;gap:8px}
-  .ci-help-title h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;color:#f9fafb}
-  .ci-help-pill{
-    display:inline-flex;align-items:center;justify-content:center;
+
+  /* ===== 제품화 헤더(타이틀/퀵액션/네비) ===== */
+  .ci-head{
+    display:flex;align-items:flex-start;justify-content:space-between;
+    gap:14px;flex-wrap:wrap
+  }
+  .ci-head-left{min-width:260px}
+  .ci-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .ci-badge{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(148,163,184,.22);
+    background:rgba(2,6,23,.35);
+    color:#cbd5e1;font-size:12px
+  }
+  .ci-badge .dot{
+    width:8px;height:8px;border-radius:999px;background:#22c55e;
+    box-shadow:0 0 0 3px rgba(34,197,94,.12)
+  }
+
+  .ci-head-right{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .ci-nav{
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end
+  }
+  .ci-navbtn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:999px;
+    border:1px solid rgba(148,163,184,.35);
+    background:#020617;color:#e5e7eb;
+    font-size:12px;text-decoration:none;opacity:.92
+  }
+  .ci-navbtn small{
+    font-size:10px;text-transform:uppercase;letter-spacing:.12em;
     padding:2px 8px;border-radius:999px;
-    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
-    background:linear-gradient(90deg,#38bdf8,#6366f1);
-    color:#020617;
+    background:rgba(15,23,42,.95);
+    border:1px solid rgba(148,163,184,.45);
+    color:#a5b4fc
   }
-  .ci-help-sub{margin:0;font-size:12px;color:#9ca3af}
-
-  .ci-help-body{
-    display:grid;
-    grid-template-columns:minmax(0,2.1fr) minmax(0,1.3fr);
-    gap:18px;
-    margin-top:6px;
-  }
-  @media (max-width:900px){
-    .ci-help-body{grid-template-columns:minmax(0,1fr)}
+  .ci-navbtn:hover{opacity:1;filter:brightness(1.04)}
+  .ci-navbtn.is-active{
+    border-color:rgba(96,165,250,.95);
+    box-shadow:0 0 0 1px rgba(37,99,235,.65),0 0 18px rgba(37,99,235,.45);
+    background:linear-gradient(90deg,#1d2a4d,#020617);
+    opacity:1
   }
 
-  .ci-help-steps{
-    margin:0;
-    padding-left:18px;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    font-size:13px;
-    color:#d1d5db;
+  .ci-quick{
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end
   }
-  .ci-help-steps li strong{color:#e5e7eb}
-  .ci-help-steps li em{font-style:normal;color:#a5b4fc}
-
-  .ci-help-notes{
-    padding:12px 13px 10px;
-    border-radius:14px;
-    background:rgba(15,23,42,.96);
-    border:1px dashed rgba(148,163,184,.7);
+  .ci-qbtn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:12px;
+    border:1px solid rgba(148,163,184,.18);
+    background:#0b1326;color:#e5e7eb;text-decoration:none;font-size:12px
   }
-  .ci-help-notes h3{
-    margin:0 0 6px;
-    font-size:13px;font-weight:600;color:#e5e7eb;
-  }
-  .ci-help-notes ul{
-    margin:0;
-    padding-left:16px;
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-    font-size:12px;
-    color:#9ca3af;
-  }
+  .ci-qbtn:hover{filter:brightness(1.03)}
+  .ci-qbtn b{font-weight:700}
 </style>
 
 <div class="ci-wrap">
   <section class="ci-card">
-    <!-- 👇 제목에 엑셀까지 표시 -->
-    <h1 class="ci-title">표 데이터 올려두기 (엑셀·CSV)</h1>
+    <!-- ✅ 제품화 헤더: 타이틀 + 대시보드/네비 + 퀵액션 -->
+    <div class="ci-head">
+      <div class="ci-head-left">
+        <h1 class="ci-title">표 데이터 올려두기 (엑셀·CSV)</h1>
+        <div class="ci-sub">
+          스태프 전용 업로드 화면입니다. 업로드 후 <b>표 검색</b>에서 바로 조회할 수 있어요.
+          CSV는 최대 {{ max_rows }}줄까지 미리보기 지원.
+        </div>
+        <div class="ci-badges" aria-label="상태 요약">
+          <span class="ci-badge"><span class="dot" aria-hidden="true"></span>Admin Only</span>
+          <span class="ci-badge">엑셀·CSV 지원</span>
+          <span class="ci-badge">규칙 검색 연동</span>
+        </div>
+      </div>
+
+      <div class="ci-head-right">
+        {% with cur_name=request.resolver_match.url_name %}
+          <nav class="ci-nav" aria-label="표 관리 이동">
+            <a href="{{ ragadmin_index_url }}" class="ci-navbtn{% if request.path == ragadmin_index_url %} is-active{% endif %}">
+              🧭 대시보드 <small>ADMIN</small>
+            </a>
+
+            <a href="{{ table_index_url }}" class="ci-navbtn{% if cur_name == 'ragadmin_table_index' %} is-active{% endif %}">
+              📥 표 저장 <small>ADMIN</small>
+            </a>
+
+            <a href="{{ table_search_url }}" class="ci-navbtn{% if cur_name == 'ragadmin_table_search' %} is-active{% endif %}">
+              🔎 표 검색 <small>ADMIN</small>
+            </a>
+          </nav>
+        {% endwith %}
+      </div>
+    </div>
 
     {% if error %}<div class="ci-err" role="alert">❌ {{ error }}</div>{% endif %}
-    {% if not allow_upload %}
-      <div class="ci-err">지금은 파일을 올릴 수 없는 상태입니다.</div>
-    {% else %}
 
     <form id="ciForm" class="ci-form" method="post" enctype="multipart/form-data">
       {% csrf_token %}
@@ -143,14 +214,15 @@
 
           <!-- 드래그&드롭 + 클릭 업로드 -->
           <label id="ciDrop" class="ci-drop">
-            <!-- 👇 accept 에 엑셀 확장자 추가 -->
             <input id="ciFile" class="ci-file" type="file" name="csvfile"
                    accept=".csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx,.xls"
                    required />
             <div>
               <div style="font-size:28px;margin-bottom:6px">📄</div>
               <b>여기로 엑셀(.xlsx) 또는 CSV 파일을 끌어다 놓거나 눌러서 선택해 주세요</b>
-              <div class="ci-hint" style="margin-top:4px">CSV 파일은 위에서부터 최대 {{ max_rows }}줄까지 미리 볼 수 있어요</div>
+              <div class="ci-hint" style="margin-top:6px">
+                CSV 파일은 위에서부터 최대 {{ max_rows }}줄까지 미리 볼 수 있어요
+              </div>
             </div>
           </label>
 
@@ -175,67 +247,12 @@
       </div>
 
       <div class="ci-btnbar">
-        <button class="ci-btn primary" type="submit">표 저장하기</button>
-        <a class="ci-btn ghost" href="{% url 'table_search' %}">🔎 표 내용 검색하기</a>
-        <a class="ci-btn" href="">입력 지우고 다시 시작</a>
+        <button class="ci-btn primary" type="submit">✅ 표 저장하기</button>
+        <a class="ci-btn soft" href="{{ table_search_url }}">🔎 표 내용 검색하기</a>
+        <a class="ci-btn ghost" href="{{ ragadmin_index_url }}">🧭 대시보드로</a>
+        <a class="ci-btn" href="{{ table_index_url }}">↩️ 입력 지우고 다시 시작</a>
       </div>
     </form>
-    {% endif %}
-  </section>
-
-  <!-- ✅ 사용 설명서 카드 (엑셀·CSV 기준 설명) -->
-  <section class="ci-help-card" aria-label="표 데이터 올려두기 사용 안내">
-    <div class="ci-help-header">
-      <div class="ci-help-title">
-        <span class="ci-help-pill">Guide</span>
-        <h2>엑셀·CSV 표를 올려두고 나중에 질문으로 찾아보세요</h2>
-      </div>
-      <p class="ci-help-sub">
-        이 화면은 엑셀이나 CSV로 된 <b>표 파일</b>을 올려두고,  
-        나중에 <b>질문이나 키워드로 내용을 찾아볼 수 있도록 준비하는 공간</b>입니다.
-      </p>
-    </div>
-
-    <div class="ci-help-body">
-      <ol class="ci-help-steps">
-        <li>
-          <strong>엑셀 또는 CSV 파일 준비하기</strong><br />
-          엑셀 파일(.xlsx)을 그대로 올려도 되고,  
-          필요하다면 엑셀에서 <em>“다른 이름으로 저장 → CSV(UTF-8)”</em> 형식으로 저장해서 사용해도 됩니다.
-        </li>
-        <li>
-          <strong>이 표를 부를 이름 정하기</strong><br />
-          예를 들어 <em>“고객 문의 내역”</em>, <em>“2025년 4분기 매출표”</em>처럼  
-          나중에 봐도 어떤 내용인지 알 수 있게 이름을 적어 주세요.
-        </li>
-        <li>
-          <strong>표 파일 올리기</strong><br />
-          <em>“표 파일(엑셀·CSV 형식)”</em> 영역에 파일을 끌어다 놓거나 눌러서 선택하면  
-          CSV 파일인 경우 위에서부터 일부 줄을 <b>미리보기</b>로 확인할 수 있습니다.  
-          엑셀 파일은 서버에서 직접 처리하며, 이 화면에서는 미리보기 없이 바로 저장됩니다.
-        </li>
-        <li>
-          <strong>가져올 줄 개수 정하기 (선택)</strong><br />
-          기본값인 <em>0</em>으로 두면 표 전체를 처리합니다.  
-          데이터가 너무 많아 속도가 걱정될 때는 <em>가져올 줄 개수</em>를 줄여서 올려보세요.
-        </li>
-        <li>
-          <strong>표 저장하기 버튼 누르기</strong><br />
-          <em>“표 저장하기”</em>를 누르면 표의 각 줄이 나중에 검색할 수 있도록 정리됩니다.  
-          작업이 끝나면 아래 <b>저장 결과</b>에 요약 정보가 표시됩니다.
-        </li>
-      </ol>
-
-      <div class="ci-help-notes">
-        <h3>주의 & 작은 팁</h3>
-        <ul>
-          <li>주민등록번호, 계좌번호, 건강 정보처럼 <b>민감한 개인정보가 들어간 표</b>는 올리지 않는 것을 추천드립니다.</li>
-          <li>파일이 너무 크거나 형식이 맞지 않으면 일부 줄이 저장에 실패할 수 있습니다.</li>
-          <li>저장이 잘 되었는지 확인하려면, 위 메뉴의 <b>“표 내용 검색하기”</b>에서 실제로 검색해 보세요.</li>
-          <li>CSV에서 한글이 물음표(??)처럼 보인다면 엑셀에서 저장할 때 <b>UTF-8 (CSV UTF-8)</b> 형식을 선택해 주세요.</li>
-        </ul>
-      </div>
-    </div>
   </section>
 
   {% if ok %}
@@ -243,11 +260,18 @@
     <h2 class="ci-title" style="margin-bottom:10px">저장 결과</h2>
     <div class="ci-kv">
       <div class="ci-muted">표 이름</div>
-      <div><span class="ci-chip">{{ table_name }}</span></div>
+      <div><span class="ci-chip">🏷️ {{ table_name }}</span></div>
+
       <div class="ci-muted">새로 저장된 줄 개수</div>
-      <div>{{ added }}</div>
+      <div><span class="ci-chip">➕ {{ added }}</span></div>
+
       <div class="ci-muted">파일 이름</div>
       <div class="ci-muted">{{ filename }}</div>
+    </div>
+
+    <div class="ci-btnbar" style="margin-top:12px">
+      <a class="ci-btn soft" href="{{ table_search_url }}">🔎 방금 올린 표 검색하러 가기</a>
+      <a class="ci-btn ghost" href="{{ ragadmin_index_url }}">🧭 대시보드로</a>
     </div>
   </section>
   {% endif %}
@@ -298,46 +322,43 @@
     const isExcel = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls');
     const isCsv   = nameLower.endsWith('.csv') || (f.type && f.type.includes('csv'));
 
-    // 파일 정보
-    info.style.display = 'block';
-    info.textContent = `${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`;
+    if(info){
+      info.style.display = 'block';
+      info.textContent = `${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`;
+    }
 
-    // 엑셀: 미리보기 없이 안내만
     if(isExcel){
-      info.textContent += ' · 엑셀 파일은 서버에서 처리되며, 이 화면에서는 미리보기가 제공되지 않습니다.';
-      prev.style.display = 'none';
-      thead.innerHTML = '';
-      tbody.innerHTML = '';
+      if(info) info.textContent += ' · 엑셀 파일은 서버에서 처리되며, 이 화면에서는 미리보기가 제공되지 않습니다.';
+      if(prev) prev.style.display = 'none';
+      if(thead) thead.innerHTML = '';
+      if(tbody) tbody.innerHTML = '';
       return;
     }
 
-    // CSV가 아닌 다른 텍스트 파일이면 미리보기 생략
     if(!isCsv){
-      info.textContent += ' · 미리보기는 CSV 형식일 때만 지원됩니다.';
-      prev.style.display = 'none';
-      thead.innerHTML = '';
-      tbody.innerHTML = '';
+      if(info) info.textContent += ' · 미리보기는 CSV 형식일 때만 지원됩니다.';
+      if(prev) prev.style.display = 'none';
+      if(thead) thead.innerHTML = '';
+      if(tbody) tbody.innerHTML = '';
       return;
     }
 
-    // CSV 미리보기
     const reader = new FileReader();
     reader.onload = function(e){
       try{
         const text = e.target.result || '';
         renderPreview(text);
       }catch(_){
-        prev.style.display = 'none';
+        if(prev) prev.style.display = 'none';
       }
     };
     reader.onerror = function(){
-      prev.style.display = 'none';
+      if(prev) prev.style.display = 'none';
     };
     reader.readAsText(f, 'utf-8');
   }
 
   function csvParseHeadRows(text, maxRows){
-    // 간단 CSV 파서 (따옴표 최소 대응)
     const lines = text.split(/\r?\n/).filter(Boolean).slice(0, maxRows + 1);
     if(!lines.length) return {header: [], rows: []};
 
@@ -363,15 +384,23 @@
   }
 
   function renderPreview(text){
-    const {header, rows} = csvParseHeadRows(text, MAX_PREVIEW_ROWS);
-    if(!header.length){ prev.style.display='none'; return; }
+    const parsed = csvParseHeadRows(text, MAX_PREVIEW_ROWS);
+    const header = parsed.header || [];
+    const rows   = parsed.rows || [];
+    if(!header.length){ if(prev) prev.style.display='none'; return; }
 
-    thead.innerHTML = '<tr>' + header.map(h=>`<th>${escapeHtml(h||'')}</th>`).join('') + '</tr>';
-    const bodyRows = rows.slice(0, MAX_PREVIEW_ROWS).map(r=>{
-      return '<tr>' + header.map((_,i)=>`<td>${escapeHtml(r[i]||'')}</td>`).join('') + '</tr>';
-    }).join('');
-    tbody.innerHTML = bodyRows || '<tr><td class="ci-muted" style="padding:8px">미리볼 줄이 없습니다.</td></tr>';
-    prev.style.display = 'block';
+    if(thead){
+      thead.innerHTML = '<tr>' + header.map(h=>`<th>${escapeHtml(h||'')}</th>`).join('') + '</tr>';
+    }
+
+    if(tbody){
+      const bodyRows = rows.slice(0, MAX_PREVIEW_ROWS).map(r=>{
+        return '<tr>' + header.map((_,i)=>`<td>${escapeHtml((r && r[i]) || '')}</td>`).join('') + '</tr>';
+      }).join('');
+      tbody.innerHTML = bodyRows || '<tr><td class="ci-muted" style="padding:8px">미리볼 줄이 없습니다.</td></tr>';
+    }
+
+    if(prev) prev.style.display = 'block';
   }
 
   function escapeHtml(s){

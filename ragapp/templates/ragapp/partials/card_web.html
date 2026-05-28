@@ -1,6 +1,9 @@
 {# ragapp/templates/ragapp/partials/card_web.html #}
-<!-- 좌측 카드: 웹 검색 -->
-<section id="cardWeb" class="card card-main card-main--web" data-card-kind="web">
+<section id="cardWeb"
+         class="card card-main card-main--web"
+         data-card-kind="web"
+         data-sanitize-links="1">
+
   <div class="card-header">
     <div class="card-title-row">
       <div class="card-title-left">
@@ -10,24 +13,23 @@
         </h2>
       </div>
 
-      {# 👉 오른쪽 상단: 📘 아이콘 + "사용설명서" 버튼 #}
       <div class="card-title-right">
         <details class="card-help card-help--manual" aria-label="웹 검색 사용설명서">
-          <summary class="card-help-summary" style="list-style: none;">
+          <summary class="card-help-summary">
             <span class="help-icon" aria-hidden="true">📘</span>
             <span class="card-help-label">사용설명서</span>
           </summary>
+
           <div class="card-help-panel">
             <ol>
               <li><strong>웹에서 검색하기</strong> 버튼으로 인터넷에서 답을 찾습니다.</li>
-              <li>위쪽에 요약과 참고 링크가 표시됩니다.</li>
+              <li>아래에 대화 형태로 요약이 누적 표시됩니다.</li>
               <li>
                 <strong>결과 저장하기</strong> 버튼을 누르면
-                질문·요약·참고 링크가
-                아래에 표시된 <strong>벡터 DB 파일</strong>에 보관됩니다.
+                질문·요약·참고 링크가 사이트 내부 <strong>서비스 파일</strong>에 보관됩니다.
               </li>
               <li>
-                나중에는 <strong>내 RAG 검색</strong>에서 다시 질문할 때
+                나중에는 <strong>AI 요약 검색</strong>에서 다시 질문할 때
                 이 저장된 내용까지 함께 참고해 답을 만들어 드립니다.
               </li>
             </ol>
@@ -41,28 +43,24 @@
     </div>
 
     <div id="web-hint" class="small-hint">
-      {{ WEB_HINT_TEXT|default:"인터넷에서 답을 찾고, 마음에 드는 결과를 아래의 ‘내 자료 검색 DB’에 저장해 둘 수 있어요." }}
+      {{ WEB_HINT_TEXT|default:"마음에 드는 결과를 결과 저장하기 버튼을 눌러서 저장해 둘 수 있어요." }}
     </div>
 
     <form method="post"
           action="{% url 'home' %}"
           class="form-row form-row--web"
-          onsubmit="return (window.ensureConsentGate ? window.ensureConsentGate(this) : true) && (window.beforeWebSubmit ? window.beforeWebSubmit(this) : true);"
           data-require-consent="1"
           autocomplete="off">
       {% csrf_token %}
-      <input type="hidden" name="action" id="webActionField" value="web_search" />
-      <input type="hidden" name="keep_rag_query" value="" />
-      <textarea name="keep_rag_answer" class="hidden-textarea" style="display:none;"></textarea>
-      <input type="hidden" name="keep_rag_msg" value="" />
 
-      {# 🔹 질문 입력창 #}
+      <input type="hidden" name="action" id="webActionField" value="web_search" />
+
       <div class="input-wrap">
         <input class="input-box"
                id="query_web"
                type="text"
                name="query_web"
-               placeholder="{{ WEB_QUERY_PLACEHOLDER|default:'예: 커피가 잠에 미치는 영향은?' }}"
+               placeholder="{{ WEB_QUERY_PLACEHOLDER|default:'예: 검색어를 입력해 주세요' }}"
                value="{{ web_query|default:'' }}"
                inputmode="search"
                autocapitalize="off"
@@ -82,9 +80,7 @@
                  name="opt_web_save_sources"
                  value="1"
                  {% if web_save_sources %}checked{% endif %} />
-          <span>
-            {{ WEB_OPT_SAVE_SOURCES|default:"참고 링크도 함께 저장하기 (선택)" }}
-          </span>
+          <span>{{ WEB_OPT_SAVE_SOURCES|default:"참고 링크도 함께 저장하기 (선택)" }}</span>
         </label>
 
         <label class="opt-line">
@@ -92,74 +88,119 @@
                  name="opt_web_anon_metrics"
                  value="1"
                  {% if web_anon_metrics %}checked{% endif %} />
-          <span>
-            {{ WEB_OPT_ANON_METRICS|default:"서비스 개선을 위한 사용 통계를 익명으로 수집 허용 (선택)" }}
-          </span>
+          <span>{{ WEB_OPT_ANON_METRICS|default:"서비스 개선을 위한 사용 통계를 익명으로 수집 허용 (선택)" }}</span>
         </label>
       </div>
 
       <div class="btn-row btn-row--web">
-        <button class="btn info"
-                type="submit"
-                data-action="web_search">
+        <button class="btn info" type="submit" data-action="web_search">
           {{ WEB_BTN_SEARCH_LABEL|default:"🔍 웹에서 검색하기" }}
         </button>
-        <button class="btn heart"
-                type="submit"
-                data-action="web_ingest">
+        <button class="btn heart" type="submit" data-action="web_ingest">
           {{ WEB_BTN_INGEST_LABEL|default:"💾 결과 저장하기" }}
         </button>
       </div>
 
-      {# 인덱싱용: 현재 답변/소스 내용을 숨겨서 폼으로 같이 전송 #}
+      {# (선택) 서버 폴백/기존 홈뷰 액션이 필요하면 유지. AJAX만 쓸 거면 나중에 제거 가능 #}
       <textarea name="web_answer_payload"
                 id="web_answer_payload"
-                style="display:none;">{{ web_answer|default:'' }}</textarea>
+                class="hidden-textarea"
+                hidden>{{ web_answer|default:'' }}</textarea>
+
       <textarea name="web_sources_payload"
                 id="web_sources_payload"
-                style="display:none;">{{ web_sources_json|default:"[]" }}</textarea>
+                class="hidden-textarea"
+                hidden>{{ web_sources_json|default:"[]" }}</textarea>
     </form>
   </div>
 
   <div class="card-body card-body--web">
     <div class="msg-row">
-      {% if web_msg %}
-        <div class="msg-ok" role="status">✅ {{ web_msg }}</div>
-      {% endif %}
-      {% if web_error %}
-        <div class="msg-err" role="alert">❌ {{ web_error }}</div>
-      {% endif %}
+      {% if web_msg %}<div class="msg-ok" role="status">✅ {{ web_msg }}</div>{% endif %}
+      {% if web_error %}<div class="msg-err" role="alert">❌ {{ web_error }}</div>{% endif %}
     </div>
 
-    <div class="answer-block" id="web-answer-block">
-      {% if web_answer %}{{ web_answer|linebreaksbr }}{% endif %}
-    </div>
+    {# ✅ ChatGPT형: 항상 보이는 스레드 + 기능용 숨김 저장소 #}
+    <div class="answer-block" id="web-answer-wrap">
+      <div id="webChatMount" class="chat-mount" aria-label="웹 대화"></div>
 
-    {% if web_sources %}
-      <div class="sources-block" data-sanitize-links>
-        <div class="sources-title">
-          {{ WEB_SOURCES_TITLE|default:"참고로 사용된 웹 문서" }}
-        </div>
-        <ul class="sources-list">
-          {% for src in web_sources %}
-            <li>
-              {% if src.url %}
-                <a class="src-title"
-                   href="{{ src.url }}"
-                   target="_blank"
-                   rel="noopener noreferrer nofollow"
-                   referrerpolicy="strict-origin-when-cross-origin">
-                  {{ src.title|default:src.url }}
-                </a>
-              {% else %}
-                <span class="src-title">
-                  {{ src.title|default:"(제목 없음)" }}
-                </span>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
+      {# ✅ 기능용 저장소: news.js가 dataset.latestAnswerText / feedbackSources 등을 여기에 저장 #}
+      <div class="answer-body" id="web-answer-block" style="display:none;">
+        {% if web_answer %}{{ web_answer|linebreaksbr }}{% endif %}
       </div>
-    {% endif %}
+
+      <div class="answer-empty" id="webAnswerEmpty" {% if web_answer %}hidden{% endif %}>
+        {{ WEB_ANSWER_EMPTY|default:"아직 결과가 없습니다. 위에서 검색을 실행해 주세요." }}
+      </div>
+    </div>
+
+    {# ✅ 출처 UI는 유지: news.js의 renderSourcesList가 이 컨테이너를 채움 #}
+    <div class="sources-block"
+         data-sanitize-links
+         {% if not web_sources %}hidden{% endif %}>
+      <details class="sources-details" id="webSourcesDetails" {% if web_sources %}open{% else %}hidden{% endif %}>
+        <summary class="sources-title">
+          <span>{{ WEB_SOURCES_TITLE|default:"참고로 사용된 웹 문서" }}</span>
+          <span class="sources-count">
+            {% if web_sources %}{{ web_sources|length }}개{% endif %}
+          </span>
+        </summary>
+
+        <ul class="sources-cards" id="webSourcesList">
+          {# SSR 소스는 있어도 되고 없어도 됨. AJAX가 갱신하면 renderSourcesList가 덮어씀 #}
+          {% if web_sources %}
+            {% for src in web_sources %}
+              <li class="src-card">
+                {% if src.url %}
+                  <a class="src-head"
+                     href="{{ src.url }}"
+                     target="_blank"
+                     rel="noopener noreferrer nofollow"
+                     referrerpolicy="strict-origin-when-cross-origin"
+                     title="{{ src.url }}">
+                    <div class="src-title">
+                      {{ src.title|default:src.url }}
+                    </div>
+
+                    <div class="src-meta">
+                      {# ✅ 출처(언론사/사이트)가 있으면 배지로, 없으면 기본 #}
+                      <span class="src-badge">
+                        {{ src.source|default:"link" }}
+                      </span>
+
+                      {# ✅ URL은 화면에 그대로 길게 노출하지 말고 짧게만 #}
+                      <span class="src-url" aria-label="URL">
+                        {{ src.url|truncatechars:72 }}
+                      </span>
+
+                      {# ✅ (선택) 바로가기 느낌 아이콘 #}
+                      <span class="src-open" aria-hidden="true">↗</span>
+                    </div>
+                  </a>
+
+                  {% if src.snippet %}
+                    <div class="src-snippet">{{ src.snippet }}</div>
+                  {% endif %}
+                {% else %}
+                  <div class="src-head">
+                    <div class="src-title">{{ src.title|default:"(제목 없음)" }}</div>
+                    <div class="src-meta">
+                      <span class="src-badge">{{ src.source|default:"link" }}</span>
+                    </div>
+                  </div>
+
+                  {% if src.snippet %}
+                    <div class="src-snippet">{{ src.snippet }}</div>
+                  {% endif %}
+                {% endif %}
+              </li>
+            {% endfor %}
+          {% endif %}
+        </ul>
+
+        {# 더보기 같은 확장은 news.js로 옮길 예정이면 mount는 남겨두는 게 좋음 #}
+        <div id="webSourcesEnhanceMount"></div>
+      </details>
+    </div>
   </div>
 </section>

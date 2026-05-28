@@ -1,0 +1,471 @@
+/* ragapp/static/ragapp/css/assistant.css */
+/* Scope: ONLY assistant page (no global collision) */
+body.assistant-page {
+    color-scheme: light;
+
+    --bg: #f6f7fb;
+    --bg2: #eef2ff;
+
+    --surface: #ffffff;
+    --surface2: #f1f5f9;
+
+    --ink: #0f172a;
+    --muted: #64748b;
+
+    --line: rgba(15, 23, 42, .10);
+    --line2: rgba(15, 23, 42, .14);
+
+    --shadow: 0 18px 40px rgba(2, 6, 23, .10);
+    --shadow2: 0 10px 24px rgba(2, 6, 23, .08);
+
+    --accent: #2563eb;
+    --accent2: #4f46e5;
+
+    --danger: #dc2626;
+
+    --radius: 18px;
+    --radiusSm: 12px;
+
+    --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    min-height: 100svh;
+    /* 모바일 주소창 대응 */
+    font-family: var(--font);
+    color: var(--ink);
+
+    background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(79, 70, 229, .18), transparent 60%),
+        radial-gradient(900px 520px at 92% 0%, rgba(37, 99, 235, .14), transparent 55%),
+        linear-gradient(180deg, var(--bg2) 0%, var(--bg) 38%, var(--bg) 100%);
+
+    -webkit-font-smoothing: antialiased;
+
+    display: flex;
+    flex-direction: column;
+}
+
+body.assistant-page * {
+    box-sizing: border-box;
+}
+
+/* ───────── Topbar ───────── */
+body.assistant-page .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 14px 14px 0;
+    background: linear-gradient(180deg, rgba(246, 247, 251, .92) 0%, rgba(246, 247, 251, .55) 70%, transparent 100%);
+    backdrop-filter: blur(10px);
+}
+
+body.assistant-page .header-inner {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .78);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+body.assistant-page .brand {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+}
+
+body.assistant-page .logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    background:
+        radial-gradient(14px 14px at 30% 30%, rgba(255, 255, 255, .9), rgba(255, 255, 255, 0) 60%),
+        linear-gradient(135deg, rgba(79, 70, 229, .95), rgba(37, 99, 235, .95));
+    box-shadow: 0 10px 24px rgba(79, 70, 229, .25);
+    flex: 0 0 auto;
+}
+
+body.assistant-page .brand-text {
+    min-width: 0;
+}
+
+body.assistant-page .title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+body.assistant-page .title {
+    margin: 0;
+    font-size: 0.98rem;
+    letter-spacing: -0.02em;
+    font-weight: 750;
+    white-space: nowrap;
+}
+
+body.assistant-page .badge {
+    font-size: 0.72rem;
+    color: rgba(15, 23, 42, .72);
+    background: rgba(15, 23, 42, .06);
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+body.assistant-page .hint {
+    margin-top: 3px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+body.assistant-page .header-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+
+body.assistant-page .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 650;
+    border: 1px solid var(--line);
+    color: rgba(15, 23, 42, .85);
+    background: rgba(255, 255, 255, .70);
+    box-shadow: 0 10px 18px rgba(2, 6, 23, .06);
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+body.assistant-page .nav-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 26px rgba(2, 6, 23, .10);
+    background: rgba(255, 255, 255, .92);
+}
+
+/* ───────── Main Shell ───────── */
+body.assistant-page .assistant-shell {
+    flex: 1 1 auto;
+    display: flex;
+    justify-content: center;
+    padding: 14px;
+    min-height: 0;
+}
+
+body.assistant-page .chat-card {
+    width: 100%;
+    max-width: 1040px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .80);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+body.assistant-page .chat-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .70));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+body.assistant-page .chat-head-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+body.assistant-page .chat-head-title {
+    font-size: 0.92rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: rgba(15, 23, 42, .92);
+}
+
+body.assistant-page .chat-head-sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 0;
+    line-height: 1.25;
+}
+
+body.assistant-page .status-pill {
+    font-size: 0.78rem;
+    color: rgba(15, 23, 42, .70);
+    background: rgba(15, 23, 42, .05);
+    border: 1px solid var(--line);
+    padding: 7px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+/* ───────── Messages ───────── */
+body.assistant-page .chat-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px;
+    background: linear-gradient(180deg, rgba(241, 245, 249, .75), rgba(255, 255, 255, .55));
+}
+
+body.assistant-page .msg {
+    max-width: 100%;
+    margin: 0 0 12px 0;
+    border-radius: var(--radiusSm);
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 18px rgba(2, 6, 23, .06);
+    font-size: 0.90rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--surface);
+}
+
+body.assistant-page .msg.user {
+    margin-left: auto;
+    border-color: rgba(37, 99, 235, .18);
+    background: linear-gradient(180deg, rgba(37, 99, 235, .10), rgba(37, 99, 235, .06));
+    color: rgba(15, 23, 42, .92);
+}
+
+body.assistant-page .msg.bot {
+    margin-right: auto;
+    background: rgba(255, 255, 255, .90);
+    color: rgba(15, 23, 42, .92);
+}
+
+body.assistant-page .msg.bot.blocked,
+body.assistant-page .msg.error {
+    border-color: rgba(220, 38, 38, .22);
+    background: linear-gradient(180deg, rgba(220, 38, 38, .10), rgba(255, 255, 255, .85));
+    color: rgba(185, 28, 28, .95);
+}
+
+/* FAQ 카드 */
+body.assistant-page .faq-card,
+body.assistant-page .qarag-faq-card {
+    border: 1px solid rgba(37, 99, 235, .18);
+    background: linear-gradient(180deg, rgba(37, 99, 235, .08), rgba(255, 255, 255, .92));
+    border-radius: var(--radiusSm);
+    padding: 12px 12px;
+    box-shadow: 0 10px 18px rgba(2, 6, 23, .06);
+    color: rgba(15, 23, 42, .92);
+}
+
+body.assistant-page .faq-head,
+body.assistant-page .qarag-faq-card-title {
+    font-weight: 800;
+    color: rgba(37, 99, 235, .95);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.assistant-page .faq-answer,
+body.assistant-page .qarag-faq-card-body {
+    color: rgba(15, 23, 42, .88);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+/* 차단 카드 */
+body.assistant-page .blocked-card {
+    border: 1px solid rgba(220, 38, 38, .22);
+    background: linear-gradient(180deg, rgba(220, 38, 38, .10), rgba(255, 255, 255, .92));
+    border-radius: var(--radiusSm);
+    padding: 12px 12px;
+    color: rgba(185, 28, 28, .95);
+}
+
+body.assistant-page .blocked-head {
+    font-weight: 850;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.assistant-page .blocked-hint {
+    margin-top: 8px;
+    font-size: 0.84rem;
+    color: rgba(185, 28, 28, .78);
+    line-height: 1.35;
+}
+
+/* 근거 토글 */
+body.assistant-page .evidence-wrap {
+    margin-top: 10px;
+    font-size: 0.84rem;
+}
+
+body.assistant-page .evidence-btn {
+    border: 1px solid rgba(37, 99, 235, .20);
+    background: rgba(37, 99, 235, .08);
+    color: rgba(37, 99, 235, .95);
+    border-radius: 12px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-weight: 750;
+}
+
+body.assistant-page .evidence-btn:hover {
+    background: rgba(37, 99, 235, .12);
+}
+
+body.assistant-page .evidence-box {
+    margin-top: 10px;
+    background: rgba(255, 255, 255, .90);
+    border: 1px solid var(--line2);
+    border-radius: 14px;
+    padding: 10px 10px;
+    max-height: 220px;
+    overflow: auto;
+}
+
+body.assistant-page .evidence-list {
+    margin: 0;
+    padding-left: 18px;
+}
+
+body.assistant-page .evidence-list li {
+    margin: 0 0 10px 0;
+}
+
+body.assistant-page .ev-title {
+    font-weight: 800;
+    font-size: 0.86rem;
+    color: rgba(15, 23, 42, .90);
+    word-break: break-all;
+}
+
+body.assistant-page .ev-title a {
+    color: rgba(15, 23, 42, .92);
+    text-underline-offset: 2px;
+}
+
+body.assistant-page .ev-snippet {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.35;
+    white-space: pre-line;
+}
+
+/* ───────── Composer ───────── */
+body.assistant-page .chat-input-row {
+    border-top: 1px solid var(--line);
+    background: rgba(255, 255, 255, .92);
+    padding: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+body.assistant-page .chat-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 1px solid var(--line2);
+    background: rgba(241, 245, 249, .75);
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    outline: none;
+
+    resize: none;
+    line-height: 1.35;
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+body.assistant-page .chat-input:focus {
+    border-color: rgba(37, 99, 235, .40);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, .10);
+    background: rgba(255, 255, 255, .98);
+}
+
+body.assistant-page .chat-send-btn {
+    flex: 0 0 auto;
+    min-width: 78px;
+    border: 1px solid rgba(79, 70, 229, .20);
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-weight: 850;
+    cursor: pointer;
+    box-shadow: 0 14px 28px rgba(79, 70, 229, .22);
+}
+
+body.assistant-page .chat-send-btn:hover:not([disabled]) {
+    box-shadow: 0 18px 36px rgba(79, 70, 229, .28);
+    transform: translateY(-1px);
+}
+
+body.assistant-page .chat-send-btn[disabled] {
+    opacity: .55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 작은 안내 */
+body.assistant-page .footer-hint {
+    padding: 10px 14px 14px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    border-top: 1px dashed rgba(15, 23, 42, .10);
+    background: rgba(255, 255, 255, .75);
+}
+
+@media (max-width: 720px) {
+    body.assistant-page .app-header {
+        padding: 12px 12px 0;
+    }
+
+    body.assistant-page .header-inner {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    body.assistant-page .header-links {
+        justify-content: flex-start;
+    }
+
+    body.assistant-page .chat-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    body.assistant-page .status-pill {
+        align-self: flex-start;
+    }
+}

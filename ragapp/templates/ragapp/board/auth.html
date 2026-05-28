@@ -1,0 +1,96 @@
+{# ragapp/templates/ragapp/board/auth.html #}
+{% extends "ragapp/board/base.html" %}
+
+{% block content %}
+<section class="board-section">
+  <div class="board-card confirm-card">
+
+    <div class="board-form-head">
+      <div>
+        <h2 class="post-title" style="font-size:18px;margin:0;">
+          {{ title }}
+        </h2>
+        <div class="board-muted" style="margin-top:6px;">
+          {% if kind == "post" %}
+            작성 시 입력한 이름/비밀번호로 확인해요.
+          {% else %}
+            작성 시 입력한 비밀번호로 확인해요.
+          {% endif %}
+        </div>
+      </div>
+
+      {# 우측: 돌아가기 #}
+      <a class="qa-launch-btn is-ghost"
+         href="{% if kind == 'post' %}{% url 'board:detail' target.pk %}{% else %}{% url 'board:detail' target.post_id %}{% endif %}">
+        돌아가기
+      </a>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="board-alert is-danger">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="board-form-card" style="padding:14px;">
+      <div class="post-kicker" style="margin-bottom:10px;">
+        <span class="chip chip-cat">비회원 확인</span>
+        {% if kind == "post" %}
+          <span class="chip chip-warn">글 수정/삭제</span>
+        {% else %}
+          <span class="chip chip-warn">댓글 수정/삭제</span>
+        {% endif %}
+      </div>
+
+      <form method="post" class="board-form" novalidate>
+        {% csrf_token %}
+
+        {# ✅ post_auth에서 next를 내려주면, 인증 후 edit/delete로 보내기 위해 유지 #}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        {# ✅ 글(post)일 때만 이름 필드(GuestNamePasswordForm 대응) #}
+        {% if kind == "post" and form.guest_name %}
+          <div class="board-field">
+            <label class="board-label" for="{{ form.guest_name.id_for_label }}">이름</label>
+            {{ form.guest_name }}
+            {% if form.guest_name.errors %}
+              <div class="board-field-errors">
+                {{ form.guest_name.errors }}
+              </div>
+            {% endif %}
+            <div class="helptext">비회원 작성 시 입력한 이름을 입력해 주세요.</div>
+          </div>
+        {% endif %}
+
+        <div class="board-field">
+          <label class="board-label" for="{{ form.password.id_for_label }}">비밀번호</label>
+          {{ form.password }}
+          {% if form.password.errors %}
+            <div class="board-field-errors">
+              {{ form.password.errors }}
+            </div>
+          {% endif %}
+          <div class="helptext">비회원 작성 시 입력한 비밀번호를 입력해 주세요.</div>
+        </div>
+
+        <div class="board-form-actions">
+          <a class="qa-launch-btn is-ghost"
+             href="{% if kind == 'post' %}{% url 'board:detail' target.pk %}{% else %}{% url 'board:detail' target.post_id %}{% endif %}">
+            취소
+          </a>
+          <button class="board-btn is-primary" type="submit">
+            확인
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="confirm-footnote">
+      <span class="muted">Tip:</span> 확인은 1시간 동안 유지되게 해두면(세션 expiry) 편해요.
+    </div>
+
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,530 @@
+{# templates/ragadmin/runtime_dashboard.html #}
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}운영 실시간 모니터 | {{ block.super }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root{
+    --rt-bg:#020617;
+    --rt-ink:#e5e7eb;
+    --rt-dim:#9ca3af;
+    --rt-card:#020617;
+    --rt-card2:#020617;
+    --rt-line:rgba(148,163,184,.45);
+    --rt-accent:#38bdf8;
+    --rt-accent-soft:rgba(56,189,248,.16);
+    --rt-ok:#22c55e;
+    --rt-warn:#eab308;
+    --rt-busy:#f97316;
+    --rt-danger:#f97373;
+    --rt-radius:20px;
+  }
+
+  .runtime-shell{
+    max-width: 1260px;
+    margin: 16px auto 32px;
+    padding: 18px 18px 24px;
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 55%),
+      radial-gradient(circle at top right, rgba(94,234,212,.22), transparent 60%),
+      var(--rt-bg);
+    box-shadow: 0 24px 60px rgba(15,23,42,.9);
+    color: var(--rt-ink);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .runtime-shell::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:radial-gradient(circle at 20% 0%, rgba(248,250,252,.04), transparent 55%);
+    opacity:.6;
+    pointer-events:none;
+  }
+
+  .runtime-inner{
+    position:relative;
+    z-index:1;
+  }
+
+  .runtime-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:18px;
+  }
+
+  .runtime-head-main h1{
+    margin:0 0 6px;
+    font-size:1.4rem;
+    font-weight:800;
+    letter-spacing:-.04em;
+  }
+
+  .runtime-head-main p{
+    margin:0;
+    font-size:.9rem;
+    color:var(--rt-dim);
+  }
+
+  .runtime-chip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:6px;
+    font-size:.75rem;
+  }
+
+  .runtime-chip{
+    padding:3px 9px;
+    border-radius:999px;
+    background:rgba(15,23,42,.7);
+    border:1px solid rgba(148,163,184,.5);
+    color:var(--rt-dim);
+  }
+
+  .runtime-status{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:5px 11px;
+    border-radius:999px;
+    font-size:.78rem;
+    font-weight:700;
+    border:1px solid rgba(148,163,184,.6);
+    background:rgba(15,23,42,.85);
+    color:var(--rt-accent);
+    white-space:nowrap;
+  }
+
+  .runtime-status-dot{
+    width:8px;
+    height:8px;
+    border-radius:999px;
+    background:var(--rt-ok);
+    box-shadow:0 0 0 4px rgba(34,197,94,.35);
+  }
+
+  .runtime-status[data-rt-status="idle"]{
+    color:var(--rt-accent);
+  }
+  .runtime-status[data-rt-status="normal"] .runtime-status-dot{
+    background:var(--rt-warn);
+    box-shadow:0 0 0 4px rgba(234,179,8,.36);
+  }
+  .runtime-status[data-rt-status="busy"] .runtime-status-dot{
+    background:var(--rt-busy);
+    box-shadow:0 0 0 4px rgba(249,115,22,.4);
+  }
+
+  .runtime-grid{
+    display:grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.6fr);
+    gap:14px;
+  }
+
+  .runtime-card{
+    background:radial-gradient(circle at top, rgba(15,23,42,.96) 0, rgba(15,23,42,.98) 55%);
+    border-radius:var(--rt-radius);
+    border:1px solid var(--rt-line);
+    box-shadow:0 22px 50px rgba(0,0,0,.75);
+    padding:16px 18px 18px;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .runtime-card::after{
+    content:"";
+    position:absolute;
+    inset:-40%;
+    background:radial-gradient(circle at 0 0, rgba(56,189,248,.14), transparent 55%);
+    opacity:.65;
+    pointer-events:none;
+  }
+
+  .runtime-card-inner{
+    position:relative;
+    z-index:1;
+  }
+
+  .runtime-card h2{
+    margin:0 0 6px;
+    font-size:1rem;
+    font-weight:800;
+    letter-spacing:-.02em;
+  }
+
+  .runtime-meta{
+    font-size:.8rem;
+    color:var(--rt-dim);
+    margin-bottom:10px;
+  }
+
+  .runtime-big{
+    font-size:2.5rem;
+    font-weight:900;
+    letter-spacing:-.05em;
+  }
+
+  .runtime-row{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:12px;
+  }
+
+  .runtime-mini-metrics{
+    margin-top:10px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+
+  .runtime-pill{
+    min-width:0;
+    padding:6px 9px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.5);
+    background:rgba(15,23,42,.9);
+    font-size:.78rem;
+    display:flex;
+    align-items:baseline;
+    gap:4px;
+    color:var(--rt-dim);
+  }
+
+  .runtime-pill strong{
+    font-size:.86rem;
+    color:var(--rt-ink);
+  }
+
+  .runtime-pill--danger strong{
+    color:var(--rt-danger);
+  }
+
+  .runtime-list{
+    margin:10px 0 0;
+    padding-left:16px;
+    font-size:.84rem;
+    color:var(--rt-dim);
+  }
+  .runtime-list li{margin:2px 0;}
+
+  .runtime-tag{
+    font-size:.78rem;
+    color:var(--rt-dim);
+    margin-bottom:4px;
+  }
+
+  .runtime-mono{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Courier New",monospace;
+    font-size:.8rem;
+  }
+
+  .runtime-note{
+    margin-top:16px;
+    font-size:.8rem;
+    color:var(--rt-dim);
+  }
+
+  .runtime-note b{
+    color:var(--rt-ink);
+  }
+
+  .runtime-badge-soft{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 9px;
+    border-radius:999px;
+    font-size:.76rem;
+    background:rgba(22,163,74,.16);
+    color:#bbf7d0;
+    border:1px solid rgba(74,222,128,.5);
+  }
+
+  .runtime-badge-soft.danger{
+    background:rgba(248,113,113,.15);
+    color:#fecaca;
+    border-color:rgba(248,113,113,.65);
+  }
+
+  .runtime-badge-soft span.emoji{
+    font-size:.9rem;
+  }
+
+  @media (max-width: 1100px){
+    .runtime-shell{
+      margin-inline:8px;
+      padding-inline:14px;
+    }
+  }
+
+  @media (max-width: 980px){
+    .runtime-head{
+      flex-direction:column;
+      align-items:flex-start;
+    }
+    .runtime-grid{
+      grid-template-columns:1fr;
+    }
+  }
+</style>
+{% endblock extrastyle %}
+
+{% block content %}
+<div class="runtime-shell">
+  <div class="runtime-inner">
+    <header class="runtime-head">
+      <div class="runtime-head-main">
+        <h1>운영 실시간 모니터</h1>
+        <p>
+          최근 {{ snapshot.online.window_seconds }}초 기준 접속자 수·요청 수와
+          업로드/보관 상태를 한 화면에서 확인합니다.
+        </p>
+        <div class="runtime-chip-row">
+          <span class="runtime-chip">Cloud Run · 포트폴리오 전용</span>
+          <span class="runtime-chip">일일 사용량 제한 / 429 모니터링</span>
+          <span class="runtime-chip">LiveChat 세션 현황</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="runtime-status"
+             data-rt-status="{{ snapshot.online.status|default:'idle' }}">
+          <span class="runtime-status-dot"></span>
+          <span class="runtime-status-label">
+            {% if snapshot.online.status == 'busy' %}
+              트래픽 많음
+            {% elif snapshot.online.status == 'normal' %}
+              안정적으로 처리 중
+            {% else %}
+              여유 있는 상태
+            {% endif %}
+          </span>
+        </div>
+        <div class="runtime-meta" style="margin-top:6px;">
+          스냅샷 시각:
+          <span id="rt-snapshot-time">{{ snapshot.now_display }}</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="runtime-grid">
+      {# ───────────── 왼쪽: 접속/트래픽 카드 ───────────── #}
+      <section class="runtime-card">
+        <div class="runtime-card-inner">
+          <div class="runtime-row">
+            <h2>현재 접속자 (최근 {{ snapshot.online.window_seconds }}초)</h2>
+            <span class="runtime-badge-soft">
+              <span class="emoji">🟢</span>
+              <span>실시간 스냅샷</span>
+            </span>
+          </div>
+
+          <div class="runtime-meta">
+            동일 IP/브라우저 기준으로 근사치만 잡아요. 포트폴리오 데모 용도로 충분한 수준입니다.
+          </div>
+
+          <div class="runtime-big" id="rt-online-count">
+            {{ snapshot.online.online_count }}
+          </div>
+
+          <div class="runtime-mini-metrics">
+            <div class="runtime-pill">
+              <span>최근 {{ snapshot.online.window_seconds }}초 요청</span>
+              <strong id="rt-recent-requests">
+                {{ snapshot.online.recent_requests|default:0 }}
+              </strong>
+            </div>
+            <div class="runtime-pill">
+              <span>오늘 전체 요청</span>
+              <strong id="rt-today-total">
+                {{ snapshot.online.today_total|default:0 }}
+              </strong>
+            </div>
+            <div class="runtime-pill runtime-pill--danger">
+              <span>오늘 429 (제한 초과)</span>
+              <strong id="rt-today-429">
+                {{ snapshot.online.today_429|default:0 }}
+              </strong>
+            </div>
+            <div class="runtime-pill">
+              <span>진행 중 상담 세션</span>
+              <strong id="rt-livechat-open">
+                {{ snapshot.online.livechat_open|default:0 }}
+              </strong>
+            </div>
+          </div>
+
+          <ul class="runtime-list">
+            <li>포트폴리오 규모에서는 <b>5분 기준 동시 접속자 수</b>만 봐도 운영에는 충분합니다.</li>
+            <li>캐시/DB 기준 스냅샷이기 때문에 여러 인스턴스가 있을 경우 인스턴스별 값일 수 있습니다.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ───────────── 오른쪽: 업로드 / 보관 카드 ───────────── #}
+      <section class="runtime-card">
+        <div class="runtime-card-inner">
+          <div class="runtime-row">
+            <h2>업로드 · 보관 상태</h2>
+            {% if snapshot.media.enabled and snapshot.media.exists %}
+              <span class="runtime-badge-soft">
+                <span class="emoji">💾</span>
+                <span>저장소 연결됨</span>
+              </span>
+            {% else %}
+              <span class="runtime-badge-soft danger">
+                <span class="emoji">⚠️</span>
+                <span>MEDIA_ROOT 확인 필요</span>
+              </span>
+            {% endif %}
+          </div>
+
+          <div class="runtime-meta">
+            MEDIA_ROOT:
+            <span class="runtime-mono">
+              {{ snapshot.media.root|default:"(설정되지 않음)" }}
+            </span>
+          </div>
+
+          {% if snapshot.media.enabled and snapshot.media.exists %}
+            <div class="runtime-row">
+              <div>
+                <div class="runtime-tag">파일 개수</div>
+                <div class="runtime-big" id="rt-media-files">
+                  {{ snapshot.media.file_count|default:0 }}
+                </div>
+              </div>
+              <div>
+                <div class="runtime-tag">총 용량 (MB)</div>
+                <div class="runtime-big" id="rt-media-size">
+                  {{ snapshot.media.total_mb|default:0 }}
+                </div>
+              </div>
+            </div>
+
+            <div class="runtime-mini-metrics">
+              <div class="runtime-pill">
+                <span>보관 기본</span>
+                <strong>{{ snapshot.settings.RETENTION_DAYS }}일</strong>
+              </div>
+              <div class="runtime-pill">
+                <span>CHATLOG</span>
+                <strong>{{ snapshot.settings.RETENTION_DAYS_CHATLOG }}일</strong>
+              </div>
+              <div class="runtime-pill">
+                <span>LIVECHAT</span>
+                <strong>{{ snapshot.settings.RETENTION_DAYS_LIVECHAT }}일</strong>
+              </div>
+              <div class="runtime-pill{% if not snapshot.media.auto_purge_enabled %} runtime-pill--danger{% endif %}">
+                <span>Auto purge</span>
+                <strong>
+                  {% if snapshot.media.auto_purge_enabled %}ON{% else %}OFF{% endif %}
+                </strong>
+              </div>
+            </div>
+          {% else %}
+            <p class="runtime-meta" style="margin-top:4px;">
+              MEDIA_ROOT가 설정되어 있지 않거나 폴더가 존재하지 않습니다.
+              로컬 개발/Cloud Run 환경에서 <span class="runtime-mono">MEDIA_ROOT</span> / GCS 버킷 설정을 함께 확인해 주세요.
+            </p>
+          {% endif %}
+
+          <ul class="runtime-list">
+            <li>이 수치는 장고 <span class="runtime-mono">settings.py</span>와 파일 시스템 기준입니다.</li>
+            <li>GCS Lifecycle 규칙 · Auto purge job 이 정상 동작하면 이 용량이 장기적으로 크게 쌓이지 않아야 합니다.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <p class="runtime-note">
+      ※ 보관 기간·제한 값은 <b>환경변수 / settings.py</b> 기준이고,
+      실제 Cloud Storage <b>Lifecycle</b>·Cloud Run <b>로그 보존 정책</b>과 함께 보는 것이 좋습니다.
+    </p>
+  </div>
+</div>
+
+<script>
+  async function rtRefreshSnapshot() {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("format", "json");
+
+      const res = await fetch(url.toString(), {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+      });
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const online = data.online || {};
+      const media = data.media || {};
+      const settings = data.settings || {};
+
+      // 시간/상태
+      const timeEl = document.getElementById("rt-snapshot-time");
+      if (timeEl && data.now_display) {
+        timeEl.textContent = data.now_display;
+      }
+
+      const statusEl = document.querySelector(".runtime-status");
+      if (statusEl && online.status) {
+        statusEl.setAttribute("data-rt-status", online.status);
+      }
+
+      // 접속/트래픽
+      const onlineEl = document.getElementById("rt-online-count");
+      if (onlineEl && typeof online.online_count !== "undefined") {
+        onlineEl.textContent = online.online_count;
+      }
+
+      const recentEl = document.getElementById("rt-recent-requests");
+      if (recentEl && typeof online.recent_requests !== "undefined") {
+        recentEl.textContent = online.recent_requests;
+      }
+
+      const todayTotalEl = document.getElementById("rt-today-total");
+      if (todayTotalEl && typeof online.today_total !== "undefined") {
+        todayTotalEl.textContent = online.today_total;
+      }
+
+      const today429El = document.getElementById("rt-today-429");
+      if (today429El && typeof online.today_429 !== "undefined") {
+        today429El.textContent = online.today_429;
+      }
+
+      const livechatEl = document.getElementById("rt-livechat-open");
+      if (livechatEl && typeof online.livechat_open !== "undefined") {
+        livechatEl.textContent = online.livechat_open;
+      }
+
+      // 업로드/보관
+      const mediaFilesEl = document.getElementById("rt-media-files");
+      if (mediaFilesEl && typeof media.file_count !== "undefined") {
+        mediaFilesEl.textContent = media.file_count;
+      }
+
+      const mediaSizeEl = document.getElementById("rt-media-size");
+      if (mediaSizeEl && typeof media.total_mb !== "undefined") {
+        mediaSizeEl.textContent = media.total_mb;
+      }
+
+    } catch (e) {
+      if (window.console && console.warn) {
+        console.warn("runtime refresh failed", e);
+      }
+    }
+  }
+
+  rtRefreshSnapshot();
+  setInterval(rtRefreshSnapshot, 5000);
+</script>
+{% endblock content %}

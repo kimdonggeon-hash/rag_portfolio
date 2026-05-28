@@ -1,16 +1,29 @@
 /* ragapp/static/ragapp/css/admin-dashboard.css */
-
 :root {
     --bg: #050816;
     --bg2: #020617;
+
     --card: #0b1120;
     --card-soft: #020617;
+
     --border: rgba(148, 163, 184, .28);
+
     --text: #e5e7eb;
     --dim: #9ca3af;
+
     --accent: #60a5fa;
     --accent2: #a855f7;
+
+    --pill: #1f2937;
     --radius: 18px;
+
+    --shadow: 0 16px 50px rgba(0, 0, 0, .6);
+
+    /* ✅ 오른쪽 게시판 패널 폭 */
+    --board-w: 340px;
+
+    /* sticky top (고정 느낌) */
+    --sticky-top: 16px;
 }
 
 html,
@@ -23,18 +36,13 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-a {
-    color: inherit;
-}
-
 .wrap {
     max-width: 1120px;
     margin: 32px auto 40px;
     padding: 0 20px;
 }
 
-/* ── HERO 영역 ─────────────────────────────────── */
-
+/* ── HERO ─────────────────────────── */
 .hero {
     display: flex;
     align-items: flex-start;
@@ -44,7 +52,6 @@ a {
 }
 
 .hero-main {
-    position: relative;
     padding: 18px 20px 20px;
     border-radius: 24px;
     border: 1px solid rgba(148, 163, 184, .35);
@@ -54,9 +61,9 @@ a {
         linear-gradient(135deg, #020617, #020617);
     box-shadow: 0 24px 80px rgba(15, 23, 42, .9);
     overflow: hidden;
+    flex: 1 1 auto;
 }
 
-/* HERO 안 첫 줄: 왼쪽 칩들 + 오른쪽 상태 배지 */
 .hero-head {
     display: flex;
     justify-content: space-between;
@@ -65,21 +72,10 @@ a {
     margin-bottom: 8px;
 }
 
-/* 기존 chip-row는 아래처럼 margin-bottom만 0으로 줄이기 */
 .chip-row {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 0;
-    /* 🔹 기존 10px → 0 */
-    font-size: 11px;
-}
-
-.chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 10px;
     font-size: 11px;
 }
 
@@ -104,9 +100,7 @@ a {
 }
 
 .hero-badge {
-    position: static;
-    /* 🔹 absolute 제거 */
-    padding: 4px 10px;
+    padding: 6px 10px;
     border-radius: 999px;
     background: rgba(15, 23, 42, .9);
     border: 1px solid rgba(148, 163, 184, .45);
@@ -116,7 +110,6 @@ a {
     gap: 6px;
     color: #e5e7eb;
     white-space: nowrap;
-    /* 한 줄 유지 (줄바꿈 방지) */
 }
 
 .dot {
@@ -127,10 +120,8 @@ a {
     box-shadow: 0 0 12px rgba(34, 197, 94, .7);
 }
 
-/* HERO 오른쪽 사이드 카드 */
-
 .hero-side {
-    min-width: 180px;
+    min-width: 200px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -173,13 +164,43 @@ a {
     text-align: right;
 }
 
-/* ── 메인 카드 그리드 ───────────────────────────── */
+.link {
+    color: #bfdbfe;
+    text-decoration: none;
+}
 
+.link:hover {
+    text-decoration: underline;
+}
+
+/* ── DASH LAYOUT (메인 + 게시판 사이드) ───────────────── */
+.dash {
+    display: grid;
+    grid-template-columns: 1fr var(--board-w);
+    gap: 16px;
+    align-items: start;
+}
+
+.dash-main {
+    min-width: 0;
+}
+
+/* ✅ RIGHT: 게시판 패널 (sticky 유지, 패널 자체는 스크롤 컨테이너 X) */
+.board-panel {
+    position: sticky;
+    top: var(--sticky-top);
+    align-self: start;
+    max-height: none;
+    overflow: visible;
+}
+
+/* ── GRID & CARDS ─────────────────── */
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 20px;
+    min-width: 0;
 }
 
 .card {
@@ -187,7 +208,7 @@ a {
     border-radius: var(--radius);
     border: 1px solid var(--border);
     padding: 16px 16px 14px;
-    box-shadow: 0 16px 50px rgba(0, 0, 0, .6);
+    box-shadow: var(--shadow);
     position: relative;
     overflow: hidden;
 }
@@ -213,8 +234,6 @@ a {
     font-size: 13px;
     color: var(--dim);
 }
-
-/* 버튼들 */
 
 .btn-row {
     display: flex;
@@ -250,7 +269,14 @@ a {
     background: transparent;
 }
 
-/* 기타 */
+.rows {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    position: relative;
+    z-index: 1;
+}
 
 .pill {
     display: inline-block;
@@ -263,21 +289,6 @@ a {
     font-size: 11px;
 }
 
-.rows {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-    position: relative;
-    z-index: 1;
-}
-
-.foot {
-    margin-top: 10px;
-    font-size: 11px;
-    color: var(--dim);
-}
-
 code {
     background: #020617;
     border-radius: 8px;
@@ -287,14 +298,255 @@ code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* 반응형 */
+.foot {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--dim);
+}
 
-@media (max-width: 900px) {
+/* ── GUIDE CARD ───────────────────── */
+.guide-card {
+    margin-top: 4px;
+}
+
+.guide-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.guide-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.guide-sub {
+    font-size: 13px;
+    color: var(--dim);
+}
+
+/* ── BOARD PANEL ──────────────────── */
+/* ✅ 둥근 카드(바깥)는 “라운드 유지” 역할만 */
+.board-card {
+    display: flex;
+    flex-direction: column;
+
+    /* 화면 안에 맞추되, 라운드가 깎이지 않게 바깥은 숨김 */
+    max-height: calc(100vh - (var(--sticky-top) * 2));
+    overflow: hidden;
+}
+
+/* ✅ 실제 스크롤은 안쪽에서만 (여기서만 overflow:auto) */
+.board-scroll {
+    flex: 1;
+    min-height: 0;
+    /* 중요: flex 자식 스크롤 먹게 하는 핵심 */
+    overflow: auto;
+
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+
+    padding-right: 6px;
+    padding-bottom: 6px;
+}
+
+/* ✅ 스크롤바: 얇게/덜 튀게 (board-scroll 전용) */
+.board-scroll {
+    scrollbar-width: thin;
+    /* Firefox */
+    scrollbar-color: rgba(148, 163, 184, .28) transparent;
+    /* Firefox */
+}
+
+/* Chrome / Edge / Safari */
+.board-scroll::-webkit-scrollbar {
+    width: 6px;
+    /* 세로 스크롤바 두께 */
+    height: 6px;
+    /* 가로 스크롤바 두께(혹시 생기면) */
+}
+
+.board-scroll::-webkit-scrollbar-track {
+    background: transparent;
+    /* 트랙 안 보이게 */
+}
+
+.board-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, .12);
+    border-radius: 999px;
+
+    /* ✅ thumb를 "안쪽으로 밀어넣기" → 라운드 깎는 느낌 최소화 */
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+.board-scroll:hover::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, .26);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+.board-scroll::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+.board-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.board-head h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.board-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .45);
+    background: rgba(15, 23, 42, .85);
+    color: #cbd5f5;
+    white-space: nowrap;
+}
+
+.board-desc {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: var(--dim);
+    position: relative;
+    z-index: 1;
+    line-height: 1.5;
+}
+
+.board-group {
+    margin-top: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.board-label {
+    font-size: 11px;
+    color: var(--dim);
+    margin: 8px 0 6px;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+
+.board-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── RESPONSIVE ───────────────────── */
+@media (max-width: 1020px) {
+    .dash {
+        grid-template-columns: 1fr;
+    }
+
+    .board-panel {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
     .hero {
         flex-direction: column;
     }
 
     .hero-side-value {
         max-width: 120px;
+    }
+}
+
+/* ─────────────────────────────────────────
+   HERO CTA (AI 어시스턴트 버튼) – 제품화 느낌
+───────────────────────────────────────── */
+.hero-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.hero-head-left {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.hero-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: -0.2px;
+
+    color: rgba(255, 255, 255, .95);
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .16);
+
+    box-shadow: 0 16px 34px rgba(0, 0, 0, .35);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    transition: transform .12s ease, filter .12s ease, background .12s ease;
+}
+
+.hero-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+.hero-action:active {
+    transform: translateY(0);
+}
+
+.hero-action.primary {
+    background: linear-gradient(90deg, rgba(99, 102, 241, .95), rgba(168, 85, 247, .95));
+    border-color: rgba(255, 255, 255, .18);
+}
+
+.hero-action.ghost {
+    background: rgba(255, 255, 255, .04);
+}
+
+/* 모바일에서 CTA는 아래로 떨어지고 가로로 꽉 차게 */
+@media (max-width: 760px) {
+    .hero-actions {
+        width: 100%;
+    }
+
+    .hero-action {
+        width: 100%;
+        justify-content: center;
     }
 }

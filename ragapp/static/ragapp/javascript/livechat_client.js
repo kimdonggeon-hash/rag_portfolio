@@ -200,27 +200,33 @@
                     method: "POST",
                     headers,
                     body: JSON.stringify(payload),
+                    credentials: "same-origin", // ✅ 쿠키/CSRF 흐름 안정화
                 });
 
                 if (!resp.ok) {
-                    const txt = await resp.text().catch(() => "");
-                    log("REQ_HTTP_ERR", {
-                        status: resp.status,
-                        body: txt.slice(0, 200),
-                    });
-                    pushMsg(
-                        "bot",
-                        "상담사 연결 요청 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
-                    );
+                    // ✅ PII 차단(400) 등: 서버 JSON 메시지를 우선 보여주기
+                    let data = null;
+                    try { data = await resp.json(); } catch (_) { }
+
+                    const serverMsg =
+                        (data && (data.error || data.message)) ||
+                        "";
+
+                    const msg =
+                        (resp.status === 400 && serverMsg)
+                            ? serverMsg
+                            : "상담사 연결 요청 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+
+                    log("REQ_HTTP_ERR", { status: resp.status, msg });
+                    pushMsg("bot", msg);
                     return null;
                 }
 
                 const data = await resp.json().catch(() => null);
                 if (!data || data.ok === false) {
-                    pushMsg(
-                        "bot",
-                        "상담사 연결 요청에 실패했습니다. 잠시 후 다시 시도해 주세요."
-                    );
+                    const msg = (data && (data.error || data.message)) ||
+                        "상담사 연결 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+                    pushMsg("bot", msg);
                     return null;
                 }
 
@@ -381,9 +387,14 @@
             let manuallyClosed = false;
             let ended = false; // ✅ 한번 종료되면 true
 
-            function lockEnded(reasonText) {
+            // ✅ blocked(PII/욕설/성희롱) 되면 입력 복구용
+            let lastDraft = "";
+            let lastDraftAt = 0;
+
+            function lockEnded(reasonText, opts) {
                 ended = true;
                 manuallyClosed = true; // 종료 후에는 재접속 금지
+
                 const reason =
                     reasonText ||
                     "상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요.";
@@ -395,8 +406,10 @@
                 if (sendBtn) sendBtn.disabled = true;
                 if (endBtn) endBtn.disabled = true;
 
-                // 사용자에게도 한 번 안내 (이미 안내가 있다면 추가로 안 보내도 됨)
-                pushMsg("bot", reason);
+                // ✅ 이미 end 메시지를 화면에 그린 뒤라면 silent로 중복 출력 방지
+                if (!(opts && opts.silent)) {
+                    pushMsg("bot", reason);
+                }
             }
 
             function connect() {
@@ -418,36 +431,54 @@
                 ws.onmessage = function (ev) {
                     try {
                         const data = safeParse(ev.data);
-                        const sender = String(
-                            data.sender || data.role || ""
-                        ).toLowerCase();
-                        const text =
-                            data.text || data.message || data.msg || "";
-                        if (!text) return;
 
-                        if (sender === "user") {
-                            pushMsg("user", text);
-                        } else {
-                            pushMsg("bot", text);
+                        const pType = String(data.type || "message").toLowerCase();
+                        const sender = String(data.role || data.sender || "").toLowerCase();
+                        const text = String(data.text || data.message || data.msg || "");
+
+                        // ✅ 1) blocked 먼저 처리 (서버가 user 메시지 브로드캐스트를 안 하는 케이스)
+                        if (pType === "blocked") {
+                            // 입력값 복구(최근에 보낸 문장이라면)
+                            if (inputBox && lastDraft && Date.now() - lastDraftAt < 8000) {
+                                inputBox.value = lastDraft;
+                                try { inputBox.focus(); } catch (_) { }
+                            }
+                            lastDraft = "";
+                            lastDraftAt = 0;
+
+                            if (text) pushMsg("bot", text);
+                            return;
                         }
 
-                        // ✅ 종료 메시지 감지 → 입력 잠금
-                        const pType = (data.type || "").toLowerCase();
-                        const txt = String(text || "");
+                        // ✅ 2) end 타입이면(텍스트 없어도) 종료 처리
+                        const isEndType = (pType === "end" || pType === "close" || pType === "closed");
+                        if (ended && isEndType) {
+                            // 이미 종료 잠금 상태면 중복 출력/처리 방지
+                            return;
+                        }
 
-                        const isEndType =
-                            pType === "end" ||
-                            pType === "close" ||
-                            pType === "closed";
+                        // 텍스트 없으면 일반 메시지는 무시(단, end는 위에서 처리)
+                        if (!text && !isEndType) return;
+
+                        // 일반 렌더
+                        if (text) {
+                            if (sender === "user") pushMsg("user", text);
+                            else pushMsg("bot", text);
+                        }
+
+                        // ✅ 3) 종료 텍스트 휴리스틱 (서버 end_text 기반)
                         const isEndText =
-                            txt.startsWith("상담을 종료했습니다.") ||
-                            txt.includes("상담이 종료되었습니다") ||
-                            txt.includes("[사용자]가 상담을 종료했습니다") ||
-                            txt.includes("[상담사]가 상담을 종료했습니다");
+                            text.startsWith("상담을 종료했습니다.") ||
+                            text.includes("상담이 종료되었습니다") ||
+                            text.includes("정책 위반") ||
+                            text.includes("[사용자]가 상담을 종료했습니다") ||
+                            text.includes("[상담사]가 상담을 종료했습니다");
 
                         if (!ended && (isEndType || isEndText)) {
+                            // 방금 end 메시지를 이미 그렸으니 silent로 잠금만
                             lockEnded(
-                                "상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요."
+                                "상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요.",
+                                { silent: true }
                             );
                             try {
                                 if (ws && ws.readyState === WebSocket.OPEN) {
@@ -478,23 +509,16 @@
 
             function sendUserText(text) {
                 const msg = String(text || "").trim();
-                if (!msg) return;
+                if (!msg) return false;
 
-                // ✅ 종료된 이후에는 아예 막기
                 if (ended) {
-                    pushMsg(
-                        "bot",
-                        "이미 종료된 상담입니다. 새 상담이 필요하면 다시 요청해 주세요."
-                    );
-                    return;
+                    pushMsg("bot", "이미 종료된 상담입니다. 새 상담이 필요하면 다시 요청해 주세요.");
+                    return false;
                 }
 
                 if (!ws || ws.readyState !== WebSocket.OPEN) {
-                    pushMsg(
-                        "bot",
-                        "연결이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요."
-                    );
-                    return;
+                    pushMsg("bot", "연결이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.");
+                    return false;
                 }
 
                 const payload = {
@@ -503,12 +527,17 @@
                     ts: Date.now(),
                     session_id: sessionId || null,
                 };
+
                 try {
+                    // ✅ blocked되면 복구할 수 있게 draft 저장
+                    lastDraft = msg;
+                    lastDraftAt = Date.now();
+
                     ws.send(JSON.stringify(payload));
-                    // 👇 여기서는 말풍선 바로 그리지 않고,
-                    // 서버 브로드캐스트(ws.onmessage)에서 한 번만 그린다.
+                    return true;
                 } catch (e) {
                     log("CLIENT_WS_SEND_ERR", e);
+                    return false;
                 }
             }
 
@@ -516,14 +545,16 @@
 
             if (sendBtn && inputBox) {
                 sendBtn.addEventListener("click", function () {
-                    sendUserText(inputBox.value);
-                    inputBox.value = "";
+                    if (sendUserText(inputBox.value)) {
+                        inputBox.value = "";
+                    }
                 });
                 inputBox.addEventListener("keydown", function (e) {
                     if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                        sendUserText(inputBox.value);
-                        inputBox.value = "";
+                        if (sendUserText(inputBox.value)) {
+                            inputBox.value = "";
+                        }
                     }
                 });
             }
@@ -552,11 +583,15 @@
                         log("CLIENT_END_SEND_ERR", e);
                     }
 
-                    // 백엔드 종료 API도 호출 (실패해도 UX는 계속)
-                    const endUrl = LC.apiEnd || "/api/livechat/end/";
+                    // ✅ 백엔드 종료 API도 호출 (고객 전용 endpoint 기본값)
+                    const endUrl =
+                        LC.apiEnd ||
+                        `/api/livechat/client/${encodeURIComponent(room)}/end/`;
+
                     try {
                         await fetch(endUrl, {
                             method: "POST",
+                            credentials: "same-origin", // ✅ 쿠키/CSRF 흐름 안정화
                             headers: {
                                 "Content-Type": "application/json",
                                 "X-CSRFToken": getCookie("csrftoken") || "",
@@ -569,9 +604,7 @@
                     } catch (_) { }
 
                     // ✅ 로컬에서도 바로 잠그기
-                    lockEnded(
-                        "상담이 종료되었습니다. 이용해 주셔서 감사합니다."
-                    );
+                    lockEnded("상담이 종료되었습니다. 이용해 주셔서 감사합니다.", { silent: false });
                 });
             }
 

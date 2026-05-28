@@ -1,0 +1,737 @@
+/* =========================================================
+   card_rag_scope.css
+   - 목적: RAG/PDF 카드(레거시) 내부 UI + “근거(details)” 제품화 UI 충돌 방지
+   - 원칙:
+     1) 레거시 카드 UI는 #modeSectionRag / #modeSectionPdf 스코프로만
+     2) 근거(details)는 .mz-evidence 스코프로만 (채팅/레거시 어디든 동일)
+   ========================================================= */
+
+
+/* =========================================================
+   1) RAG 카드 전용 — 메인 버튼 줄
+   ========================================================= */
+
+#modeSectionRag .btn-row {
+    flex-wrap: nowrap;
+    gap: 10px;
+}
+
+@media (max-width: 720px) {
+    #modeSectionRag .btn-row {
+        flex-wrap: wrap;
+    }
+}
+
+/* 1번 버튼: "내 자료에서 답 찾기" 강조
+   - nth-child 의존 + data-action 기반 둘 다 커버 */
+#modeSectionRag .btn-row .btn[data-action="rag_search"],
+#modeSectionRag .btn-row .btn:nth-child(1) {
+    flex: 1 1 0;
+    justify-content: center;
+
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 16px;
+
+    background: linear-gradient(135deg, #111827, #020617);
+    color: #e5e7eb;
+    border: 1px solid rgba(15, 23, 42, 0.95);
+    box-shadow:
+        0 14px 30px rgba(15, 23, 42, 0.55),
+        0 6px 14px rgba(15, 23, 42, 0.45);
+}
+
+/* 2번 버튼: "지금 화면 내용까지 저장(시드)" 보조 */
+#modeSectionRag .btn-row .btn[data-action="rag_seed"],
+#modeSectionRag .btn-row .btn:nth-child(2) {
+    flex: 0 0 auto;
+
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+
+    background: rgba(30, 64, 175, 0.06);
+    color: var(--text-main);
+    border: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+/* 3번 버튼: "저장된 자료 새로 시작하기(주의)" 경고 톤 */
+#modeSectionRag .btn-row .btn[data-action="rag_reset"],
+#modeSectionRag .btn-row .btn:nth-child(3) {
+    flex: 0 0 auto;
+
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 14px;
+
+    background: rgba(248, 113, 113, 0.08);
+    color: #7f1d1d;
+    border: 1px solid rgba(239, 68, 68, 0.7);
+}
+
+html[data-theme="dark"] #modeSectionRag .btn-row .btn[data-action="rag_seed"],
+html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(2) {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+    border-color: rgba(75, 85, 99, 0.9);
+}
+
+html[data-theme="dark"] #modeSectionRag .btn-row .btn[data-action="rag_reset"],
+html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
+    background: rgba(127, 29, 29, 0.9);
+    color: #fee2e2;
+    border-color: rgba(248, 113, 113, 0.9);
+}
+
+/* 호버 공통 (살짝 떠오르는 효과 유지) */
+#modeSectionRag .btn-row .btn[data-action="rag_search"]:hover,
+#modeSectionRag .btn-row .btn[data-action="rag_seed"]:hover,
+#modeSectionRag .btn-row .btn[data-action="rag_reset"]:hover,
+#modeSectionRag .btn-row .btn:nth-child(1):hover,
+#modeSectionRag .btn-row .btn:nth-child(2):hover,
+#modeSectionRag .btn-row .btn:nth-child(3):hover {
+    transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   2) PDF 카드 – "📘 PDF 분석 사용 설명서" (버튼 아래, 가로 전체)
+   ========================================================= */
+
+#modeSectionPdf .pdf-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+#modeSectionPdf details.pdf-manual {
+    margin-top: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);
+}
+
+#modeSectionPdf details.pdf-manual>summary {
+    list-style: none;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 14px;
+    border-radius: 16px 16px 0 0;
+
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+#modeSectionPdf details.pdf-manual>summary::-webkit-details-marker {
+    display: none;
+}
+
+#modeSectionPdf details.pdf-manual>summary::before {
+    content: "▶";
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+#modeSectionPdf details.pdf-manual[open]>summary::before {
+    content: "▼";
+}
+
+#modeSectionPdf details.pdf-manual .pdf-manual-body {
+    padding: 10px 14px 12px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.6);
+
+    font-size: 13px;
+    color: var(--text-sub);
+    line-height: 1.6;
+
+    width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+    word-break: keep-all;
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual {
+    background: rgba(15, 23, 42, 0.96);
+    border-color: rgba(129, 140, 248, 0.8);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual>summary {
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual>summary::before {
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] #modeSectionPdf details.pdf-manual .pdf-manual-body {
+    color: #cbd5f5;
+    border-top-color: rgba(129, 140, 248, 0.75);
+}
+
+
+/* =========================================================
+   3) RAG 카드 안쪽 details 공통
+   - 주의: 근거(details)는 .mz-evidence 전용으로 따로 있으므로 여기서 제외
+   ========================================================= */
+
+#modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence) {
+    margin-top: 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.15);
+    overflow: hidden;
+}
+
+html[data-theme="dark"] #modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence) {
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(55, 65, 81, 0.95);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+#modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence) summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+    color: var(--text-main);
+}
+
+html[data-theme="dark"] #modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence) summary {
+    color: #ffffff;
+}
+
+#modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence) summary::-webkit-details-marker {
+    display: none;
+}
+
+#modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence) summary::before {
+    content: "▶";
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+#modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence)[open] summary::before {
+    content: "▼";
+}
+
+#modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence)>div {
+    padding: 8px 12px 10px;
+    font-size: 12px;
+    color: var(--text-sub);
+    border-top: 1px dashed rgba(148, 163, 184, 0.6);
+}
+
+html[data-theme="dark"] #modeSectionRag details:not(.rag-manual):not(.rag-evidence-wrapper):not(.mz-evidence)>div {
+    color: #cbd5f5;
+    border-top-color: rgba(75, 85, 99, 0.9);
+}
+
+
+/* =========================================================
+   4) RAG 카드 – "내 자료 검색 사용 설명서" 전용 스타일
+   ========================================================= */
+
+#modeSectionRag details.rag-manual {
+    margin-top: 12px;
+}
+
+#modeSectionRag details.rag-manual summary {
+    list-style: none;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 14px;
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.55);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+#modeSectionRag details.rag-manual summary::-webkit-details-marker {
+    display: none;
+}
+
+#modeSectionRag details.rag-manual summary::before {
+    content: "▶";
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+#modeSectionRag details.rag-manual[open] summary::before {
+    content: "▼";
+}
+
+#modeSectionRag details.rag-manual .rag-manual-body {
+    margin-top: 6px;
+    padding: 10px 14px 12px;
+    border-radius: 14px;
+
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.55);
+
+    font-size: 13px;
+    color: var(--text-sub);
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-manual summary {
+    background: linear-gradient(90deg,
+            rgba(15, 23, 42, 0.96),
+            rgba(30, 64, 175, 0.94));
+    border-color: rgba(129, 140, 248, 0.85);
+    color: #ffffff;
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-manual summary::before {
+    color: #ffffff;
+    opacity: 0.95;
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-manual .rag-manual-body {
+    background: rgba(15, 23, 42, 0.97);
+    border-color: rgba(129, 140, 248, 0.75);
+    color: #e5e7eb;
+}
+
+
+/* =========================================================
+   5) 📎 근거 보기 버튼 전용 — 밝은 알약 스타일 (레거시 래퍼용)
+   ========================================================= */
+
+#modeSectionRag details.rag-evidence-wrapper>summary.btn.info {
+    background: linear-gradient(90deg, #f9fafb, #e5edff);
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.85);
+    color: #0f172a;
+    font-weight: 600;
+    padding: 9px 16px;
+    box-shadow:
+        0 10px 22px rgba(15, 23, 42, 0.18),
+        0 4px 10px rgba(15, 23, 42, 0.15);
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper>summary.btn.info {
+    background: rgba(248, 250, 252, 0.98);
+    border-color: rgba(191, 219, 254, 1);
+    color: #0f172a;
+}
+
+/* RAG 설명서 / 근거 summary 버튼은 hover 시 위치 안 움직이게 */
+#modeSectionRag .rag-help-block>summary.btn,
+#modeSectionRag .rag-evidence-wrapper>summary.btn {
+    transition: background 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
+}
+
+#modeSectionRag .rag-help-block>summary.btn:hover,
+#modeSectionRag .rag-evidence-wrapper>summary.btn:hover {
+    transform: none;
+}
+
+/* 근거 래퍼는 카드 스타일 제거(토글만) */
+#modeSectionRag details.rag-evidence-wrapper {
+    margin-top: 10px;
+    border-radius: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+
+/* =========================================================
+   6) ✅ “근거(details)” 제품화 UI (채팅/레거시 공통)
+   - 여기만 보면 됨: .mz-evidence 관련 전부
+   ========================================================= */
+
+/* 컨테이너 기본 */
+.mz-evidence {
+    margin-top: 12px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .04);
+    overflow: hidden;
+}
+
+html[data-theme="dark"] .mz-evidence {
+    background: rgba(0, 0, 0, .14);
+    border-color: rgba(148, 163, 184, .12);
+}
+
+/* ✅ 타이틀 줄 = summary (클릭해서 펼침/접기)
+   - summary 태그/클래스 둘 다 커버(레거시/템플릿 차이 대비) */
+.mz-evidence summary,
+.mz-evidence-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(255, 255, 255, .04);
+
+    font-weight: 800;
+    font-size: 13px;
+    color: inherit;
+
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* 기본 details 마커 제거 (Safari/Chromium/Firefox) */
+.mz-evidence summary::-webkit-details-marker,
+.mz-evidence-summary::-webkit-details-marker {
+    display: none;
+}
+
+.mz-evidence summary::marker,
+.mz-evidence-summary::marker {
+    content: "";
+}
+
+/* 접근성 포커스 링 */
+.mz-evidence summary:focus,
+.mz-evidence-summary:focus {
+    outline: none;
+}
+
+.mz-evidence summary:focus-visible,
+.mz-evidence-summary:focus-visible {
+    outline: 3px solid rgba(99, 102, 241, .35);
+    outline-offset: 2px;
+}
+
+.mz-evidence-title {
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: -.01em;
+}
+
+.mz-evidence-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mz-evidence-count {
+    font-size: 12px;
+    opacity: .75;
+}
+
+/* summary 우측 caret(회전) - 요소가 있으면 사용 */
+.mz-evidence-caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 26px;
+    height: 26px;
+    border-radius: 10px;
+
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(255, 255, 255, .06);
+
+    font-weight: 900;
+    opacity: .85;
+    transform: rotate(0deg);
+    transition: transform .14s ease;
+}
+
+.mz-evidence[open] .mz-evidence-caret {
+    transform: rotate(180deg);
+}
+
+/* caret 요소가 없더라도 동작하도록 summary::after 폴백 제공 */
+.mz-evidence summary::after {
+    content: "⌄";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 26px;
+    height: 26px;
+    border-radius: 10px;
+
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(255, 255, 255, .06);
+
+    font-weight: 900;
+    opacity: .85;
+    transform: rotate(0deg);
+    transition: transform .14s ease;
+}
+
+.mz-evidence[open] summary::after {
+    transform: rotate(180deg);
+}
+
+/* ✅ 펼쳐진 본문 래퍼 */
+.mz-evidence-body {
+    margin-top: 10px;
+}
+
+/* (옵션) 레거시 .mz-evidence-head를 쓰는 경우도 같이 커버 */
+.mz-evidence-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+/* 근거 목록(있을 때) 기본 간격만 안정화 */
+.mz-evidence ol,
+.mz-evidence ul {
+    margin: 10px 0 12px;
+    padding-left: 18px;
+}
+
+.mz-evidence li {
+    margin: 6px 0;
+}
+
+
+/* =========================================================
+   7) ✅ 홈 사용량 행 상태(usage-widget 스코프)
+   ========================================================= */
+
+.usage-widget-card .uw-row {
+    position: relative;
+    border-radius: 12px;
+    padding: 8px 10px 8px 16px;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: background .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+
+.usage-widget-card .uw-row::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 999px;
+    background: transparent;
+    opacity: .95;
+}
+
+.usage-widget-card .uw-row dt {
+    color: var(--text-sub);
+    font-weight: 650;
+}
+
+.usage-widget-card .uw-row dd {
+    color: var(--text-main);
+}
+
+.usage-widget-card .uw-row.uw-low {
+    background: rgba(245, 158, 11, 0.07);
+    border-color: rgba(245, 158, 11, 0.22);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.10) inset;
+}
+
+.usage-widget-card .uw-row.uw-low::before {
+    background: rgba(245, 158, 11, 0.95);
+}
+
+.usage-widget-card .uw-row.uw-zero {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.26);
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.12) inset;
+}
+
+.usage-widget-card .uw-row.uw-zero::before {
+    background: rgba(239, 68, 68, 0.95);
+}
+
+.usage-widget-card .uw-row.uw-unlim {
+    background: rgba(34, 211, 238, 0.06);
+    border-color: rgba(34, 211, 238, 0.20);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.10) inset;
+}
+
+.usage-widget-card .uw-row.uw-unlim::before {
+    background: rgba(34, 211, 238, 0.95);
+}
+
+/* =========================================================
+   6-1) RAG 카드에서 .mz-evidence 폭 붕괴/오프스크린 방지 (레이아웃 고정)
+   - Scope: #cardRag only
+   ========================================================= */
+
+#cardRag .mz-evidence {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    /* flex 컨테이너 안에서 1px로 쪼그라드는 케이스 방지 */
+    flex: 0 0 100%;
+    align-self: stretch;
+
+    /* grid 컨테이너 안에서 내용폭(min-content)으로 쪼그라드는 케이스 방지 */
+    grid-column: 1 / -1;
+
+    box-sizing: border-box;
+}
+
+/* summary 라인도 풀폭 유지 + 텍스트가 0폭으로 찌그러지는 것 방지 */
+#cardRag .mz-evidence-summary {
+    width: 100%;
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+#cardRag .mz-evidence-title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#cardRag .mz-evidence-actions {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+/* 본문도 풀폭 유지 */
+#cardRag .mz-evidence-body,
+#cardRag .sources-block.answer-evidence {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+#cardRag .sources-list,
+#cardRag .src-item {
+    min-width: 0;
+}
+
+/* 템플릿에서 .mz-evidence-caret를 쓰므로 ::after 폴백은 끈다 */
+.mz-evidence .mz-evidence-summary::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* =========================================================
+   RAG Evidence Fix (NO-JS)
+   - #rag-answer-wrap 안에서 폭 1px 붕괴 방지
+   ========================================================= */
+
+/* 1) RAG 답변 영역은 세로 스택(컬럼)으로 강제 */
+#cardRag #rag-answer-wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+/* 2) answer-wrap 직계 자식들은 무조건 풀폭 */
+#cardRag #rag-answer-wrap>* {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* 3) chat mount도 풀폭 유지 */
+#cardRag #ragChatMount {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+}
+
+/* 4) 근거(details)도 어떤 레이아웃이든 풀폭/스팬 강제 */
+#cardRag details.mz-evidence {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    /* 혹시 상위가 grid/flex여도 안전 */
+    grid-column: 1 / -1 !important;
+    flex: 0 0 100% !important;
+    align-self: stretch !important;
+
+    box-sizing: border-box !important;
+}
+
+/* 5) summary 줄도 풀폭 + 텍스트 찌그러짐 방지 */
+#cardRag .mz-evidence-summary {
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+#cardRag .mz-evidence-title {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+
+#cardRag .mz-evidence-actions {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+}
+
+/* (선택) 템플릿에 caret(span)이 있으니 ::after 폴백 끄기 (⌄⌄ 방지) */
+.mz-evidence .mz-evidence-summary::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* =========================================================
+   news.html(chat layout)에서 RAG 카드는 "근거"만 보이게
+   - JS 수정 없이 UI만 정리
+   ========================================================= */
+body[data-layout="overlay"] #modeSectionRag #cardRag {
+    margin-top: 12px;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* 카드의 폼/답변 영역은 숨기고 근거(details)만 노출 */
+body[data-layout="overlay"] #modeSectionRag #cardRag .card-header,
+body[data-layout="overlay"] #modeSectionRag #cardRag #rag-msg-block,
+body[data-layout="overlay"] #modeSectionRag #cardRag #rag-answer-wrap {
+    display: none !important;
+}
+
+/* 근거는 보이게 */
+body[data-layout="overlay"] #modeSectionRag #cardRag .mz-evidence {
+    display: block !important;
+}

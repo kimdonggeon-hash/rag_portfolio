@@ -1,64 +1,237 @@
+{# ragapp/templates/legal/guide.html #}
 {% load static %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>이용 가이드</title>
-<link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+<title>서비스 이용 안내</title>
+
+{% include "ragapp/partials/favicon.html" %}
+
 <style>
   :root{
-    --bg:#0b1220;--card:#0f172a;--text:#e5e7eb;--dim:#9ca3af;
-    --border:rgba(148,163,184,.22);--a:#6366f1;--b:#4f46e5;--radius:14px
+    --bg:#f6f7fb;
+    --card:#ffffff;
+    --text:#0f172a;
+    --dim:#475569;
+    --muted:#64748b;
+    --border:#e5e7eb;
+    --shadow:0 16px 40px rgba(15,23,42,.08);
+    --radius:16px;
+
+    --a:#2563eb;
+    --b:#4f46e5;
+    --pill_bg:#eef2ff;
+    --pill_bd:#c7d2fe;
   }
+
   html,body{margin:0;background:var(--bg);color:var(--text);
     font-family:ui-sans-serif,system-ui,Segoe UI,Apple SD Gothic Neo,Malgun Gothic,Apple Color Emoji,Noto Color Emoji}
-  .wrap{max-width:960px;margin:40px auto;padding:0 20px}
-  .card{background:linear-gradient(180deg,#0f172a,#0d1528 60%);border:1px solid #1f2937;border-radius:var(--radius);
-        box-shadow:0 12px 32px rgba(0,0,0,.35)}
-  .head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border)}
-  .title{font-size:20px;font-weight:800}
-  .actions{display:flex;gap:8px}
-  .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#0b1220;color:#e5e7eb;
-       height:36px;padding:0 12px;border-radius:10px;font-weight:700;text-decoration:none}
-  .btn.accent{border-color:transparent;background:linear-gradient(90deg,var(--a),var(--b));color:#fff;
-              box-shadow:0 10px 24px rgba(79,70,229,.35)}
-  .body{padding:18px 18px 24px;line-height:1.7}
-  .hint{color:var(--dim);font-size:13px;margin-top:6px}
-  .link{color:#93c5fd;text-decoration:none;font-weight:600}
-  .link:hover{text-decoration:underline}
+  a{color:inherit}
+
+  .wrap{max-width:980px;margin:42px auto;padding:0 20px}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+
+  .head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:18px 18px;border-bottom:1px solid var(--border);
+    gap:12px;flex-wrap:wrap
+  }
+  .title{font-size:20px;font-weight:900;letter-spacing:-.02em}
+  .hint{color:var(--dim);font-size:13px;margin-top:6px;line-height:1.5}
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    border:1px solid var(--border);background:#fff;color:var(--text);
+    height:38px;padding:0 12px;border-radius:12px;font-weight:800;
+    text-decoration:none;
+    box-shadow:0 8px 18px rgba(15,23,42,.06);
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn.accent{
+    border-color:transparent;color:#fff;
+    background:linear-gradient(90deg,var(--a),var(--b));
+    box-shadow:0 14px 28px rgba(37,99,235,.22);
+  }
+
+  .body{padding:18px 18px 26px;line-height:1.75}
   .preline{white-space:pre-line}
+
+  .grid{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0}
+  @media (min-width:860px){ .grid{grid-template-columns:1fr 1fr} }
+
+  .panel{
+    border:1px solid var(--border);
+    background:linear-gradient(180deg,#fff,#fbfbff);
+    border-radius:14px;
+    padding:14px 14px 12px;
+  }
+  .panel h3{margin:0 0 8px;font-size:15px;letter-spacing:-.01em}
+  .panel ul{margin:8px 0 0 18px;color:var(--text)}
+  .panel li{margin:6px 0}
+  .mini{font-size:13px;color:var(--dim)}
+  .k{color:var(--text);font-weight:850}
+
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;font-weight:900;
+    color:#3730a3;
+    border:1px solid var(--pill_bd);
+    background:var(--pill_bg);
+    padding:3px 9px;border-radius:999px
+  }
+
+  .note{
+    margin-top:12px;
+    border:1px dashed rgba(100,116,139,.35);
+    background:#fff;
+    border-radius:14px;
+    padding:12px;
+  }
+  .note b{color:var(--text)}
+  .link{color:#1d4ed8;text-decoration:none;font-weight:850}
+  .link:hover{text-decoration:underline}
+
+  .divider{height:1px;background:var(--border);margin:14px 0}
+  .muted{color:var(--muted)}
 </style>
 </head>
+
 <body>
 <div class="wrap">
   <div class="card">
     <div class="head">
-      <div class="title">이용 가이드</div>
+      <div>
+        <div class="title">서비스 이용 안내</div>
+        <div class="hint">
+          이 페이지는 사이트에서 제공하는 <span class="k">검색 · 문서 업로드 · 게시판 · 채팅</span> 기능을
+          안전하고 쉽게 사용하는 방법을 설명합니다.
+        </div>
+      </div>
       <div class="actions">
-        <a class="btn" href="/ragadmin/" rel="noopener">Admin</a>
-        <a class="btn accent" href="/" rel="noopener">콘솔로 돌아가기</a>
+        <a class="btn accent" href="/" rel="noopener">홈으로</a>
       </div>
     </div>
+
     <div class="body">
-      {# 컨텍스트에 실제로 존재하는 키만 사용: guide_html → LEGAL_GUIDE_HTML 순서 #}
+      {# ✅ 컨텍스트에 실제로 존재하는 키만 사용: guide_html → LEGAL_GUIDE_HTML 순서 #}
       {% with v=guide_html|default:LEGAL_GUIDE_HTML %}
         {% if v %}
+          {# ✅ 운영자가 HTML을 넣어두면 그대로 사용(기본 템플릿보다 우선) #}
           {% if "<" in v and ">" in v %}
             {{ v|safe }}
           {% elif v|slice:":8" == "https://" or v|slice:":7" == "http://" or v|slice:":1" == "/" %}
-            <p><a class="link" href="{{ v }}" target="_blank" rel="noopener">{{ v }}</a></p>
+            <p>
+              안내 페이지: <a class="link" href="{{ v }}" target="_blank" rel="noopener">{{ v }}</a>
+            </p>
           {% else %}
             <div class="preline">{{ v }}</div>
           {% endif %}
         {% else %}
-          <h3>무엇을 할 수 있나요?</h3>
-          <ol>
-            <li><b>웹 검색 & 인덱싱</b> — 검색 후 ❤️ 를 눌러 현재 벡터 DB에 업서트</li>
-            <li><b>내 RAG 검색</b> — 저장된 벡터를 근거로 답변</li>
-            <li><b>관리자</b> — 크롤링/업로드/FAQ/법적설정 관리</li>
-          </ol>
-          <p class="hint">관리자 &gt; 법적설정에서 <b>이용 가이드(HTML)</b>를 채우면 이 자리의 기본 문구 대신 표시됩니다.</p>
+          <div class="grid">
+            <div class="panel">
+              <h3>1) 웹 검색 모드</h3>
+              <div class="mini">
+                웹에서 먼저 찾아보고(외부 웹 검색),
+                결과의 <span class="k">제목/키워드/핵심 문장</span>을 주면 핵심만 요약해드려요.
+              </div>
+              <ul>
+                <li><span class="pill">검색</span> 필요한 키워드를 입력해 찾아봐요.</li>
+                <li><span class="pill">주의</span> 완전 최신 정보는 근거가 부족할 수 있어 <span class="k">외부 웹 검색</span>으로 확인이 필요해요.</li>
+                <li><span class="pill">요약</span> 찾을 내용을 <span class="k">제목/키워드/본문 일부</span>로 알려주면 요약·비교·정리해드려요.</li>
+              </ul>
+              <div class="note mini">
+                <b>안내</b> · 중요한 내용은 여러 출처로 교차 확인하고, 필요하면 원문을 함께 확인해 주세요.
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>2) AI 요약 검색 모드</h3>
+              <div class="mini">
+                서버에 저장된 내용을 바탕으로, 관련 부분을 찾아 <span class="k">근거와 함께</span> 답변을 제공합니다.
+              </div>
+              <ul>
+                <li><span class="pill">출처</span> 답변에 참고한 링크/근거가 함께 표시될 수 있습니다.</li>
+                <li><span class="pill">확인</span> 중요한 결정은 반드시 <span class="k">원문 확인</span>을 권장합니다.</li>
+                <li><span class="pill">최신</span> 내 자료에 없으면 답이 제한될 수 있어요. 최신 정보는 웹 검색을 권장해요.</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <h3>3) 문서(PDF/TXT) 올리기</h3>
+              <div class="mini">
+                문서를 올리면 텍스트를 추출해 검색/요약에 활용합니다.
+              </div>
+              <ul>
+                <li><span class="pill">주의</span> 주민번호/연락처/계좌 등 <span class="k">개인정보</span>가 들어간 파일은 올리지 마세요.</li>
+                <li><span class="pill">저작권</span> 공유가 제한된 자료는 업로드를 피해주세요.</li>
+                <li><span class="pill">삭제</span> 업로드 파일은 처리 후 저장되지 않는 <span class="k">즉시 삭제</span>을 따릅니다.</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <h3>4) 이미지 업로드/글로 이미지 찾기</h3>
+              <div class="mini">
+                이미지를 업로드 하고 글로 이미지를 찾을 수 있습니다.
+              </div>
+              <ul>
+                <li><span class="pill">주의</span> 신분증/얼굴/주소/연락처 등 개인정보가 포함된 이미지는 업로드하지 마세요.</li>
+                <li><span class="pill">사전 승인</span> 업로드된 이미지는 운영자가 확인 후 승인이 진행되며 승인 기간은 3일에서 7일 소요 됩니다.</li>
+                <li><span class="pill">팁</span> 설명과 캡션을 자신만의 언어로 하면 찾기가 더 쉬워집니다.</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <h3>5) 게시판(공지/문의/피드백)</h3>
+              <div class="mini">
+                업데이트 공지나 의견/문의 남기기에 사용합니다.
+              </div>
+              <ul>
+                <li><span class="pill">비회원</span> 글 수정/삭제 확인을 위해 비밀번호를 입력할 수 있습니다.</li>
+                <li><span class="pill">운영</span> 신고/권리침해/불법 정보는 숨김 또는 삭제될 수 있습니다.</li>
+                <li><span class="pill">주의</span> 타인의 개인정보, 명예훼손, 저작권 침해 내용은 작성하지 마세요.</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <h3>6) 채팅(상담/문의)</h3>
+              <div class="mini">
+                필요 시 채팅으로 문의하거나 안내를 받을 수 있습니다.
+              </div>
+              <ul>
+                <li><span class="pill">개인정보</span> 민감한 정보(주민번호/주소/계좌 등)는 입력하지 마세요.</li>
+                <li><span class="pill">기록</span> 서비스 품질/보안 목적의 최소 기록이 남을 수 있습니다.</li>
+                <li><span class="pill">종료</span> 기록은 운영 정책에 따라 보관 후 파기됩니다.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="note">
+            <div><b>정책/약관 안내</b></div>
+            <div class="mini" style="margin-top:6px">
+              서비스 이용 과정에서 처리될 수 있는 정보(로그, 저장 항목, 국외이전 등)는 아래 문서에서 확인할 수 있습니다.
+            </div>
+            <ul class="mini" style="margin:10px 0 0 18px">
+              <li><a class="link" href="/legal/privacy/">개인정보처리방침</a></li>
+              <li><a class="link" href="/legal/overseas/">개인정보 국외이전 안내</a></li>
+              <li><a class="link" href="/legal/terms/">이용약관</a></li>
+              <li><a class="link" href="/legal/tester/">테스터 안내</a></li>
+            </ul>
+            <div class="hint muted" style="margin-top:10px">
+              운영자가 “이용 안내” 내용을 직접 작성해두면, 이 기본 안내 대신 그 내용이 표시됩니다.
+            </div>
+          </div>
         {% endif %}
       {% endwith %}
     </div>

@@ -1,0 +1,328 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light dark">
+  <title>이미지 업로드 검수</title>
+  <link rel="stylesheet" href="{% static 'ragapp/css/ragadmin_media_pending.css' %}?v={{ STATIC_VERSION }}">
+</head>
+
+<body class="dg-app">
+  <header class="dg-topbar">
+    <div class="dg-topbar-inner">
+      <div class="dg-titlebox">
+        <div class="dg-title">이미지 업로드 검수</div>
+        <div class="dg-sub">
+          <span class="dg-count"><span id="dgCount">{{ count }}</span>건</span>
+          <span class="dg-dot">•</span>
+          <span class="dg-muted">limit={{ limit }}</span>
+        </div>
+      </div>
+
+      <div class="dg-actions">
+        <form class="dg-limit" method="get" action="">
+          <label class="dg-lbl" for="dgLimit">limit</label>
+          <input id="dgLimit" class="dg-inp" type="number" name="limit" value="{{ limit }}" min="1" max="200">
+          <button class="dg-btn" type="submit">적용</button>
+        </form>
+
+        <div class="dg-switch">
+          <input type="checkbox" id="dgAutoReload" checked>
+          <label for="dgAutoReload">처리 후 자동 갱신</label>
+        </div>
+
+        <button class="dg-btn ghost" id="dgReloadBtn" type="button">새로고침</button>
+        <a class="dg-btn ghost" href="{{ penalties_url }}">정지/선처</a>
+        <a class="dg-btn primary" href="{{ admin_upload_url }}">어드민 업로드</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="dg-shell">
+    <div id="dgToast" class="dg-toast" hidden></div>
+
+    <section class="dg-layout">
+      <aside class="dg-preview" aria-label="미리보기">
+        <div class="dg-preview-head">
+          <div>
+            <div class="dg-preview-title">미리보기</div>
+            <div id="dgPreviewHint" class="dg-preview-hint">오른쪽 항목을 선택하면 크게 보여요.</div>
+          </div>
+
+          <div class="dg-preview-tools">
+            <button class="dg-iconbtn" type="button" data-action="copy-id" title="ID 복사">ID</button>
+            <button class="dg-iconbtn" type="button" data-action="copy-key" title="Key 복사">Key</button>
+          </div>
+        </div>
+
+        <div class="dg-preview-ctrl" aria-label="줌 컨트롤">
+          <button class="dg-chipbtn" type="button" data-action="zoom-out" title="축소">−</button>
+          <input id="dgZoom" class="dg-zoom" type="range" min="20" max="600" step="5" value="100" aria-label="줌 슬라이더">
+          <div class="dg-zoom-label" id="dgZoomLabel">100%</div>
+          <button class="dg-chipbtn" type="button" data-action="zoom-in" title="확대">+</button>
+          <button class="dg-chipbtn" type="button" data-action="zoom-fit" title="맞춤">Fit</button>
+          <button class="dg-chipbtn" type="button" data-action="zoom-100" title="100%">100%</button>
+          <button class="dg-chipbtn" type="button" data-action="zoom-reset" title="리셋">Reset</button>
+          <button class="dg-chipbtn" type="button" data-action="bg-toggle" title="배경 전환">BG</button>
+        </div>
+
+        <div id="dgPreviewStage" class="dg-preview-stage" data-bg="checker" role="group" aria-label="이미지 미리보기">
+          <img id="dgPreviewImg" alt="preview" loading="eager" decoding="async" />
+          <div id="dgPreviewEmpty" class="dg-preview-empty" hidden>미리보기 URL 없음</div>
+          <div class="dg-preview-tip">휠=줌 · 드래그=이동 · 더블클릭=리셋</div>
+        </div>
+
+        <div class="dg-preview-actions">
+          <a id="dgPNewTab" class="dg-btn ghost" href="#" target="_blank" rel="noreferrer" hidden>새 탭(프리뷰)</a>
+          <a id="dgPOrigTab" class="dg-btn ghost" href="#" target="_blank" rel="noreferrer" hidden>원본(GCS)</a>
+          <button id="dgOpenActorPanel" class="dg-btn ghost" type="button" hidden>Actor 패널</button>
+        </div>
+
+        <div class="dg-preview-foot">
+          <div class="dg-muted">
+            팁: <span class="mono">J/K</span> 이동 · <span class="mono">Ctrl+Enter</span> 승인 · <span class="mono">Esc</span> 닫기
+          </div>
+        </div>
+      </aside>
+
+      <section class="dg-queue" aria-label="대기 목록">
+        <div class="dg-queue-head">
+          <div class="dg-queue-title">대기 큐</div>
+          <div class="dg-queue-controls">
+            <input id="dgFilter" class="dg-inp" type="search" placeholder="필터: id / actor / name / key" autocomplete="off" aria-label="필터">
+            <button class="dg-btn ghost" type="button" id="dgCollapseAll">모두 접기</button>
+          </div>
+        </div>
+
+        {% if items|length == 0 %}
+          <div class="dg-empty">대기 항목이 없습니다.</div>
+        {% endif %}
+
+        <div id="dgGrid" class="dg-grid"
+             data-approve-url="{{ approve_url }}"
+             data-reject-url="{{ reject_url }}"
+             data-lift-url="{{ lift_url }}"
+             data-penalties-url="{{ penalties_url }}"
+             data-penalty-list-url="{{ penalty_list_url }}">
+
+          {% for it in items %}
+          <details class="dg-card"
+                   data-pending-id="{{ it.pending_id }}"
+                   data-actor-key="{{ it.actor_key }}"
+                   data-preview-url="{{ it.preview_url|default:'' }}"
+                   data-signed-url="{{ it.signed_url|default:'' }}"
+                   data-storage-key="{{ it.storage_key|default:'' }}"
+                   data-orig-name="{{ it.orig_name|default:'' }}"
+                   data-created-at="{{ it.created_at|default:'' }}"
+                   data-mime="{{ it.mime|default:'' }}"
+                   data-size="{{ it.size|default:'' }}"
+                   data-sha16="{{ it.sha16|default:'' }}"
+                   data-ai-used="{% if it.ai_used %}1{% else %}0{% endif %}"
+                   data-ai-model="{{ it.ai_model|default:'' }}"
+                   data-ai-error="{{ it.ai_error|default:'' }}">
+
+            <summary class="dg-summary">
+              <div class="dg-thumb">
+                {% if it.preview_url %}
+                  <img src="{{ it.preview_url }}" alt="thumb" loading="lazy" decoding="async" />
+                {% else %}
+                  <div class="dg-thumb-fallback">NO PREVIEW</div>
+                {% endif %}
+              </div>
+
+              <div class="dg-s-main">
+                <div class="dg-s-title">
+                  <span class="mono">{{ it.pending_id }}</span>
+                  {% if it.orig_name %}<span class="dg-s-dot">·</span><span class="dg-s-name">{{ it.orig_name }}</span>{% endif %}
+                </div>
+
+                <div class="dg-s-sub">
+                  <span class="dg-badge">key</span>
+                  <span class="mono small">{{ it.storage_key }}</span>
+                </div>
+
+                <div class="dg-s-tags">
+                  {% if it.ai_used %}
+                    <span class="dg-badge ai">AI</span>
+                    <span class="dg-muted small">model={{ it.ai_model }}{% if it.ai_error %} · err={{ it.ai_error }}{% endif %}</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="dg-s-right">
+                <div class="dg-s-at">{{ it.created_at }}</div>
+              </div>
+            </summary>
+
+            {% if it.actor_key %}
+              <button class="dg-pillbtn dg-actorbtn" type="button" data-action="actor-open" title="Actor 패널 열기" aria-label="Actor 패널 열기">
+                <span class="dg-badge">actor</span>
+                <span class="mono small">{{ it.actor_key }}</span>
+              </button>
+            {% endif %}
+
+            <div class="dg-body">
+              <div class="dg-body-grid">
+                <div class="dg-panel">
+                  <div class="dg-panel-title">메타</div>
+                  <div class="dg-meta">
+                    <div class="dg-kv"><div class="k">ID</div><div class="v mono">{{ it.pending_id }}</div></div>
+                    <div class="dg-kv"><div class="k">Key</div><div class="v mono small">{{ it.storage_key }}</div></div>
+                    <div class="dg-kv"><div class="k">Name</div><div class="v">{{ it.orig_name }}</div></div>
+                    <div class="dg-kv"><div class="k">MIME</div><div class="v">{{ it.mime }}</div></div>
+                    <div class="dg-kv"><div class="k">Size</div><div class="v" data-size="{{ it.size }}">{{ it.size }}</div></div>
+                    <div class="dg-kv"><div class="k">SHA</div><div class="v mono">{{ it.sha16 }}</div></div>
+                    <div class="dg-kv"><div class="k">Actor</div>
+                      <div class="v">
+                        {% if it.actor_key %}
+                          <button class="dg-pillbtn" type="button" data-action="actor-open">
+                            <span class="mono small">{{ it.actor_key }}</span>
+                          </button>
+                        {% else %}
+                          <span class="dg-muted">-</span>
+                        {% endif %}
+                      </div>
+                    </div>
+                    <div class="dg-kv"><div class="k">At</div><div class="v">{{ it.created_at }}</div></div>
+                  </div>
+
+                  <div class="dg-mini-actions">
+                    <button class="dg-btn ghost" type="button" data-action="copy-id">ID 복사</button>
+                    <button class="dg-btn ghost" type="button" data-action="copy-key">Key 복사</button>
+                    {% if it.actor_key %}
+                      <a class="dg-btn ghost" href="{{ penalties_url }}?actor_key={{ it.actor_key|urlencode }}">관리 페이지</a>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="dg-panel">
+                  <div class="dg-panel-title">승인 반영 값</div>
+
+                  <label class="dg-label" for="dgCaption_{{ it.pending_id }}">캡션</label>
+                  <input id="dgCaption_{{ it.pending_id }}" class="dg-inp" name="caption"
+                         value="{{ it.caption|default:'' }}" placeholder="caption" />
+
+                  <label class="dg-label" for="dgTags_{{ it.pending_id }}">태그</label>
+                  <input id="dgTags_{{ it.pending_id }}" class="dg-inp" name="tags"
+                         value="{{ it.tags|default:'' }}" placeholder="tag1, tag2 ..." />
+
+                  <div class="dg-divider"></div>
+
+                  <div class="dg-panel-title">거절 사유</div>
+                  <div class="dg-reason-row">
+                    <select class="dg-select" name="reason_preset" title="사유 템플릿">
+                      <option value="">(선택) 사유 템플릿</option>
+                      <option value="부적절한 이미지(성인/노출/선정)">부적절한 이미지(성인/노출/선정)</option>
+                      <option value="폭력/혐오/괴롭힘">폭력/혐오/괴롭힘</option>
+                      <option value="개인정보 포함(얼굴/번호/주소/민감정보)">개인정보 포함(얼굴/번호/주소/민감정보)</option>
+                      <option value="저작권/무단도용 의심">저작권/무단도용 의심</option>
+                      <option value="스팸/광고/낚시">스팸/광고/낚시</option>
+                      <option value="불법/위험 행위 조장">불법/위험 행위 조장</option>
+                      <option value="품질 문제(깨짐/저해상도/무의미)">품질 문제(깨짐/저해상도/무의미)</option>
+                      <option value="기타">기타</option>
+                    </select>
+
+                    <input class="dg-inp" name="reason_custom" placeholder="직접 입력(선택)" />
+                    <button class="dg-btn ghost" type="button" data-action="reason-append">추가</button>
+                    <button class="dg-btn ghost" type="button" data-action="reason-clear">비우기</button>
+                  </div>
+
+                  <textarea class="dg-textarea" name="reason" rows="4" placeholder="최종 텍스트가 그대로 기록됩니다."></textarea>
+
+                  <div class="dg-reject-modes">
+                    <label class="dg-radio">
+                      <input type="radio" name="reject_mode_{{ it.pending_id }}" value="reject_only" checked>
+                      <span>그냥 거절</span>
+                    </label>
+
+                    <label class="dg-radio">
+                      <input type="radio" name="reject_mode_{{ it.pending_id }}" value="restrict_all">
+                      <span>모든 사용량 제한</span>
+                    </label>
+
+                    <div class="dg-restrict-box" data-role="restrict-box">
+                      <select class="dg-select" name="restrict_days" title="제한 기간">
+                        <option value="1">1일</option>
+                        <option value="7" selected>7일</option>
+                        <option value="14">14일</option>
+                        <option value="21">21일</option>
+                        <option value="30">30일</option>
+                        <option value="permanent">영구</option>
+                      </select>
+
+                      <label class="dg-check">
+                        <input type="checkbox" name="delete_blob" checked>
+                        <span>파일 삭제</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="dg-actions-row">
+                    <button class="dg-btn ok" type="button" data-action="approve">승인</button>
+                    <button class="dg-btn danger" type="button" data-action="reject">거절</button>
+                    {% if it.preview_url %}
+                      <a class="dg-btn ghost" href="{{ it.preview_url }}" target="_blank" rel="noreferrer">새 탭(프리뷰)</a>
+                    {% endif %}
+                    {% if it.signed_url %}
+                      <a class="dg-btn ghost" href="{{ it.signed_url }}" target="_blank" rel="noreferrer">원본(GCS)</a>
+                    {% endif %}
+                    {% if it.actor_key %}
+                      <button class="dg-btn ghost" type="button" data-action="lift">선처(정지 해제)</button>
+                    {% endif %}
+                  </div>
+
+                  <div class="dg-status" aria-live="polite"></div>
+                </div>
+              </div>
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="dgModal" class="dg-modal" hidden>
+    <div class="dg-modal-backdrop" data-action="modal-close"></div>
+    <div class="dg-modal-card" role="dialog" aria-modal="true" aria-labelledby="dgModalTitle">
+      <div class="dg-modal-head">
+        <div id="dgModalTitle" class="dg-modal-title">확인</div>
+        <button class="dg-iconbtn" type="button" data-action="modal-close" title="닫기">닫기</button>
+      </div>
+      <div id="dgModalBody" class="dg-modal-body"></div>
+      <div class="dg-modal-foot">
+        <button class="dg-btn ghost" type="button" data-action="modal-cancel">취소</button>
+        <button class="dg-btn ghost" type="button" data-action="modal-delay">3초 후 실행(취소 가능)</button>
+        <button id="dgModalConfirm" class="dg-btn primary" type="button">즉시 실행</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dgDrawer" class="dg-drawer" hidden>
+    <div class="dg-drawer-backdrop" data-action="drawer-close"></div>
+    <aside class="dg-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="dgDrawerTitle">
+      <div class="dg-drawer-head">
+        <div>
+          <div id="dgDrawerTitle" class="dg-drawer-title">Actor 패널</div>
+          <div class="mono" id="dgDrawerActor">-</div>
+        </div>
+        <button class="dg-iconbtn" type="button" data-action="drawer-close">닫기</button>
+      </div>
+
+      <div class="dg-drawer-body">
+        <div class="dg-drawer-actions">
+          <a id="dgDrawerOpenPage" class="dg-btn ghost" href="#" target="_blank" rel="noreferrer">관리 페이지</a>
+          <button id="dgDrawerLift" class="dg-btn ghost" type="button">선처(해제)</button>
+        </div>
+
+        <div id="dgDrawerStatus" class="dg-muted small"></div>
+        <div id="dgDrawerList" class="dg-penalty-list"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="{% static 'ragapp/javascript/ragadmin_media_pending.js' %}?v={{ STATIC_VERSION }}"></script>
+</body>
+</html>

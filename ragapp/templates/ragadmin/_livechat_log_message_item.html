@@ -1,0 +1,15 @@
+{# ragapp/templates/ragadmin/_livechat_log_message_item.html #}
+{% with r=role|lower %}
+<article class="msg msg-{{ r }}">
+  <div class="msg-meta">
+    <span class="msg-role">
+      {% if r == "user" %}사용자{% elif r == "operator" %}상담사{% else %}시스템{% endif %}
+    </span>
+    {% if m.created_at %}<time>{{ m.created_at }}</time>{% endif %}
+  </div>
+
+  <div class="msg-bubble">
+    {{ m.text|default_if_none:""|linebreaksbr }}
+  </div>
+</article>
+{% endwith %}

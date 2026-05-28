@@ -1,0 +1,177 @@
+{# ragapp/templates/ragapp/board/post_form.html #}
+{% extends "ragapp/board/board_base.html" %}
+
+{% block content %}
+<section class="board-section">
+  <div class="board-form-head">
+    <div>
+      <h2 class="board-h2">
+        {% if form.instance and form.instance.pk %}글 수정{% else %}새 글 작성{% endif %}
+      </h2>
+      <div class="board-muted">
+        공지/업데이트/피드백을 남길 수 있어요.
+      </div>
+    </div>
+
+    {% if request.user.is_authenticated and request.user.is_staff %}
+      <span class="board-badge">운영자 모드</span>
+    {% endif %}
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="board-form">
+    {% csrf_token %}
+
+    {% for h in form.hidden_fields %}
+      {{ h }}
+    {% endfor %}
+
+    {% if form.non_field_errors %}
+      <div class="board-alert">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="board-form-card">
+
+      {# ✅ 공개 범위(비밀글) 설정 카드 #}
+      {% if form.is_secret %}
+        <div class="board-setting-card" id="secretSettingCard">
+          <div class="board-setting-text">
+            <div class="board-setting-kicker">공개 범위</div>
+
+            <div class="board-setting-title-row">
+              <label class="board-setting-title" for="{{ form.is_secret.id_for_label }}">
+                비밀글 (운영자만 보기)
+              </label>
+              <span class="board-setting-badge" id="secretBadge">공개</span>
+            </div>
+
+            <div class="board-setting-desc">
+              체크하면 목록/검색/상세에서 운영자만 볼 수 있어요.
+            </div>
+
+            {% if form.is_secret.errors %}
+              <div class="board-field-errors">{{ form.is_secret.errors }}</div>
+            {% endif %}
+          </div>
+
+          <div class="board-setting-ctrl">
+            <label class="board-switch" aria-label="비밀글(운영자만 보기)">
+              {{ form.is_secret }}
+              <span class="board-switch-track" aria-hidden="true"></span>
+              <span class="board-switch-thumb" aria-hidden="true"></span>
+            </label>
+
+            <div class="board-setting-mini" id="secretMiniHint">
+              공개
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {# ✅ 기본 필드 렌더링 (guest_*, website, is_secret는 제외) #}
+      {% for field in form.visible_fields %}
+        {% if field.name != "guest_name" and field.name != "guest_password" and field.name != "website" and field.name != "is_secret" %}
+          <div class="board-field">
+            <label class="board-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+
+            {% if field.name == "attachment" %}
+              {{ field }}
+              <div id="attachPreview" class="attach-preview-card" hidden>
+                <div class="attach-preview-head">
+                  <span class="attach-preview-title">첨부 미리보기</span>
+                  <button type="button" class="attach-preview-clear" id="attachClearBtn">지우기</button>
+                </div>
+                <img id="attachPreviewImg" alt="첨부 이미지 미리보기" />
+              </div>
+            {% else %}
+              {{ field }}
+            {% endif %}
+
+            {% if field.help_text %}
+              <div class="helptext">{{ field.help_text }}</div>
+            {% endif %}
+
+            {% if field.errors %}
+              <div class="board-field-errors">{{ field.errors }}</div>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      {% if not request.user.is_authenticated %}
+        <div class="board-form-guest">
+          <div class="board-field">
+            <label class="board-label" for="id_guest_name_public">비회원 이름</label>
+            <input id="id_guest_name_public"
+                   class="board-control"
+                   type="text"
+                   name="guest_name"
+                   value="{{ request.POST.guest_name|default:'' }}"
+                   placeholder="이름"
+                   autocomplete="nickname"
+                   required />
+          </div>
+
+          <div class="board-field">
+            <label class="board-label" for="id_guest_password_public">비회원 비밀번호</label>
+            <input id="id_guest_password_public"
+                   class="board-control"
+                   type="password"
+                   name="guest_password"
+                   placeholder="비밀번호"
+                   autocomplete="new-password"
+                   required />
+          </div>
+        </div>
+      {% endif %}
+
+    </div>
+
+    <div class="board-form-actions">
+      {% if form.instance and form.instance.pk %}
+        <a class="qa-launch-btn is-ghost" href="{% url 'board:detail' form.instance.pk %}">취소</a>
+      {% else %}
+        <a class="qa-launch-btn is-ghost" href="{% url 'board:list' %}">취소</a>
+      {% endif %}
+      <button class="board-btn is-primary" type="submit">저장</button>
+    </div>
+  </form>
+</section>
+
+<script>
+(function(){
+  const badge = document.getElementById("secretBadge");
+  const mini  = document.getElementById("secretMiniHint");
+  const card  = document.getElementById("secretSettingCard");
+  if(!card) return;
+
+  const input = card.querySelector('input[type="checkbox"]');
+  if(!input) return;
+
+  const paint = () => {
+    const on = !!input.checked;
+    if (badge) badge.textContent = on ? "비밀" : "공개";
+    if (mini)  mini.textContent  = on ? "비밀로 설정됨" : "공개로 설정됨";
+    card.classList.toggle("is-on", on);
+  };
+
+  input.addEventListener("change", paint);
+  paint();
+})();
+</script>
+
+<script>
+(function(){
+  const input = document.querySelector('input[type="file"][name="attachment"]');
+  const card = document.getElementById("attachPreview");
+  const img  = document.getElementById("attachPreviewImg");
+  const clr  = document.getElementById("attachClearBtn");
+  if(!input || !card || !img) return;
+
+  const show = f => { img.src = URL.createObjectURL(f); card.hidden = false; };
+  input.addEventListener("change", () => (input.files && input.files[0]) ? show(input.files[0]) : (card.hidden = true));
+  clr && clr.addEventListener("click", () => { input.value=""; img.removeAttribute("src"); card.hidden = true; });
+})();
+</script>
+{% endblock %}

@@ -91,8 +91,8 @@ def _require_env_model_embed() -> str:
         return gem_single.strip()
 
     raise RuntimeError(
-        "임베딩 모델이 없습니다. .env에 VERTEX_EMBED_MODEL=text-embedding-004 "
-        "또는 GEMINI_EMBED_MODELS=text-embedding-004 를 설정하세요."
+        "임베딩 모델이 없습니다. .env에 VERTEX_EMBED_MODEL=text-embedding-005 "
+        "또는 GEMINI_EMBED_MODELS=text-embedding-005 를 설정하세요."
     )
 
 

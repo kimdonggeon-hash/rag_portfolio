@@ -3,32 +3,35 @@ from __future__ import annotations
 
 from typing import Callable, Optional, List, Dict, Any
 from importlib import import_module
+from datetime import timedelta
 import os
 import re
-import logging
-import io
 import json
+import logging
 from pathlib import Path
 
-from django.template import TemplateDoesNotExist
-from django.contrib import messages
-from django.views.decorators.cache import never_cache
-from .models import FeedbackLog, FeedbackReview
-from django.urls import reverse
 from django.conf import settings
-from django.shortcuts import render, redirect, get_object_or_404
+from django.core.cache import cache
+from django.template import TemplateDoesNotExist
+from django.urls import reverse
+from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.views.decorators.http import require_http_methods, require_POST, require_GET
-from django.template.loader import render_to_string
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods, require_GET
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
 from django.utils import timezone
-from django.db.models import Count, Q
-from ragapp.models import QaragFeedback, Feedback
+from django.db.models import Q
+from django.template.loader import render_to_string
 
-from ragapp.models import LiveChatSession, ChatQueryLog  # ← 실제 모델명으로 사용
-from ragapp.news_views.news_views import log_chat_message  # ✅ rag_qa_view에서 쓰던 헬퍼 재사용
+from ragapp.models import (
+    FeedbackLog,
+    FeedbackReview,   # (현재 파일에서 직접 사용은 없지만, 모델 관계 확인용으로 유지 가능)
+    QaragFeedback,
+    Feedback,
+    LiveChatSession,
+    ChatQueryLog,
+)
 
 log = logging.getLogger(__name__)
 
@@ -37,465 +40,433 @@ log = logging.getLogger(__name__)
 # 동적 import 유틸
 # ─────────────────────────────────────────────────────────────────────
 def _import_attr(dotted: str) -> Optional[Callable]:
-  try:
-      if ":" in dotted:
-          mod_path, attr = dotted.split(":", 1)
-      else:
-          mod_path, attr = dotted.rsplit(".", 1)
-      mod = import_module(mod_path)
-      return getattr(mod, attr)
-  except Exception:
-      return None
+    try:
+        if ":" in dotted:
+            mod_path, attr = dotted.split(":", 1)
+        else:
+            mod_path, attr = dotted.rsplit(".", 1)
+        mod = import_module(mod_path)
+        return getattr(mod, attr)
+    except Exception:
+        return None
 
 
 def _first_impl(candidates: List[str]) -> Optional[Callable]:
-  for d in candidates:
-      fn = _import_attr(d)
-      if callable(fn):
-          return fn
-  return None
+    for d in candidates:
+        fn = _import_attr(d)
+        if callable(fn):
+            return fn
+    return None
+
+
+def _rev_any(*names: str, default: str = "/") -> str:
+    """
+    reverse가 깨질 수 있는 환경(네임스페이스/URL 분기) 대비용.
+    앞에서부터 시도하고, 다 실패하면 default 반환.
+    """
+    for n in names:
+        try:
+            return reverse(n)
+        except Exception:
+            continue
+    return default
 
 
 # URL 정규화: HTML 붙여넣음/이상 값 → 링크 비활성화
 def _normalize_url(v: object) -> str | None:
-  if not v:
-      return None
-  s = str(v).strip()
-  if "<" in s or ">" in s:  # HTML/스크립트 혼입 차단
-      return None
-  if s.startswith(("http://", "https://", "/", "mailto:", "tel:")):
-      return s
-  if re.match(r"^(www\.)?[a-z0-9.-]+\.[a-z]{2,}(/.*)?$", s, re.I):
-      return "https://" + s
-  return None
+    if not v:
+        return None
+    s = str(v).strip()
+    if "<" in s or ">" in s:  # HTML/스크립트 혼입 차단
+        return None
+    if s.startswith(("http://", "https://", "/", "mailto:", "tel:")):
+        return s
+    if re.match(r"^(www\.)?[a-z0-9.-]+\.[a-z]{2,}(/.*)?$", s, re.I):
+        return "https://" + s
+    return None
+
+
+def _tobool(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    s = str(v).strip().lower()
+    return s not in ("0", "false", "no", "off", "", "none", "null")
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 상담 로그 조회 헬퍼
 # ─────────────────────────────────────────────────────────────────────
 def fetch_chat_messages(session_id: str) -> list[ChatQueryLog]:
-  return list(
-      ChatQueryLog.objects.filter(session_id=session_id)
-      .order_by("created_at", "id")
-  )
+    return list(
+        ChatQueryLog.objects.filter(session_id=session_id).order_by("created_at", "id")
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 실시간 콘솔 (레거시 진입점)
-#   - 지금은 live_chat_view 를 메인으로 쓰고,
-#     여기서는 같은 템플릿으로 넘겨주도록만 유지해도 됨.
 # ─────────────────────────────────────────────────────────────────────
 @staff_member_required
 def live_console_view(request: HttpRequest) -> HttpResponse:
-  """
-  (레거시) 실시간 상담 콘솔 화면
+    """
+    (레거시) 실시간 상담 콘솔 화면
+    - ?session_id=... 없으면 최근 세션 하나 골라서 띄움
+    - 내부적으로는 live_chat_view 와 같은 템플릿을 사용
+    """
+    session_id = (request.GET.get("session_id") or "").strip()
 
-  - ?session_id=... 없으면 최근 세션 하나 골라서 띄움
-  - 내부적으로는 live_chat_view 와 같은 템플릿을 사용
-  """
-  session_id = (request.GET.get("session_id") or "").strip()
+    if not session_id:
+        last_log = (
+            ChatQueryLog.objects.exclude(session_id="")
+            .order_by("-created_at")
+            .first()
+        )
+        session_id = last_log.session_id if last_log else ""
 
-  if not session_id:
-      # 최근 세션 하나 자동 선택 (session_id 비어있지 않은 것만)
-      last_log = (
-          ChatQueryLog.objects
-          .exclude(session_id="")
-          .order_by("-created_at")
-          .first()
-      )
-      session_id = last_log.session_id if last_log else ""
+    room = session_id or "master"
 
-  room = session_id or "master"
-  # live_chat_view 로 리다이렉트해서 동일 UI 사용
-  url = reverse("live_chat")
-  return redirect(f"{url}?room={room}")
+    # ✅ ragadmin 네임스페이스 우선
+    url = _rev_any("ragadmin:live_chat", "live_chat", default="/ragadmin/live-chat/")
+    return redirect(f"{url}?room={room}")
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 운영자 콘솔에서 답변 전송 API
-#   - LiveChatSession 상태 확인해서 "종료된 세션"이면 추가 전송 차단
-#   - ChatQueryLog 에도 남겨서 상담기록이 어드민에 보관되도록 함
 # ─────────────────────────────────────────────────────────────────────
 @require_http_methods(["POST"])
 @staff_member_required
 @csrf_protect
 def live_chat_send_view(request: HttpRequest) -> JsonResponse:
-  """
-  운영자가 콘솔에서 답변을 보낼 때 호출되는 API
+    """
+    운영자가 콘솔에서 답변을 보낼 때 호출되는 API
+    - LiveChatSession 이 종료 상태이면 추가 전송 차단
+    - ChatQueryLog 에 assistant/answer 형태로 한 줄 남김
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"ok": False, "error": "invalid_json"}, status=400)
 
-  - 같은 ChatQueryLog 테이블에 assistant/answer 형태로 한 줄 남김
-  - session_id == room 으로 맞춰서, QARAG / 콘솔이 같은 방 기준으로 로그 공유
-  - LiveChatSession 이 "종료" 상태이면 추가 전송을 서버에서 막음
-  """
-  try:
-      data = json.loads(request.body.decode("utf-8"))
-  except Exception:
-      return JsonResponse({"ok": False, "error": "invalid_json"}, status=400)
+    room = (data.get("room") or data.get("session_id") or "").strip()
+    text = (data.get("text") or "").strip()
 
-  # JS 쪽에서 room 또는 session_id로 보내준다고 가정
-  room = (data.get("room") or data.get("session_id") or "").strip()
-  text = (data.get("text") or "").strip()
+    if not room or not text:
+        return JsonResponse({"ok": False, "error": "missing_params"}, status=400)
 
-  if not room or not text:
-      return JsonResponse({"ok": False, "error": "missing_params"}, status=400)
+    # 🔒 종료 세션이면 발송 막기
+    sess_obj = None
+    try:
+        field_names = {
+            f.name for f in LiveChatSession._meta.get_fields() if hasattr(f, "attname")
+        }
+        qs = LiveChatSession.objects.all()
 
-  # 🔒 여기서 '끝난 세션'이면 상담사 발송 막기
-  sess_obj = None
-  try:
-      qs = LiveChatSession.objects.all()
-      field_names = {
-          f.name for f in LiveChatSession._meta.get_fields()
-          if hasattr(f, "attname")
-      }
+        if "room" in field_names:
+            sess_obj = qs.filter(room=room).order_by("-id").first()
 
-      if "room" in field_names:
-          sess_obj = qs.filter(room=room).order_by("-id").first()
+        if sess_obj is None and room.isdigit():
+            sess_obj = qs.filter(pk=int(room)).first()
+    except Exception:
+        sess_obj = None
 
-      # room 값이 숫자(pk)일 수도 있으니 보너스로 한 번 더 시도
-      if sess_obj is None and room.isdigit():
-          sess_obj = qs.filter(pk=int(room)).first()
-  except Exception:
-      sess_obj = None
+    if sess_obj is not None:
+        try:
+            field_names = {
+                f.name for f in LiveChatSession._meta.get_fields() if hasattr(f, "attname")
+            }
 
-  if sess_obj is not None:
-      try:
-          field_names = {
-              f.name for f in LiveChatSession._meta.get_fields()
-              if hasattr(f, "attname")
-          }
+            ended = False
+            status = getattr(sess_obj, "status", None)
+            if isinstance(status, str):
+                s_norm = status.strip().lower()
+                if s_norm in ("done", "종료", "ended", "closed", "완료", "saved", "deleted", "ended_need_save"):
+                    ended = True
 
-          ended = False
+            if "is_active" in field_names:
+                if getattr(sess_obj, "is_active", True) is False:
+                    ended = True
 
-          # status 기반
-          status = getattr(sess_obj, "status", None)
-          if isinstance(status, str):
-              s_norm = status.strip().lower()
-              if s_norm in ("done", "종료", "ended", "closed", "완료"):
-                  ended = True
+            if "ended_at" in field_names:
+                if getattr(sess_obj, "ended_at", None):
+                    ended = True
 
-          # is_active 기반
-          if "is_active" in field_names:
-              is_active = getattr(sess_obj, "is_active", True)
-              if is_active is False:
-                  ended = True
+            if ended:
+                return JsonResponse({"ok": False, "error": "ended_session"}, status=400)
+        except Exception:
+            log.exception("live_chat_send_view: session ended check error")
 
-          # ended_at 기반
-          if "ended_at" in field_names:
-              ended_at = getattr(sess_obj, "ended_at", None)
-              if ended_at:
-                  ended = True
+    # ✅ 순환참조 방지: 여기서 늦은 import
+    try:
+        from ragapp.news_views.news_views import log_chat_message  # noqa
+    except Exception as e:
+        log.exception("log_chat_message import failed: %s", e)
+        return JsonResponse({"ok": False, "error": "log_helper_missing"}, status=500)
 
-          if ended:
-              # 이미 종료된 세션 → 더 이상 메시지 안 쌓고 바로 차단
-              return JsonResponse(
-                  {"ok": False, "error": "ended_session"},
-                  status=400,
-              )
-      except Exception:
-          # 상태 확인 중 오류가 나면, 최소한 기록은 남기되 차단은 하지 않음
-          log.exception("live_chat_send_view: session ended check error")
+    msg = log_chat_message(
+        request=request,
+        session_id=room,
+        channel="live_console",
+        mode="rag",
+        role="assistant",
+        message_type="answer",
+        question=f"(operator_reply to {room})",
+        content=text,
+        answer_excerpt=text[:300],
+        sources=[],
+        meta_extra={"from": "admin_console"},
+    )
 
-  # ⬇️ 여기부터는 기존 로직 그대로: ChatQueryLog 에 기록
-  msg = log_chat_message(
-      request=request,
-      session_id=room,               # 🔹 ChatQueryLog.session_id 에는 room 값을 그대로 넣어줌
-      channel="live_console",        # 운영자 콘솔에서 보낸 거라 channel 구분
-      mode="rag",                    # 필요하면 "gemini" 등으로 변경 가능
-      role="assistant",              # 운영자/봇 → 사용자 입장에서는 assistant
-      message_type="answer",
-      question=f"(operator_reply to {room})",
-      content=text,
-      answer_excerpt=text[:300],
-      sources=[],
-      meta_extra={"from": "admin_console"},
-  )
-
-  return JsonResponse(
-      {
-          "ok": True,
-          "message": {
-              "id": msg.id,
-              "role": msg.role,
-              "message_type": msg.message_type,
-              "content": msg.content,
-              "created_at": msg.created_at.isoformat(),
-          },
-      }
-  )
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": {
+                "id": msg.id,
+                "role": msg.role,
+                "message_type": msg.message_type,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat(),
+            },
+        }
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 공통 컨텍스트
 # ─────────────────────────────────────────────────────────────────────
 def _common_ctx(extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-  base_dir = getattr(settings, "BASE_DIR", Path("."))
-  ctx: Dict[str, Any] = {
-      "MEDIA_URL": getattr(settings, "MEDIA_URL", "-"),
-      "MEDIA_ROOT": getattr(settings, "MEDIA_ROOT", "-"),
-      "VECTOR_DB_PATH": os.environ.get("VECTOR_DB_PATH")
-          or str(Path(base_dir) / "vector_store.sqlite3"),
-      "CHROMA_DB_DIR": getattr(settings, "CHROMA_DB_DIR", ""),
-      "CHROMA_COLLECTION": getattr(settings, "CHROMA_COLLECTION", ""),
-      "AUTO_INGEST_AFTER_GEMINI": getattr(
-          settings,
-          "AUTO_INGEST_AFTER_GEMINI",
-          os.environ.get("AUTO_INGEST_AFTER_GEMINI", "1").lower()
-          not in ("0", "false", "no"),
-      ),
-  }
-  if extra:
-      ctx.update(extra)
-  return ctx
+    base_dir = getattr(settings, "BASE_DIR", Path("."))
+
+    auto_ingest = _tobool(
+        getattr(
+            settings,
+            "AUTO_INGEST_AFTER_GEMINI",
+            os.environ.get("AUTO_INGEST_AFTER_GEMINI", "1"),
+        )
+    )
+
+    ctx: Dict[str, Any] = {
+        "MEDIA_URL": getattr(settings, "MEDIA_URL", "-"),
+        "MEDIA_ROOT": getattr(settings, "MEDIA_ROOT", "-"),
+        "VECTOR_DB_PATH": os.environ.get("VECTOR_DB_PATH")
+        or str(Path(base_dir) / "vector_store.sqlite3"),
+        "CHROMA_DB_DIR": getattr(settings, "CHROMA_DB_DIR", ""),
+        "CHROMA_COLLECTION": getattr(settings, "CHROMA_COLLECTION", ""),
+        "AUTO_INGEST_AFTER_GEMINI": auto_ingest,
+    }
+    if extra:
+        ctx.update(extra)
+    return ctx
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 템플릿 키 누락 방지용 안전 기본값
 # ─────────────────────────────────────────────────────────────────────
 CRAWL_SAFE_DEFAULTS: Dict[str, Any] = {
-  "q": "",
-  "rss_q": "",
-  "urls": [],
-  "rss_list": [],
-  "gemini_answer": "",
-  "answer_text": "",
-  "answer_md": "",
-  "answer_html": "",
-  "final_answer": "",
-  "answer_sources": [],
-  "sources": [],
-  "ingest_results": [],
-  "ingest_count": 0,
-  "ingest_errors": [],
-  "error": None,
-  "diagnostics": {},
+    "q": "",
+    "rss_q": "",
+    "urls": [],
+    "rss_list": [],
+    "gemini_answer": "",
+    "answer_text": "",
+    "answer_md": "",
+    "answer_html": "",
+    "final_answer": "",
+    "answer_sources": [],
+    "sources": [],
+    "ingest_results": [],
+    "ingest_count": 0,
+    "ingest_errors": [],
+    "error": None,
+    "diagnostics": {},
 }
 
-FAQ_SUGGEST_SAFE_DEFAULTS: Dict[str, Any] = {
-  "candidates": [],
-  "suggestions": [],
-  "limit": 50,
-  "error": None,
-}
-
-FAQ_PROMOTE_SAFE_DEFAULTS: Dict[str, Any] = {
-  "promoted": [],
-  "error": None,
-}
-
+FAQ_SUGGEST_SAFE_DEFAULTS: Dict[str, Any] = {"candidates": [], "suggestions": [], "limit": 50, "error": None}
+FAQ_PROMOTE_SAFE_DEFAULTS: Dict[str, Any] = {"promoted": [], "error": None}
 LIVE_CHAT_SAFE_DEFAULTS: Dict[str, Any] = {"history": [], "error": None}
 LEGAL_SAFE_DEFAULTS: Dict[str, Any] = {"legal_config": None, "error": None}
 
 
 def _fill_answer_aliases(ctx: Dict[str, Any]) -> None:
-  rep = (
-      ctx.get("answer_text")
-      or ctx.get("gemini_answer")
-      or ctx.get("final_answer")
-      or ""
-  )
-  for key in ("answer_text", "final_answer", "gemini_answer", "answer_md", "answer_html"):
-      ctx.setdefault(key, "")
-  if not ctx.get("answer_text"):
-      ctx["answer_text"] = rep
-  if not ctx.get("final_answer"):
-      ctx["final_answer"] = rep
-  if not ctx.get("answer_md"):
-      ctx["answer_md"] = rep
-  if not ctx.get("answer_html"):
-      ctx["answer_html"] = rep
+    rep = ctx.get("answer_text") or ctx.get("gemini_answer") or ctx.get("final_answer") or ""
+    for key in ("answer_text", "final_answer", "gemini_answer", "answer_md", "answer_html"):
+        ctx.setdefault(key, "")
+    if not ctx.get("answer_text"):
+        ctx["answer_text"] = rep
+    if not ctx.get("final_answer"):
+        ctx["final_answer"] = rep
+    if not ctx.get("answer_md"):
+        ctx["answer_md"] = rep
+    if not ctx.get("answer_html"):
+        ctx["answer_html"] = rep
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 1) 뉴스 크롤링
 # ─────────────────────────────────────────────────────────────────────
 _IMPL_CRAWL = _first_impl(
-  [
-      "ragapp.news_views.views_crawl:crawl_news_view",      # ✅ 너가 만든 위치
-      "ragapp.news_views.views_crawl.crawl_news_view",      # ✅ 호환
-      "ragapp.admin_views.crawl:crawl_news_view",
-      "ragapp.admin_views.crawl.crawl_news_view",
-      "ragapp.news_views.news_views:crawl_news",
-      "ragapp.news_views.news_views.crawl_news",
-  ]
+    [
+        "ragapp.news_views.views_crawl:crawl_news_view",
+        "ragapp.news_views.views_crawl.crawl_news_view",
+        "ragapp.admin_views.crawl:crawl_news_view",
+        "ragapp.admin_views.crawl.crawl_news_view",
+        "ragapp.news_views.news_views:crawl_news",
+        "ragapp.news_views.news_views.crawl_news",
+    ]
 )
 
 
 @staff_member_required
 @csrf_protect
 def crawl_news_view(request: HttpRequest) -> HttpResponse:
-  if _IMPL_CRAWL:
-      return _IMPL_CRAWL(request)
-  ctx = _common_ctx({"title": "뉴스 크롤링 & 인덱싱", **CRAWL_SAFE_DEFAULTS})
-  _fill_answer_aliases(ctx)
-  return render(request, "ragadmin/crawl_news.html", ctx)
+    if _IMPL_CRAWL:
+        return _IMPL_CRAWL(request)
+    ctx = _common_ctx({"title": "뉴스 크롤링 & 인덱싱", **CRAWL_SAFE_DEFAULTS})
+    _fill_answer_aliases(ctx)
+    return render(request, "ragadmin/crawl_news.html", ctx)
+
 
 # ─────────────────────────────────────────────────────────────────────
 # 2) FAQ 추천
 # ─────────────────────────────────────────────────────────────────────
 _IMPL_FAQ_SUGGEST = _first_impl(
-  [
-      "ragapp.admin_views.faq:faq_suggest_view",
-      "ragapp.admin_views.faq.faq_suggest_view",
-      "ragapp.news_views.news_views:faq_suggest",
-      "ragapp.news_views.news_views.faq_suggest",
-  ]
+    [
+        "ragapp.admin_views.faq:faq_suggest_view",
+        "ragapp.admin_views.faq.faq_suggest_view",
+        "ragapp.news_views.news_views:faq_suggest",
+        "ragapp.news_views.news_views.faq_suggest",
+    ]
 )
 
 
 @staff_member_required
 @csrf_protect
 def faq_suggest_view(request: HttpRequest) -> HttpResponse:
-  if _IMPL_FAQ_SUGGEST:
-      return _IMPL_FAQ_SUGGEST(request)
-  ctx = _common_ctx({"title": "FAQ 추천", **FAQ_SUGGEST_SAFE_DEFAULTS})
-  if ctx.get("candidates") and not ctx.get("suggestions"):
-      ctx["suggestions"] = ctx["candidates"]
-  return render(request, "ragadmin/faq_suggest.html", ctx)
+    if _IMPL_FAQ_SUGGEST:
+        return _IMPL_FAQ_SUGGEST(request)
+    ctx = _common_ctx({"title": "FAQ 추천", **FAQ_SUGGEST_SAFE_DEFAULTS})
+    if ctx.get("candidates") and not ctx.get("suggestions"):
+        ctx["suggestions"] = ctx["candidates"]
+    return render(request, "ragadmin/faq_suggest.html", ctx)
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 3) FAQ 승격
 # ─────────────────────────────────────────────────────────────────────
 _IMPL_FAQ_PROMOTE = _first_impl(
-  [
-      "ragapp.admin_views.faq:faq_promote_view",
-      "ragapp.admin_views.faq.faq_promote_view",
-  ]
+    [
+        "ragapp.admin_views.faq:faq_promote_view",
+        "ragapp.admin_views.faq.faq_promote_view",
+    ]
 )
 
 
 @staff_member_required
 @csrf_protect
 def faq_promote_view(request: HttpRequest) -> HttpResponse:
-  if _IMPL_FAQ_PROMOTE:
-      return _IMPL_FAQ_PROMOTE(request)
-  ctx = _common_ctx({"title": "FAQ 승격", **FAQ_PROMOTE_SAFE_DEFAULTS})
-  try:
-      return render(request, "ragadmin/faq_promote.html", ctx)
-  except TemplateDoesNotExist:
-      return HttpResponse("<h1>FAQ 승격</h1><p>템플릿이 아직 없습니다.</p>")
+    if _IMPL_FAQ_PROMOTE:
+        return _IMPL_FAQ_PROMOTE(request)
+    ctx = _common_ctx({"title": "FAQ 승격", **FAQ_PROMOTE_SAFE_DEFAULTS})
+    try:
+        return render(request, "ragadmin/faq_promote.html", ctx)
+    except TemplateDoesNotExist:
+        return HttpResponse("<h1>FAQ 승격</h1><p>템플릿이 아직 없습니다.</p>")
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 4) 라이브 챗 (운영자 콘솔 + 오늘/최근 세션 리스트)
+# 4) 라이브 챗 (운영자 콘솔 + 최근 세션 리스트)
 # ─────────────────────────────────────────────────────────────────────
 _IMPL_LIVE_CHAT = _first_impl(
-  [
-      "ragapp.admin_views.live:live_chat_view",
-      "ragapp.admin_views.live.live_chat_view",
-  ]
+    [
+        "ragapp.admin_views.live:live_chat_view",
+        "ragapp.admin_views.live.live_chat_view",
+    ]
 )
 
 
 @staff_member_required
 @csrf_protect
 def live_chat_view(request: HttpRequest) -> HttpResponse:
-  """
-  라이브 챗 기본 구현
-  - 외부 구현(_IMPL_LIVE_CHAT)이 있으면 그쪽으로 위임
-  - 없으면 ChatQueryLog + LiveChatSession 기반으로 화면 구성
-  """
-  # 0) 외부 구현 우선
-  if _IMPL_LIVE_CHAT:
-      return _IMPL_LIVE_CHAT(request)
+    if _IMPL_LIVE_CHAT:
+        return _IMPL_LIVE_CHAT(request)
 
-  # 1) room / session_id / 최근 사용 방 순서로 방 결정
-  room = (
-      request.GET.get("room")
-      or request.GET.get("session_id")
-      or request.POST.get("room")
-      or request.session.get("live_room")
-      or "master"
-  )
-  room = (room or "").strip() or "master"
+    room = (
+        request.GET.get("room")
+        or request.GET.get("session_id")
+        or request.POST.get("room")
+        or request.session.get("live_room")
+        or "master"
+    )
+    room = (room or "").strip() or "master"
+    request.session["live_room"] = room
 
-  # 최근 방 기억 (새로고침에도 유지)
-  request.session["live_room"] = room
+    messages_qs = ChatQueryLog.objects.filter(session_id=room).order_by("created_at", "id")
 
-  # 2) ChatQueryLog 기반 대화 내역
-  messages = ChatQueryLog.objects.filter(session_id=room).order_by(
-      "created_at", "id"
-  )
+    # LiveChatSession 목록
+    try:
+        field_names = {f.name for f in LiveChatSession._meta.get_fields() if hasattr(f, "attname")}
+        qs = LiveChatSession.objects.all()
+        if "created_at" in field_names:
+            qs = qs.order_by("-created_at")
+        elif "requested_at" in field_names:
+            qs = qs.order_by("-requested_at")
+        else:
+            qs = qs.order_by("-id")
+        raw_sessions = list(qs[:30])
+    except Exception:
+        raw_sessions = []
 
-  # 3) LiveChatSession → 템플릿에서 안전하게 쓸 수 있는 dict 리스트로 변환
-  try:
-      field_names = {
-          f.name for f in LiveChatSession._meta.get_fields()
-          if hasattr(f, "attname")
-      }
+    def _first_attr(obj, *names, default=None):
+        for n in names:
+            if hasattr(obj, n):
+                v = getattr(obj, n, None)
+                if v not in (None, ""):
+                    return v
+        return default
 
-      qs = LiveChatSession.objects.all()
-      if "created_at" in field_names:
-          qs = qs.order_by("-created_at")
-      elif "requested_at" in field_names:
-          qs = qs.order_by("-requested_at")
-      else:
-          qs = qs.order_by("-id")
+    sessions: list[dict[str, Any]] = []
+    for obj in raw_sessions:
+        created = _first_attr(obj, "created_at", "requested_at")
+        code = _first_attr(obj, "code", "ticket_code", "queue_code", "short_id") or str(getattr(obj, "pk", ""))
+        note = _first_attr(obj, "session_note", "memo", "note", default="") or ""
+        sess_type = _first_attr(obj, "session_type", "type", default="") or ""
 
-      raw_sessions = list(qs[:30])
-  except Exception:
-      raw_sessions = []
+        sessions.append(
+            {
+                "id": getattr(obj, "id", None),
+                "code": code,
+                "status": _first_attr(obj, "status", default="") or "",
+                "room": _first_attr(obj, "room", default="") or "",
+                "created_at": created,
+                "session_type": sess_type,
+                "session_note": note,
+                "note": note,  # 템플릿 호환
+                "memo": note,  # 템플릿 호환
+            }
+        )
 
-  def _first_attr(obj, *names, default=None):
-      for n in names:
-          if hasattr(obj, n):
-              v = getattr(obj, n, None)
-              if v not in (None, ""):
-                  return v
-      return default
+    current_session: dict[str, Any] | None = None
+    for s in sessions:
+        try:
+            if room and (s.get("room") == room or str(s.get("id") or "") == room or s.get("code") == room):
+                current_session = s
+                break
+        except Exception:
+            continue
 
-  sessions: list[dict[str, Any]] = []
-  for obj in raw_sessions:
-      created = _first_attr(obj, "created_at", "requested_at")
-      code = (
-          _first_attr(obj, "code", "ticket_code", "queue_code", "short_id")
-          or str(getattr(obj, "pk", ""))
-      )
-      note = _first_attr(obj, "session_note", "memo", "note", default="") or ""
-      sess_type = _first_attr(obj, "session_type", "type", default="") or ""
-
-      sessions.append(
-          {
-              "id": getattr(obj, "id", None),
-              "code": code,
-              "status": _first_attr(obj, "status", default="") or "",
-              "room": _first_attr(obj, "room", default="") or "",
-              "created_at": created,
-              "session_type": sess_type,  # 예: {{ s.session_type }}
-              "session_note": note,       # 예: {{ s.session_note }}
-              "note": note,               # 🔴 템플릿에서 {{ s.note }} 써도 안전
-              "memo": note,               # 🔴 템플릿에서 {{ s.memo }} 써도 안전
-          }
-      )
-
-  # 현재 room 에 해당하는 세션(있으면)도 별도로 찾아서 내려주기
-  current_session: dict[str, Any] | None = None
-  for s in sessions:
-      try:
-          if room and (
-              s.get("room") == room
-              or str(s.get("id") or "") == room
-              or s.get("code") == room
-          ):
-              current_session = s
-              break
-      except Exception:
-          continue
-
-  base_ctx = {"title": "라이브 챗", **LIVE_CHAT_SAFE_DEFAULTS}
-  ctx = _common_ctx(base_ctx)
-  ctx.update(
-      {
-          "room": room,
-          "session_id": room,
-          "initial_room": room,  # <body data-initial-room="{{ initial_room }}">
-          "messages": messages,
-          "sessions": sessions,  # 🔹 오늘/최근 세션 목록
-          "current_session": current_session,  # 🔹 현재 방에 대한 요약 정보(있으면)
-          "csp_nonce": getattr(request, "csp_nonce", None),
-      }
-  )
-  return render(request, "ragadmin/live_chat.html", ctx)
+    ctx = _common_ctx({"title": "라이브 챗", **LIVE_CHAT_SAFE_DEFAULTS})
+    ctx.update(
+        {
+            "room": room,
+            "session_id": room,
+            "initial_room": room,
+            "messages": messages_qs,
+            "sessions": sessions,
+            "current_session": current_session,
+            "csp_nonce": getattr(request, "csp_nonce", None),
+        }
+    )
+    return render(request, "ragadmin/live_chat.html", ctx)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -505,116 +476,166 @@ def live_chat_view(request: HttpRequest) -> HttpResponse:
 @staff_member_required
 @csrf_protect
 def live_chat_cleanup_view(request: HttpRequest) -> JsonResponse:
-  """
-  오늘 날짜 기준 '대기/진행' 상태 세션을 일괄 '종료'로 바꾸거나,
-  (옵션) 특정 세션 하나를 삭제하는 API.
+    try:
+        try:
+            payload = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            payload = request.POST
 
-  - '오늘 세션 정리' 버튼  → { "mode": "today" } (상태만 ended 로 변경)
-  - 최근 상담 세션 '삭제' → { "session_id": 123 } (그 세션만 삭제)
-  """
-  try:
-      # JSON 우선, 폼 POST면 fallback
-      try:
-          payload = json.loads(request.body or "{}")
-      except json.JSONDecodeError:
-          payload = request.POST
+        session_id = payload.get("session_id")
+        mode = (payload.get("mode") or "today").strip()
 
-      session_id = payload.get("session_id")
-      mode = (payload.get("mode") or "today").strip()
+        field_names = {f.name for f in LiveChatSession._meta.get_fields() if hasattr(f, "attname")}
+        qs = LiveChatSession.objects.all()
 
-      # 모델 필드들 체크 (created_at / requested_at / status / is_active / ended_at 유무 확인)
-      field_names = {
-          f.name for f in LiveChatSession._meta.get_fields()
-          if hasattr(f, "attname")
-      }
+        # 개별 삭제
+        if session_id:
+            try:
+                if isinstance(session_id, str) and session_id.isdigit():
+                    session_id = int(session_id)
+            except Exception:
+                pass
+            deleted_count, _ = qs.filter(pk=session_id).delete()
+            return JsonResponse({"ok": True, "deleted": deleted_count})
 
-      qs = LiveChatSession.objects.all()
+        # 오늘 세션 일괄 종료
+        today = timezone.localdate()
+        if "created_at" in field_names:
+            qs = qs.filter(created_at__date=today)
+        elif "requested_at" in field_names:
+            qs = qs.filter(requested_at__date=today)
 
-      # 1) 개별 삭제 모드: session_id 가 넘어온 경우 → 바로 delete
-      #    (운영 환경에서는 삭제보다는 ended 처리 권장)
-      if session_id:
-          qs = qs.filter(pk=session_id)
-          deleted_count, _ = qs.delete()
-          return JsonResponse({"ok": True, "deleted": deleted_count})
+        if "status" in field_names:
+            qs = qs.exclude(status__in=["ended", "종료", "saved", "deleted", "ended_need_save"])
 
-      # 2) 기본: 오늘 세션 일괄 '종료' 처리
-      today = timezone.localdate()
-      if "created_at" in field_names:
-          qs = qs.filter(created_at__date=today)
-      elif "requested_at" in field_names:
-          qs = qs.filter(requested_at__date=today)
+        update_kwargs: dict = {}
+        now = timezone.now()
 
-      # 아직 끝나지 않은 것만 (status 필드가 있을 때)
-      if "status" in field_names:
-          qs = qs.exclude(status__in=["ended", "종료"])
+        if "status" in field_names:
+            update_kwargs["status"] = "ended"
+        if "is_active" in field_names:
+            update_kwargs["is_active"] = False
+        if "ended_at" in field_names:
+            update_kwargs["ended_at"] = now
 
-      update_kwargs: dict = {}
-      now = timezone.now()
+        updated = qs.update(**update_kwargs) if update_kwargs else qs.count()
+        return JsonResponse({"ok": True, "updated": updated})
 
-      # status 필드가 있으면 ended 로 바꾸기
-      if "status" in field_names:
-          update_kwargs["status"] = "ended"
-
-      # is_active 있으면 False
-      if "is_active" in field_names:
-          update_kwargs["is_active"] = False
-
-      # ended_at 있으면 지금 시각
-      if "ended_at" in field_names:
-          update_kwargs["ended_at"] = now
-
-      if update_kwargs:
-          updated = qs.update(**update_kwargs)
-      else:
-          updated = qs.count()
-
-      return JsonResponse({"ok": True, "updated": updated})
-
-  except Exception as e:
-      log.exception("live_chat_cleanup_view error")
-      return JsonResponse({"ok": False, "error": str(e)}, status=500)
+    except Exception as e:
+        log.exception("live_chat_cleanup_view error")
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 6) 법적 설정
 # ─────────────────────────────────────────────────────────────────────
 _IMPL_LEGAL_ENTRY = _first_impl(
-  [
-      "ragapp.admin_views.legal:legal_config_entrypoint",
-      "ragapp.admin_views.legal.legal_config_entrypoint",
-  ]
+    [
+        "ragapp.admin_views.legal:legal_config_entrypoint",
+        "ragapp.admin_views.legal.legal_config_entrypoint",
+    ]
 )
 
 
 @staff_member_required
 @csrf_protect
 def legal_config_entrypoint(request: HttpRequest) -> HttpResponse:
-  if _IMPL_LEGAL_ENTRY:
-      return _IMPL_LEGAL_ENTRY(request)
+    if _IMPL_LEGAL_ENTRY:
+        return _IMPL_LEGAL_ENTRY(request)
 
-  ctx = _common_ctx({"title": "법적 설정", **LEGAL_SAFE_DEFAULTS})
-  snap = _legal_config_snapshot()
-  if snap is not None:
-      ctx["legal_config"] = snap
-  return render(request, "ragadmin/legal_config.html", ctx)
+    ctx = _common_ctx({"title": "법적 설정", **LEGAL_SAFE_DEFAULTS})
+    snap = _legal_config_snapshot()
+    if snap is not None:
+        ctx["legal_config"] = snap
+    return render(request, "ragadmin/legal_config.html", ctx)
 
+# ─────────────────────────────────────────────────────────────────────
+# 7) 이미지 pending 검수 (승인/거절)
+# ─────────────────────────────────────────────────────────────────────
+_IMPL_MEDIA_PENDING_ADMIN = _first_impl(
+    [
+        "ragapp.feature_views:media_pending_admin_view",
+        "ragapp.feature_views.media_pending_admin_view",
+        "ragapp.media_views.pending:media_pending_admin_view",
+        "ragapp.media_views.pending.media_pending_admin_view",
+    ]
+)
+
+_IMPL_MEDIA_PENDING_LIST = _first_impl(
+    [
+        "ragapp.feature_views:api_media_pending_list",
+        "ragapp.feature_views.api_media_pending_list",
+        "ragapp.media_views.pending:api_media_pending_list",
+        "ragapp.media_views.pending.api_media_pending_list",
+    ]
+)
+
+_IMPL_MEDIA_PENDING_APPROVE = _first_impl(
+    [
+        "ragapp.feature_views:api_media_pending_approve",
+        "ragapp.feature_views.api_media_pending_approve",
+        "ragapp.media_views.pending:api_media_pending_approve",
+        "ragapp.media_views.pending.api_media_pending_approve",
+    ]
+)
+
+_IMPL_MEDIA_PENDING_REJECT = _first_impl(
+    [
+        "ragapp.feature_views:api_media_pending_reject",
+        "ragapp.feature_views.api_media_pending_reject",
+        "ragapp.media_views.pending:api_media_pending_reject",
+        "ragapp.media_views.pending.api_media_pending_reject",
+    ]
+)
+
+
+@staff_member_required
+@ensure_csrf_cookie
+def media_pending_admin_view(request: HttpRequest) -> HttpResponse:
+    """
+    스태프 전용: pending 업로드 검수 화면
+    """
+    if _IMPL_MEDIA_PENDING_ADMIN:
+        return _IMPL_MEDIA_PENDING_ADMIN(request)
+
+    # ✅ fallback: 템플릿만이라도 렌더 (구현을 아직 다른 파일에 안 넣었을 때)
+    return render(request, "ragadmin/media_pending_admin.html", {"title": "이미지 승인 대기함"})
+
+
+@staff_member_required
+@require_GET
+def api_media_pending_list(request: HttpRequest) -> JsonResponse:
+    if _IMPL_MEDIA_PENDING_LIST:
+        return _IMPL_MEDIA_PENDING_LIST(request)
+    return JsonResponse({"ok": False, "error": "media_pending_list_impl_missing"}, status=500)
+
+
+@require_http_methods(["POST"])
+@staff_member_required
+@csrf_protect
+def api_media_pending_approve(request: HttpRequest) -> JsonResponse:
+    if _IMPL_MEDIA_PENDING_APPROVE:
+        return _IMPL_MEDIA_PENDING_APPROVE(request)
+    return JsonResponse({"ok": False, "error": "media_pending_approve_impl_missing"}, status=500)
+
+
+@require_http_methods(["POST"])
+@staff_member_required
+@csrf_protect
+def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
+    if _IMPL_MEDIA_PENDING_REJECT:
+        return _IMPL_MEDIA_PENDING_REJECT(request)
+    return JsonResponse({"ok": False, "error": "media_pending_reject_impl_missing"}, status=500)
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 5-1) 상담 기록 저장 API (세션 메모/유형/상세 기록 저장)
+# 5-1) 상담 기록 저장 API
 # ─────────────────────────────────────────────────────────────────────
 @require_http_methods(["POST"])
 @staff_member_required
 @csrf_protect
 def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
-    """
-    실시간 상담 콘솔 하단의 '상담 기록 저장' 버튼에서 호출하는 API.
-
-    - room 기준으로 LiveChatSession 최신 1건을 찾아서
-      session_type / session_note / memo / note / ended_at / is_active / status 등을 갱신.
-    """
     try:
-        # JSON 우선, 폼 POST면 fallback
         try:
             payload = json.loads(request.body or "{}")
         except json.JSONDecodeError:
@@ -628,63 +649,45 @@ def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
         if not room:
             return JsonResponse({"ok": False, "error": "missing_room"}, status=400)
 
-        # 최소 하나는 채워져 있어야 저장
         if not (session_type or session_note or session_detail):
-            return JsonResponse(
-                {"ok": False, "error": "empty_session_meta"},
-                status=400,
-            )
+            return JsonResponse({"ok": False, "error": "empty_session_meta"}, status=400)
 
-        # LiveChatSession 필드들 확인
-        field_names = {
-            f.name for f in LiveChatSession._meta.get_fields()
-            if hasattr(f, "attname")
-        }
+        field_names = {f.name for f in LiveChatSession._meta.get_fields() if hasattr(f, "attname")}
 
+        # ✅ union( | ) 쓰지 말고, 2단계로 안전 조회
         qs = LiveChatSession.objects.all()
+        sess = None
 
-        # room 기준으로 우선 찾기
         if "room" in field_names:
-            qs = qs.filter(room=room)
+            qs_room = qs.filter(room=room)
+            if "created_at" in field_names:
+                qs_room = qs_room.order_by("-created_at")
+            elif "requested_at" in field_names:
+                qs_room = qs_room.order_by("-requested_at")
+            else:
+                qs_room = qs_room.order_by("-id")
+            sess = qs_room.first()
 
-        # room 이 숫자면 pk 도 한 번 더 시도
-        if room.isdigit():
-            qs = qs | LiveChatSession.objects.filter(pk=int(room))
+        if sess is None and room.isdigit():
+            sess = LiveChatSession.objects.filter(pk=int(room)).first()
 
-        # 최신 1건
-        if "created_at" in field_names:
-            qs = qs.order_by("-created_at")
-        elif "requested_at" in field_names:
-            qs = qs.order_by("-requested_at")
-        else:
-            qs = qs.order_by("-id")
-
-        sess = qs.first()
         if not sess:
-            return JsonResponse(
-                {"ok": False, "error": "session_not_found"},
-                status=404,
-            )
+            return JsonResponse({"ok": False, "error": "session_not_found"}, status=404)
 
         now = timezone.now()
 
-        # 메모 텍스트 합치기 (한 줄 요약 + 상세)
         short = session_note.strip()
         detail = session_detail.strip()
         if short and detail:
             combined = f"{short}\n\n{detail}"
-        elif short:
-            combined = short
         else:
-            combined = detail  # detail 만 있을 수도 있음
+            combined = short or detail
 
         update_kwargs: Dict[str, Any] = {}
 
-        # 문의 유형
         if "session_type" in field_names and session_type:
             update_kwargs["session_type"] = session_type
 
-        # 한 줄/상세 메모 → session_note / memo / note 에 공통 반영
         if combined:
             if "session_note" in field_names:
                 update_kwargs["session_note"] = combined
@@ -693,255 +696,166 @@ def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
             if "note" in field_names:
                 update_kwargs["note"] = combined
 
-        # 상태 관련 필드들
         if "status" in field_names:
-            # 기존 status가 있으면 유지, 없으면 ended 로
             update_kwargs["status"] = getattr(sess, "status", None) or "ended"
         if "is_active" in field_names:
             update_kwargs["is_active"] = False
         if "ended_at" in field_names:
             update_kwargs["ended_at"] = getattr(sess, "ended_at", None) or now
         if "last_message_at" in field_names:
-            # 종료 시점을 last_message_at 으로 찍어두고 싶으면 사용
             update_kwargs["last_message_at"] = getattr(sess, "last_message_at", None) or now
 
         if update_kwargs:
             LiveChatSession.objects.filter(pk=sess.pk).update(**update_kwargs)
 
-        return JsonResponse(
-            {
-                "ok": True,
-                "session_id": sess.pk,
-                "room": getattr(sess, "room", room),
-            }
-        )
+        return JsonResponse({"ok": True, "session_id": sess.pk, "room": getattr(sess, "room", room)})
     except Exception as e:
         log.exception("live_chat_save_session_view error")
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
 
-
 # ─────────────────────────────────────────────────────────────────────
 # LegalConfig 스냅샷 로더
-#  - 필드명 자동 탐지 + ENV/Settings 폴백 + URL 정규화 + 라우트 폴백
 # ─────────────────────────────────────────────────────────────────────
 def _legal_config_snapshot():
-  try:
-      from ragapp.models import LegalConfig
-  except Exception:
-      return None
+    try:
+        from ragapp.models import LegalConfig
+    except Exception:
+        return None
 
-  # 최신/활성 1건 선택
-  qs = LegalConfig.objects.all()
-  for flag in ("is_active", "active", "enabled"):
-      if hasattr(LegalConfig, flag):
-          qs = qs.filter(**{flag: True})
-          break
-  for ts in ("updated_at", "modified", "created_at", "created", "id"):
-      if hasattr(LegalConfig, ts):
-          qs = qs.order_by(f"-{ts}")
-          break
-  inst = qs.first()
-  if not inst:
-      return None
+    qs = LegalConfig.objects.all()
+    for flag in ("is_active", "active", "enabled"):
+        if hasattr(LegalConfig, flag):
+            qs = qs.filter(**{flag: True})
+            break
 
-  # 필드 normalize: 소문자+비영문자 제거 -> 값
-  def _norm(s: str) -> str:
-      return re.sub(r"[^a-z0-9]", "", s.lower())
+    for ts in ("updated_at", "modified", "created_at", "created", "id"):
+        if hasattr(LegalConfig, ts):
+            qs = qs.order_by(f"-{ts}")
+            break
 
-  valmap: Dict[str, Any] = {}
-  for f in inst._meta.get_fields():
-      name = getattr(f, "name", None)
-      if not name or not hasattr(inst, name):
-          continue
-      try:
-          val = getattr(inst, name)
-      except Exception:
-          continue
-      valmap[_norm(name)] = val
+    inst = qs.first()
+    if not inst:
+        return None
 
-  def _pick(
-      candidates=None, contains_all=None, contains_any=None, default=None
-  ):
-      if candidates:
-          for c in candidates:
-              k = _norm(c)
-              if k in valmap and valmap[k] not in (None, ""):
-                  return valmap[k]
-      keys = list(valmap.keys())
-      if contains_all:
-          toks = [_norm(t) for t in contains_all]
-          for k in keys:
-              if all(t in k for t in toks):
-                  v = valmap[k]
-                  if v not in (None, ""):
-                      return v
-      if contains_any:
-          toks = [_norm(t) for t in contains_any]
-          for k in keys:
-              if any(t in k for t in toks):
-                  v = valmap[k]
-                  if v not in (None, ""):
-                      return v
-      return default
+    def _norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", s.lower())
 
-  def _tobool(v):
-      if isinstance(v, bool):
-          return v
-      if v is None:
-          return False
-      s = str(v).strip().lower()
-      return s not in ("0", "false", "no", "off", "", "none", "null")
+    valmap: Dict[str, Any] = {}
+    for f in inst._meta.get_fields():
+        name = getattr(f, "name", None)
+        if not name or not hasattr(inst, name):
+            continue
+        try:
+            val = getattr(inst, name)
+        except Exception:
+            continue
+        valmap[_norm(name)] = val
 
-  snap: Dict[str, Any] = {
-      "service_name": _pick(
-          candidates=[
-              "service_name",
-              "serviceTitle",
-              "service",
-              "site_name",
-              "sitename",
-              "app_name",
-          ],
-          contains_any=["service", "sitename", "appname"],
-      ),
-      "operator_name": _pick(
-          candidates=[
-              "operator_name",
-              "operator",
-              "owner_name",
-              "owner",
-              "provider_name",
-              "company_name",
-              "corp_name",
-          ],
-          contains_any=["operator", "owner", "provider", "company", "corp"],
-      ),
-      "contact_email": _pick(
-          candidates=[
-              "contact_email",
-              "email",
-              "contact",
-              "support_email",
-              "admin_email",
-          ],
-          contains_any=["email"],
-      ),
-      "privacy_url": _pick(
-          candidates=["privacy_url", "privacy_link", "policy_url"],
-          contains_all=["privacy", "url"],
-      )
-      or os.environ.get("PRIVACY_URL")
-      or getattr(settings, "PRIVACY_URL", None),
-      "tos_url": _pick(
-          candidates=["tos_url", "terms_url", "terms_link", "tos"],
-          contains_any=["termsurl", "tosurl", "termslink", "tos"],
-      )
-      or os.environ.get("TERMS_URL")
-      or getattr(settings, "TERMS_URL", None),
-      "overseas_transfer_url": _pick(
-          candidates=[
-              "overseas_transfer_url",
-              "transfer_url",
-              "crossborder_url",
-              "outbound_url",
-          ],
-          contains_any=["overseas", "transfer", "crossborder", "outbound"],
-      )
-      or os.environ.get("OVERSEAS_TRANSFER_URL")
-      or getattr(settings, "OVERSEAS_TRANSFER_URL", None),
-      "enable_consent_gate": _tobool(
-          _pick(
-              candidates=[
-                  "enable_consent_gate",
-                  "consent_gate",
-                  "show_gate",
-                  "gate_required",
-                  "consent_required",
-              ],
-              contains_any=["consentgate", "consent", "gate", "agree"],
-          )
-      ),
-      "show_footer_links": _tobool(
-          _pick(
-              candidates=[
-                  "show_footer_links",
-                  "footer_links",
-                  "footer_show_links",
-                  "show_footer",
-                  "footer_visible",
-              ],
-              contains_any=["footer", "link", "visible", "show"],
-          )
-      ),
-      "memo": _pick(
-          candidates=["memo", "notes", "note", "description"], default=""
-      ),
-  }
+    def _pick(candidates=None, contains_all=None, contains_any=None, default=None):
+        if candidates:
+            for c in candidates:
+                k = _norm(c)
+                if k in valmap and valmap[k] not in (None, ""):
+                    return valmap[k]
+        keys = list(valmap.keys())
+        if contains_all:
+            toks = [_norm(t) for t in contains_all]
+            for k in keys:
+                if all(t in k for t in toks):
+                    v = valmap[k]
+                    if v not in (None, ""):
+                        return v
+        if contains_any:
+            toks = [_norm(t) for t in contains_any]
+            for k in keys:
+                if any(t in k for t in toks):
+                    v = valmap[k]
+                    if v not in (None, ""):
+                        return v
+        return default
 
-  # 🔒 URL 정규화 + 폴백
-  snap["privacy_url"] = _normalize_url(
-      snap.get("privacy_url")
-      or os.environ.get("PRIVACY_URL")
-      or getattr(settings, "PRIVACY_URL", None)
-  )
-  snap["tos_url"] = _normalize_url(
-      snap.get("tos_url")
-      or os.environ.get("TERMS_URL")
-      or getattr(settings, "TERMS_URL", None)
-  )
-  snap["overseas_transfer_url"] = _normalize_url(
-      snap.get("overseas_transfer_url")
-      or os.environ.get("OVERSEAS_TRANSFER_URL")
-      or getattr(settings, "OVERSEAS_TRANSFER_URL", None)
-  )
+    snap: Dict[str, Any] = {
+        "service_name": _pick(
+            candidates=["service_name", "serviceTitle", "service", "site_name", "sitename", "app_name"],
+            contains_any=["service", "sitename", "appname"],
+        ),
+        "operator_name": _pick(
+            candidates=["operator_name", "operator", "owner_name", "owner", "provider_name", "company_name", "corp_name"],
+            contains_any=["operator", "owner", "provider", "company", "corp"],
+        ),
+        "contact_email": _pick(
+            candidates=["contact_email", "email", "contact", "support_email", "admin_email"],
+            contains_any=["email"],
+        ),
+        "privacy_url": _pick(
+            candidates=["privacy_url", "privacy_link", "policy_url"],
+            contains_all=["privacy", "url"],
+        )
+        or os.environ.get("PRIVACY_URL")
+        or getattr(settings, "PRIVACY_URL", None),
+        "tos_url": _pick(
+            candidates=["tos_url", "terms_url", "terms_link", "tos"],
+            contains_any=["termsurl", "tosurl", "termslink", "tos"],
+        )
+        or os.environ.get("TERMS_URL")
+        or getattr(settings, "TERMS_URL", None),
+        "overseas_transfer_url": _pick(
+            candidates=["overseas_transfer_url", "transfer_url", "crossborder_url", "outbound_url"],
+            contains_any=["overseas", "transfer", "crossborder", "outbound"],
+        )
+        or os.environ.get("OVERSEAS_TRANSFER_URL")
+        or getattr(settings, "OVERSEAS_TRANSFER_URL", None),
+        "enable_consent_gate": _tobool(
+            _pick(
+                candidates=["enable_consent_gate", "consent_gate", "show_gate", "gate_required", "consent_required"],
+                contains_any=["consentgate", "consent", "gate", "agree"],
+            )
+        ),
+        "show_footer_links": _tobool(
+            _pick(
+                candidates=["show_footer_links", "footer_links", "footer_show_links", "show_footer", "footer_visible"],
+                contains_any=["footer", "link", "visible", "show"],
+            )
+        ),
+        "memo": _pick(candidates=["memo", "notes", "note", "description"], default=""),
+    }
 
-  # 라우트 폴백
-  def _rev(name: str, default: str) -> str:
-      try:
-          return reverse(name)
-      except Exception:
-          return default
+    snap["privacy_url"] = _normalize_url(snap.get("privacy_url") or os.environ.get("PRIVACY_URL") or getattr(settings, "PRIVACY_URL", None))
+    snap["tos_url"] = _normalize_url(snap.get("tos_url") or os.environ.get("TERMS_URL") or getattr(settings, "TERMS_URL", None))
+    snap["overseas_transfer_url"] = _normalize_url(
+        snap.get("overseas_transfer_url") or os.environ.get("OVERSEAS_TRANSFER_URL") or getattr(settings, "OVERSEAS_TRANSFER_URL", None)
+    )
 
-  if not snap.get("privacy_url"):
-      snap["privacy_url"] = _normalize_url(
-          _rev("legal_privacy", "/legal/privacy/")
-      )
-  if not snap.get("tos_url"):
-      snap["tos_url"] = _normalize_url(_rev("legal_tos", "/legal/tos/"))
-  if not snap.get("overseas_transfer_url"):
-      snap["overseas_transfer_url"] = _normalize_url(
-          _rev("legal_overseas", "/legal/overseas/")
-      )
+    if not snap.get("privacy_url"):
+        snap["privacy_url"] = _normalize_url(_rev_any("legal_privacy", default="/legal/privacy/"))
+    if not snap.get("tos_url"):
+        snap["tos_url"] = _normalize_url(_rev_any("legal_tos", default="/legal/tos/"))
+    if not snap.get("overseas_transfer_url"):
+        snap["overseas_transfer_url"] = _normalize_url(_rev_any("legal_overseas", default="/legal/overseas/"))
 
-  # ENV가 True면 표시 토글 켜주기
-  def _env_true(name: str) -> bool | None:
-      val = os.environ.get(name) or getattr(settings, name, None)
-      if val is None:
-          return None
-      s = str(val).strip().lower()
-      return s not in ("0", "false", "no", "off", "", "none", "null")
+    def _env_true(name: str) -> bool | None:
+        val = os.environ.get(name) or getattr(settings, name, None)
+        if val is None:
+            return None
+        return _tobool(val)
 
-  if _env_true("SHOW_FOOTER_LINKS") is True:
-      snap["show_footer_links"] = True
-  if _env_true("ENABLE_CONSENT_GATE") is True:
-      snap["enable_consent_gate"] = True
+    if _env_true("SHOW_FOOTER_LINKS") is True:
+        snap["show_footer_links"] = True
+    if _env_true("ENABLE_CONSENT_GATE") is True:
+        snap["enable_consent_gate"] = True
 
-  return snap
+    return snap
+
 
 @staff_member_required
 @require_GET
 def live_chat_recent_sessions_view(request: HttpRequest) -> JsonResponse:
     """
-    실시간 상담 콘솔 우측의 '최근 상담 세션' 리스트만 HTML 조각으로 반환.
-    - livechat_admin.js 가 주기적으로 호출해서 session-list 내용을 갈아끼움.
+    '최근 상담 세션' 리스트만 HTML 조각으로 반환.
     """
     try:
-        field_names = {
-            f.name for f in LiveChatSession._meta.get_fields()
-            if hasattr(f, "attname")
-        }
-
+        field_names = {f.name for f in LiveChatSession._meta.get_fields() if hasattr(f, "attname")}
         qs = LiveChatSession.objects.all()
 
         if "created_at" in field_names:
@@ -958,38 +872,23 @@ def live_chat_recent_sessions_view(request: HttpRequest) -> JsonResponse:
             {"sessions": sessions},
             request=request,
         )
-
-        return JsonResponse(
-            {"ok": True, "html": html},
-            json_dumps_params={"ensure_ascii": False},
-        )
+        return JsonResponse({"ok": True, "html": html}, json_dumps_params={"ensure_ascii": False})
     except Exception as e:
         log.exception("live_chat_recent_sessions_view error")
-        return JsonResponse(
-            {"ok": False, "error": str(e)},
-            status=500,
-        )
-
-
-from django.contrib.admin.views.decorators import staff_member_required
-from django.shortcuts import render
-from django.utils import timezone
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
 
 @staff_member_required
-def feedback_dashboard_view(request):
+def feedback_dashboard_view(request: HttpRequest) -> HttpResponse:
     """
-    질문 챗봇(QARAG) + 웹/Gemini + RAG 피드백을
-    한 눈에 보는 간단 대시보드.
+    질문 챗봇(QARAG) + 웹/Gemini + RAG 피드백을 한 눈에 보는 간단 대시보드.
     """
     today = timezone.localdate()
-    start_7d = today - timezone.timedelta(days=7)
+    start_7d = today - timedelta(days=7)  # ✅ timezone.timedelta → datetime.timedelta
 
-    # QARAG
     qs_qarag = QaragFeedback.objects.all()
     qs_qarag_7d = qs_qarag.filter(created_at__date__gte=start_7d)
 
-    # Web/RAG (Feedback)
     qs_fb = Feedback.objects.all()
     qs_web = qs_fb.filter(answer_type="gemini")
     qs_rag = qs_fb.filter(answer_type="rag")
@@ -1009,42 +908,31 @@ def feedback_dashboard_view(request):
 
 
 @staff_member_required
-def feedback_board_view(request):
+def feedback_board_view(request: HttpRequest) -> HttpResponse:
     """
     통합 피드백 보드
-    - ✅ helpful=False 인 것(조금 아쉬웠어요/별로였어요)만 모아서 본다
-    - 코멘트/이유 칩을 함께 보여준다
+    - helpful=False 인 것만 모아서 본다
     """
-
     channel = request.GET.get("channel", "all")  # all / web / rag / qa
     q = (request.GET.get("q") or "").strip()
 
-    # 1) 기본 쿼리: 👎 인 피드백만
     qs = (
         FeedbackLog.objects.filter(helpful=False)
         .select_related("review")
         .order_by("-created_at")
     )
 
-    # 2) 채널 필터 (웹 / RAG / 질문챗봇)
     if channel in ("web", "rag", "qa"):
         qs = qs.filter(answer_type=channel)
 
-    # 3) 검색어 (질문 / 답변 / 코멘트 안에서 찾기)
     if q:
-        qs = qs.filter(
-            Q(question__icontains=q)
-            | Q(answer__icontains=q)
-            | Q(comment__icontains=q)
-        )
+        qs = qs.filter(Q(question__icontains=q) | Q(answer__icontains=q) | Q(comment__icontains=q))
 
-    # 간단 요약 수치
     total_count = qs.count()
     today = timezone.localdate()
     today_count = qs.filter(created_at__date=today).count()
 
-    # 페이지네이션
-    paginator = Paginator(qs, 30)  # 한 페이지 30개
+    paginator = Paginator(qs, 30)
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
 
@@ -1058,14 +946,109 @@ def feedback_board_view(request):
     return render(request, "ragadmin/feedback_board.html", ctx)
 
 
+@staff_member_required
+def runtime_dashboard(request: HttpRequest) -> HttpResponse:
+    """
+    RAG Admin · 실시간 런타임 모니터링
+    - ?format=json 또는 X-Requested-With=XMLHttpRequest: JSON
+    """
+    now = timezone.now()
+    today = timezone.localdate()
+
+    window_seconds = 300
+    online_count = int(cache.get("runtime:online_count", 0))
+    recent_requests = int(cache.get("runtime:recent_requests", 0))
+    today_total = int(cache.get("runtime:today_total", 0))
+    today_429 = int(cache.get("runtime:today_429", 0))
+    livechat_open = int(cache.get("runtime:livechat_open", 0))
+
+    warn_threshold = getattr(settings, "RUNTIME_ONLINE_WARN", 2)
+    busy_threshold = getattr(settings, "RUNTIME_ONLINE_BUSY", 5)
+
+    status = "idle"
+    if today_429 > 0 or online_count >= busy_threshold:
+        status = "busy"
+    elif online_count >= warn_threshold:
+        status = "normal"
+
+    online_snapshot = {
+        "window_seconds": window_seconds,
+        "online_count": online_count,
+        "recent_requests": recent_requests,
+        "today_total": today_total,
+        "today_429": today_429,
+        "livechat_open": livechat_open,
+        "status": status,
+    }
+
+    media_root = getattr(settings, "MEDIA_ROOT", None)
+    media_enabled = bool(media_root)
+    media_exists = False
+    media_file_count = 0
+    media_total_mb = 0.0
+    auto_purge_enabled = _tobool(os.environ.get("MEDIA_AUTO_PURGE", ""))
+
+    if media_root:
+        p = Path(media_root)
+        if p.exists():
+            media_exists = True
+            try:
+                for f in p.rglob("*"):
+                    if f.is_file():
+                        media_file_count += 1
+                        media_total_mb += f.stat().st_size / (1024 * 1024)
+            except Exception:
+                pass
+
+    media_snapshot = {
+        "root": str(media_root) if media_root else "",
+        "enabled": media_enabled,
+        "exists": media_exists,
+        "file_count": media_file_count,
+        "total_mb": round(media_total_mb, 1),
+        "auto_purge_enabled": auto_purge_enabled,
+    }
+
+    settings_snapshot = {
+        "RETENTION_DAYS": int(getattr(settings, "RETENTION_DAYS", 0)),
+        "RETENTION_DAYS_CHATLOG": int(getattr(settings, "RETENTION_DAYS_CHATLOG", 90)),
+        "RETENTION_DAYS_LIVECHAT": int(getattr(settings, "RETENTION_DAYS_LIVECHAT", 180)),
+    }
+
+    snapshot = {
+        "date": today.isoformat(),
+        "now_display": timezone.localtime(now).strftime("%Y-%m-%d %H:%M:%S"),
+        "online": online_snapshot,
+        "media": media_snapshot,
+        "settings": settings_snapshot,
+    }
+
+    wants_json = (
+        request.GET.get("format") == "json"
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
+    if wants_json:
+        return JsonResponse(snapshot, json_dumps_params={"ensure_ascii": False})
+
+    return render(request, "ragadmin/runtime_dashboard.html", {"snapshot": snapshot})
+
+
 __all__ = [
-  "crawl_news_view",
-  "faq_suggest_view",
-  "faq_promote_view",
-  "live_chat_view",
-  "live_console_view",
-  "live_chat_send_view",
-  "legal_config_entrypoint",
-  "live_chat_cleanup_view",  # 🔹 오늘 세션 정리/개별 삭제
-  "live_chat_save_session_view", # 🔹 상담 기록 저장
+    "crawl_news_view",
+    "faq_suggest_view",
+    "faq_promote_view",
+    "live_chat_view",
+    "live_console_view",
+    "live_chat_send_view",
+    "legal_config_entrypoint",
+    "live_chat_cleanup_view",
+    "live_chat_save_session_view",
+    "live_chat_recent_sessions_view",
+    "feedback_dashboard_view",
+    "feedback_board_view",
+    "runtime_dashboard",
+    "media_pending_admin_view",
+    "api_media_pending_list",
+    "api_media_pending_approve",
+    "api_media_pending_reject",
 ]

@@ -145,7 +145,8 @@ body {
     max-width: var(--page-max-width);
     margin: var(--page-padding-y) auto;
     padding: 18px 20px 24px;
-    background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.28), transparent 55%),
+    background:
+        radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.28), transparent 55%),
         radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.35), transparent 55%),
         var(--page-bg-inner);
     border-radius: 26px;
@@ -343,7 +344,6 @@ html[data-theme="dark"] .theme-btn.is-active {
     }
 }
 
-
 /* ------------------------------
    Web / RAG / PDF 카드 공통
    (card_web.html / card_rag.html / card_pdf.html 호환)
@@ -463,7 +463,7 @@ html[data-theme="dark"] .field-input {
     color: #b91c1c;
 }
 
-/* 답변 / 소스 영역 */
+/* 답변 / 소스 영역 (공통 기본) */
 .answer-block {
     margin-top: 8px;
     padding: 10px 12px;
@@ -591,7 +591,6 @@ html[data-theme="dark"] .pdf-output-pill {
     margin-top: 2px;
 }
 
-
 /* ---------------------------------------------------
    🔍 Web / RAG / PDF 검색창 + 옵션 + 버튼 공통 보정
    (card_* 템플릿의 input-wrap / opt-consent-block / btn 사용)
@@ -673,8 +672,7 @@ html[data-theme="dark"] .opt-consent-block {
     margin-top: 12px;
 }
 
-/* 기존 .btn 기본 스타일이 있더라도,
-   info / heart 에서 더 예쁘게 덮어 씌우기 */
+/* 기존 .btn 기본 스타일이 있더라도, info / heart 에서 더 예쁘게 덮어 씌우기 */
 .btn.info,
 .btn.heart {
     border-radius: 999px;
@@ -686,7 +684,6 @@ html[data-theme="dark"] .opt-consent-block {
     gap: 6px;
     border: 1px solid transparent;
     cursor: pointer;
-    /* 위치 이동 없이 색/그림자만 부드럽게 */
     transition: box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 
@@ -721,14 +718,13 @@ html[data-theme="dark"] .btn.heart {
 /* ------------------------------
    사이드 카드 (Quick Tools / User Manual)
    ------------------------------ */
-
-.side-stack {
+.shell-side .side-stack {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
-.side-card {
+.shell-side .side-card {
     background: var(--side-bg);
     border-radius: var(--card-radius-md);
     border: 1px solid var(--side-border);
@@ -736,7 +732,7 @@ html[data-theme="dark"] .btn.heart {
     padding: 10px 12px 12px;
 }
 
-.side-card-head {
+.shell-side .side-card-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -744,22 +740,21 @@ html[data-theme="dark"] .btn.heart {
     margin-bottom: 6px;
 }
 
-.side-card-title {
+.shell-side .side-card-title {
     font-size: 13px;
     font-weight: 700;
 }
 
-.side-meta {
+.shell-side .side-meta {
     font-size: 11px;
     color: var(--text-soft);
 }
 
-/* Quick tools 링크 */
-.side-card-body {
+.shell-side .side-card-body {
     font-size: 12px;
 }
 
-.side-link {
+.shell-side .side-link {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -770,18 +765,19 @@ html[data-theme="dark"] .btn.heart {
     transition: background 0.12s ease, transform 0.08s ease;
 }
 
-.side-link:hover {
-    background: rgba(148, 163, 184, 0.1);
-    transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+    .shell-side .side-link:hover {
+        background: rgba(148, 163, 184, 0.1);
+        transform: translateY(-1px);
+    }
 }
 
-.side-sep {
+.shell-side .side-sep {
     margin: 6px 0;
     border-bottom: 1px dashed rgba(148, 163, 184, 0.5);
 }
 
-/* User manual (오른쪽 사이드용) */
-.manual-item summary {
+.shell-side .manual-item summary {
     cursor: pointer;
     list-style: none;
     padding: 6px 8px;
@@ -790,15 +786,15 @@ html[data-theme="dark"] .btn.heart {
     font-size: 12px;
 }
 
-.manual-item[open] summary {
+.shell-side .manual-item[open] summary {
     background: rgba(129, 140, 248, 0.16);
 }
 
-.manual-item summary::-webkit-details-marker {
+.shell-side .manual-item summary::-webkit-details-marker {
     display: none;
 }
 
-.manual-body {
+.shell-side .manual-body {
     padding: 6px 8px 8px;
     font-size: 12px;
     color: var(--text-sub);
@@ -814,7 +810,6 @@ html[data-theme="dark"] .btn.heart {
     padding: 12px 18px;
     border-radius: 18px;
 
-    /* 유리 느낌 테두리/배경 */
     border: 1px solid rgba(148, 163, 184, 0.45);
     background:
         radial-gradient(200px 140px at 0% 0%, rgba(56, 189, 248, 0.22), transparent 60%),
@@ -837,7 +832,6 @@ html[data-theme="dark"] .page-footer-wrap {
     box-shadow: 0 22px 55px rgba(0, 0, 0, 0.65);
 }
 
-/* 베타 안내 블록은 화면에 안 보이게 */
 .tester-notice {
     display: none;
 }
@@ -939,7 +933,6 @@ html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
     transform: translateY(-1px);
 }
 
-
 /* ============================================
    PDF 카드 – "📘 PDF 분석 사용 설명서" (버튼 아래, 가로 전체)
    ============================================ */
@@ -951,7 +944,6 @@ html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
     gap: 8px;
 }
 
-/* 설명서 전체(details)를 카드 가로 꽉 차는 박스로 */
 #modeSectionPdf details.pdf-manual {
     margin-top: 10px;
     border-radius: 16px;
@@ -960,7 +952,6 @@ html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
     box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);
 }
 
-/* 요약 줄 (토글 버튼 역할) */
 #modeSectionPdf details.pdf-manual>summary {
     list-style: none;
     cursor: pointer;
@@ -977,12 +968,10 @@ html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
     color: var(--text-main);
 }
 
-/* 기본 마커 제거 */
 #modeSectionPdf details.pdf-manual>summary::-webkit-details-marker {
     display: none;
 }
 
-/* 열고/닫기 삼각형 아이콘 */
 #modeSectionPdf details.pdf-manual>summary::before {
     content: "▶";
     font-size: 11px;
@@ -993,7 +982,6 @@ html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
     content: "▼";
 }
 
-/* 펼쳐졌을 때 본문 (카드 전체 폭) */
 #modeSectionPdf details.pdf-manual .pdf-manual-body {
     padding: 10px 14px 12px;
     border-top: 1px dashed rgba(148, 163, 184, 0.6);
@@ -1007,8 +995,6 @@ html[data-theme="dark"] #modeSectionRag .btn-row .btn:nth-child(3) {
     overflow-wrap: break-word;
     word-break: keep-all;
 }
-
-/* ───────────── 다크 모드 ───────────── */
 
 html[data-theme="dark"] #modeSectionPdf details.pdf-manual {
     background: rgba(15, 23, 42, 0.96);
@@ -1029,13 +1015,12 @@ html[data-theme="dark"] #modeSectionPdf details.pdf-manual .pdf-manual-body {
     border-top-color: rgba(129, 140, 248, 0.75);
 }
 
-
 /* -----------------------------------------
    RAG 카드 안쪽 자료 설명서 / 근거 details 공통
-   (예: "내 자료 검색 사용 설명서", "근거 보기" 등)
+   ✅ 수정(충돌 방지): mz-evidence(details)는 이 공통 스타일에서 제외
    ----------------------------------------- */
 
-#modeSectionRag details {
+#modeSectionRag details:not(.mz-evidence) {
     margin-top: 10px;
     border-radius: 14px;
     border: 1px solid rgba(148, 163, 184, 0.55);
@@ -1044,13 +1029,13 @@ html[data-theme="dark"] #modeSectionPdf details.pdf-manual .pdf-manual-body {
     overflow: hidden;
 }
 
-html[data-theme="dark"] #modeSectionRag details {
+html[data-theme="dark"] #modeSectionRag details:not(.mz-evidence) {
     background: rgba(15, 23, 42, 0.95);
     border-color: rgba(55, 65, 81, 0.95);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
 }
 
-#modeSectionRag details summary {
+#modeSectionRag details:not(.mz-evidence) summary {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1062,41 +1047,38 @@ html[data-theme="dark"] #modeSectionRag details {
     color: var(--text-main);
 }
 
-/* 다크 모드에서 summary 글씨는 흰색 */
-html[data-theme="dark"] #modeSectionRag details summary {
+html[data-theme="dark"] #modeSectionRag details:not(.mz-evidence) summary {
     color: #ffffff;
 }
 
-#modeSectionRag details summary::-webkit-details-marker {
+#modeSectionRag details:not(.mz-evidence) summary::-webkit-details-marker {
     display: none;
 }
 
-#modeSectionRag details summary::before {
+#modeSectionRag details:not(.mz-evidence) summary::before {
     content: "▶";
     font-size: 11px;
     opacity: 0.7;
 }
 
-#modeSectionRag details[open] summary::before {
+#modeSectionRag details:not(.mz-evidence)[open] summary::before {
     content: "▼";
 }
 
-/* 내용 부분(사용 설명, 근거 리스트) */
-#modeSectionRag details>div {
+#modeSectionRag details:not(.mz-evidence)>div {
     padding: 8px 12px 10px;
     font-size: 12px;
     color: var(--text-sub);
     border-top: 1px dashed rgba(148, 163, 184, 0.6);
 }
 
-html[data-theme="dark"] #modeSectionRag details>div {
+html[data-theme="dark"] #modeSectionRag details:not(.mz-evidence)>div {
     color: #cbd5f5;
     border-top-color: rgba(75, 85, 99, 0.9);
 }
 
 /* ============================================
    RAG 카드 – "내 자료 검색 사용 설명서" 전용 스타일
-   (card_rag.html 안 details.rag-manual 대상)  ※ 현재는 rag-help-block 사용
    ============================================ */
 
 #modeSectionRag details.rag-manual {
@@ -1121,7 +1103,6 @@ html[data-theme="dark"] #modeSectionRag details>div {
     font-weight: 600;
 }
 
-/* 열고/닫기 삼각형 아이콘 */
 #modeSectionRag details.rag-manual summary::before {
     content: "▶";
     font-size: 11px;
@@ -1132,7 +1113,6 @@ html[data-theme="dark"] #modeSectionRag details>div {
     content: "▼";
 }
 
-/* 펼쳐졌을 때 안쪽 본문 */
 #modeSectionRag details.rag-manual .rag-manual-body {
     margin-top: 6px;
     padding: 10px 14px 12px;
@@ -1145,7 +1125,6 @@ html[data-theme="dark"] #modeSectionRag details>div {
     color: var(--text-sub);
 }
 
-/* 다크 모드 전용 */
 html[data-theme="dark"] #modeSectionRag details.rag-manual summary {
     background: linear-gradient(90deg,
             rgba(15, 23, 42, 0.96),
@@ -1165,12 +1144,11 @@ html[data-theme="dark"] #modeSectionRag details.rag-manual .rag-manual-body {
 }
 
 /* =========================================================
-   📎 근거 보기 버튼 전용 — 밝은 알약 스타일
-   (RAG 카드 안 details.rag-evidence-wrapper > summary.btn.info)
+   📎 근거 보기 버튼 전용 — 밝은 알약 스타일 (card_rag.html 기준)
    ========================================================= */
 
-/* 라이트 모드 */
-#modeSectionRag details.rag-evidence-wrapper>summary.btn.info {
+/* ✅ 핵심: card_rag.html 구조에 정확히 맞춤 */
+#cardRag #ragEvidenceWrap.rag-evidence-wrapper>summary.btn.info {
     background: linear-gradient(90deg, #f9fafb, #e5edff);
     border-radius: 999px;
     border: 1px solid rgba(148, 163, 184, 0.85);
@@ -1180,28 +1158,53 @@ html[data-theme="dark"] #modeSectionRag details.rag-manual .rag-manual-body {
     box-shadow:
         0 10px 22px rgba(15, 23, 42, 0.18),
         0 4px 10px rgba(15, 23, 42, 0.15);
+
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
 }
 
-/* 다크 모드 */
-html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper>summary.btn.info {
+/* ✅ 기본 마커 제거 (브라우저 기본 삼각형) */
+#cardRag #ragEvidenceWrap>summary::-webkit-details-marker {
+    display: none;
+}
+
+#cardRag #ragEvidenceWrap>summary::marker {
+    content: "";
+}
+
+/* ✅ 다크 테마 */
+html[data-theme="dark"] #cardRag #ragEvidenceWrap.rag-evidence-wrapper>summary.btn.info {
     background: rgba(248, 250, 252, 0.98);
     border-color: rgba(191, 219, 254, 1);
     color: #0f172a;
 }
 
-/* 1️⃣ RAG 설명서 / 근거 보기 summary 버튼은 hover 시 위치 안 움직이게 */
-#modeSectionRag .rag-help-block>summary.btn,
-#modeSectionRag .rag-evidence-wrapper>summary.btn {
-    transition: background 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
+/* 1️⃣ hover 시 위치 안 움직이게 */
+#cardRag #ragEvidenceWrap.rag-evidence-wrapper>summary.btn {
+    transition: background 0.12s ease, box-shadow 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
-#modeSectionRag .rag-help-block>summary.btn:hover,
-#modeSectionRag .rag-evidence-wrapper>summary.btn:hover {
+#cardRag #ragEvidenceWrap.rag-evidence-wrapper>summary.btn:hover {
     transform: none;
 }
 
-/* 2️⃣ 근거 보기 래퍼는 “카드 스타일” 빼고, 단순 토글만 */
-#modeSectionRag details.rag-evidence-wrapper {
+/* ✅ open 상태(펼쳐진 상태)에서 약간 강조 */
+#cardRag #ragEvidenceWrap[open]>summary.btn.info {
+    border-color: rgba(96, 165, 250, 0.65);
+    box-shadow:
+        0 12px 26px rgba(15, 23, 42, 0.20),
+        0 6px 14px rgba(15, 23, 42, 0.16);
+}
+
+/* ✅ 키보드 포커스(접근성) */
+#cardRag #ragEvidenceWrap>summary.btn:focus-visible {
+    outline: 2px solid rgba(96, 165, 250, 0.75);
+    outline-offset: 3px;
+}
+
+/* 2️⃣ 근거 보기 래퍼는 “카드 스타일” 빼고 단순 토글만 */
+#cardRag details.rag-evidence-wrapper {
     margin-top: 10px;
     border-radius: 0;
     border: none;
@@ -1209,10 +1212,151 @@ html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper>summary.btn
     box-shadow: none;
 }
 
-html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper {
+html[data-theme="dark"] #cardRag details.rag-evidence-wrapper {
     background: transparent;
     border: none;
     box-shadow: none;
+}
+
+/* =========================
+   ✅ 홈 사용량 행 상태(usage-widget 스코프)
+   ========================= */
+.usage-widget-card .uw-row {
+    position: relative;
+    border-radius: 12px;
+    padding: 8px 10px 8px 16px;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: background .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+
+.usage-widget-card .uw-row::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 999px;
+    background: transparent;
+    opacity: .95;
+}
+
+.usage-widget-card .uw-row dt {
+    color: var(--text-sub);
+    font-weight: 650;
+}
+
+.usage-widget-card .uw-row dd {
+    color: var(--text-main);
+}
+
+.usage-widget-card .uw-row.uw-low {
+    background: rgba(245, 158, 11, 0.07);
+    border-color: rgba(245, 158, 11, 0.22);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.10) inset;
+}
+
+.usage-widget-card .uw-row.uw-low::before {
+    background: rgba(245, 158, 11, 0.95);
+}
+
+.usage-widget-card .uw-row.uw-zero {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.26);
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.12) inset;
+}
+
+.usage-widget-card .uw-row.uw-zero::before {
+    background: rgba(239, 68, 68, 0.95);
+}
+
+.usage-widget-card .uw-row.uw-unlim {
+    background: rgba(34, 211, 238, 0.06);
+    border-color: rgba(34, 211, 238, 0.20);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.10) inset;
+}
+
+.usage-widget-card .uw-row.uw-unlim::before {
+    background: rgba(34, 211, 238, 0.95);
+}
+
+/* ------------------------------
+   WEB 카드전용: 안내 힌트
+   ------------------------------ */
+#web-hint.small-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    margin: 12px 0 10px;
+    padding: 12px 14px;
+
+    border: 1px solid rgba(78, 152, 184, 0.35);
+    border-radius: 14px;
+
+    background: linear-gradient(180deg,
+            rgba(56, 189, 248, .10),
+            rgba(56, 189, 248, .05));
+
+    color: var(--text-main, #0f172a);
+    font-size: 13px;
+    line-height: 1.55;
+
+    box-shadow: 0 10px 22px rgba(2, 6, 23, .06);
+}
+
+#web-hint.small-hint::before {
+    content: "i";
+    flex: 0 0 auto;
+
+    width: 20px;
+    height: 20px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 999px;
+    border: 1px solid rgba(56, 189, 248, .55);
+    background: rgba(56, 189, 248, .14);
+
+    color: rgba(14, 116, 144, 1);
+    font-weight: 800;
+    font-size: 12px;
+    line-height: 1;
+}
+
+#web-hint.small-hint b,
+#web-hint.small-hint strong {
+    font-weight: 800;
+    color: var(--link, #0ea5e9);
+}
+
+html[data-theme="dark"] #web-hint.small-hint {
+    border-color: rgba(56, 189, 248, .28);
+    background: linear-gradient(180deg,
+            rgba(56, 189, 248, .12),
+            rgba(15, 23, 42, .25));
+    color: var(--text-main, #e5e7eb);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .35);
+}
+
+html[data-theme="dark"] #web-hint.small-hint::before {
+    border-color: rgba(56, 189, 248, .38);
+    background: rgba(56, 189, 248, .12);
+    color: rgba(186, 230, 253, 1);
+}
+
+.hidden-textarea {
+    display: none !important;
+}
+
+.card-help-summary {
+    list-style: none;
+}
+
+.card-help-summary::-webkit-details-marker {
+    display: none;
 }
 
 /* ------------------------------
@@ -1224,8 +1368,12 @@ html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .shell-main {
+        order: 0;
+    }
+
     .shell-side {
-        order: -1;
+        order: 1;
     }
 
     .app-topbar {
@@ -1254,7 +1402,672 @@ html[data-theme="dark"] #modeSectionRag details.rag-evidence-wrapper {
         padding: 12px 12px 14px;
     }
 
-    .side-card {
+    /* ✅ 오른쪽 사이드(Quick Tools/User Manual)만 */
+    .shell-side .side-card {
         padding: 8px 10px 10px;
     }
+
+    /* Quick Tools 카드: 헤더 우측 메타 숨김 (오른쪽 사이드 한정) */
+    .shell-side .side-card[aria-label="바로가기"] .side-card-head .side-meta {
+        display: none;
+    }
+
+    /* 4개 퀵툴만 감싼 래퍼(quick-tools-grid) — 오른쪽 사이드 한정 */
+    .shell-side .quick-tools-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 6px;
+    }
+
+    /* 그리드 안 링크를 버튼처럼 */
+    .shell-side .quick-tools-grid .side-link {
+        justify-content: center;
+        text-align: center;
+
+        padding: 12px 10px;
+        min-height: 44px;
+        border-radius: 14px;
+
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(15, 23, 42, 0.18);
+    }
+
+    /* 그리드 안의 보조 텍스트 숨김 */
+    .shell-side .quick-tools-grid .side-meta {
+        display: none;
+    }
+
+    /* ✅ 모바일에서 hover/active로 인한 "튀는" 느낌 제거 (오른쪽 사이드 한정) */
+    .shell-side .side-link:hover,
+    .shell-side .side-link:active {
+        transform: none;
+    }
+
+    .shell-side .side-link:active {
+        background: rgba(148, 163, 184, 0.14);
+    }
+
+    .shell-side .quick-tools-grid .side-link:hover,
+    .shell-side .quick-tools-grid .side-link:active {
+        transform: none;
+    }
+
+    .shell-side .quick-tools-grid .side-link:active {
+        background: rgba(99, 102, 241, 0.12);
+    }
+}
+
+/* =========================================================
+   ✅ WEB 카드: 출처(References) 카드형 UI
+   - scope: #cardWeb 내부만 적용
+   ========================================================= */
+
+/* WEB 카드에서 .answer-block은 "스레드/빈상태/출처" 컨테이너 성격으로만 사용 */
+#cardWeb .answer-block {
+    margin-top: 10px;
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+
+/* --- 출처: 기존 list 스타일 무시하고 카드형으로 --- */
+#cardWeb .sources-block {
+    margin-top: 12px;
+}
+
+#cardWeb .sources-details {
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    background: var(--card-bg);
+    box-shadow: var(--card-shadow-small);
+    overflow: hidden;
+}
+
+/* ⚠ 기존 .sources-title(11px) 덮어쓰기 */
+#cardWeb .sources-title {
+    margin: 0;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-main);
+
+    cursor: pointer;
+    user-select: none;
+    background: rgba(148, 163, 184, 0.06);
+}
+
+html[data-theme="dark"] #cardWeb .sources-title {
+    background: rgba(148, 163, 184, 0.10);
+}
+
+#cardWeb .sources-title::-webkit-details-marker {
+    display: none;
+}
+
+#cardWeb .sources-count {
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0.75;
+    color: var(--text-soft);
+}
+
+/* 카드 그리드 */
+#cardWeb .sources-cards {
+    list-style: none;
+    margin: 0;
+    padding: 10px 10px 14px;
+    display: grid;
+    gap: 10px;
+}
+
+/* 개별 카드 */
+#cardWeb .src-card {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 14px;
+    background: rgba(148, 163, 184, 0.06);
+    overflow: hidden;
+}
+
+html[data-theme="dark"] #cardWeb .src-card {
+    border-color: rgba(55, 65, 81, 0.95);
+    background: rgba(15, 23, 42, 0.55);
+}
+
+/* === sources: "no sources / direct answer" placeholder === */
+#cardWeb .src-card.src-empty {
+    opacity: 0.85;
+    border-style: dashed;
+}
+
+#cardWeb .src-card.src-empty .src-title {
+    font-weight: 700;
+}
+
+#cardWeb .src-card.src-empty .src-meta {
+    gap: 8px;
+}
+
+#cardWeb .src-card.src-empty .src-url {
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+#cardWeb .src-card.src-empty .src-head {
+    cursor: default;
+}
+
+#cardWeb .src-card.src-empty .src-head:hover {
+    background: transparent;
+}
+
+#cardWeb .src-head {
+    display: block;
+    padding: 12px 12px 10px;
+    text-decoration: none;
+    color: inherit;
+}
+
+#cardWeb .src-head:hover {
+    background: rgba(99, 102, 241, 0.08);
+}
+
+html[data-theme="dark"] #cardWeb .src-head:hover {
+    background: rgba(56, 189, 248, 0.10);
+}
+
+#cardWeb .src-title {
+    font-weight: 800;
+    line-height: 1.35;
+    margin-bottom: 6px;
+    color: var(--text-main);
+    text-decoration: none;
+}
+
+#cardWeb .src-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+#cardWeb .src-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(99, 102, 241, 0.10);
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+html[data-theme="dark"] #cardWeb .src-badge {
+    border-color: rgba(129, 140, 248, 0.85);
+    background: rgba(56, 189, 248, 0.12);
+}
+
+#cardWeb .src-url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    opacity: 0.85;
+}
+
+/* 스니펫: 3줄 클램프 (표준 + webkit 병행) */
+#cardWeb .src-snippet {
+    padding: 0 12px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-sub);
+
+    line-clamp: 3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+/* 더보기 */
+#cardWeb .sources-more {
+    padding: 0 10px 12px;
+}
+
+#cardWeb .sources-more-summary {
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 6px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    opacity: 0.95;
+}
+
+#cardWeb .sources-more-summary::-webkit-details-marker {
+    display: none;
+}
+
+.answer-meta-row {
+    margin: 0 0 10px;
+}
+
+.ai-generated-badge {
+    display: inline-block;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    opacity: .85;
+}
+
+/* =========================================================
+   ✅ ChatGPT형 스레드 UI (WEB/RAG 공통)
+   - card_web.html: #webChatMount
+   ========================================================= */
+
+.chat-mount {
+    margin-top: 10px;
+}
+
+.chat-thread {
+    border-radius: 16px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    box-shadow: var(--card-shadow-small);
+    overflow: hidden;
+}
+
+.chat-stream {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    max-height: min(62vh, 720px);
+    overflow: auto;
+
+    padding: 12px;
+    scroll-behavior: smooth;
+}
+
+.chat-msg {
+    display: flex;
+    align-items: flex-start;
+}
+
+.chat-msg--user {
+    justify-content: flex-end;
+}
+
+.chat-msg--assistant {
+    justify-content: flex-start;
+}
+
+/* ✅ flex overflow 방지(말풍선/근거 카드 튐 방지 핵심) */
+.chat-msg,
+.chat-bubble {
+    min-width: 0;
+}
+
+.chat-bubble {
+    max-width: min(760px, 92%);
+    border-radius: 16px;
+    padding: 10px 12px;
+
+    border: 1px solid rgba(148, 163, 184, 0.30);
+    background: rgba(148, 163, 184, 0.06);
+    color: var(--text-main);
+
+    line-height: 1.6;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.chat-msg--user .chat-bubble {
+    background: var(--accent-soft);
+    border-color: rgba(99, 102, 241, 0.22);
+}
+
+.chat-msg--assistant .answer-meta-row {
+    margin: 0 0 8px;
+}
+
+.chat-bubble pre,
+.chat-bubble code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+}
+
+.chat-bubble pre {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.06);
+    overflow: auto;
+}
+
+/* 다크 모드 보정 */
+html[data-theme="dark"] .chat-thread {
+    border-color: rgba(55, 65, 81, 0.95);
+    background: rgba(15, 23, 42, 0.92);
+}
+
+html[data-theme="dark"] .chat-bubble {
+    border-color: rgba(55, 65, 81, 0.95);
+    background: rgba(2, 6, 23, 0.60);
+    color: #e5e7eb;
+}
+
+html[data-theme="dark"] .chat-msg--user .chat-bubble {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.26);
+}
+
+html[data-theme="dark"] .chat-bubble pre {
+    background: rgba(2, 6, 23, 0.60);
+    border-color: rgba(55, 65, 81, 0.95);
+}
+
+/* =========================================================
+   ✅ RAG 근거 리스트(details#ragEvidenceWrap) — 말풍선 밖 튐 방지
+   ========================================================= */
+
+/* 말풍선 내부에서 details/리스트가 절대 밖으로 못 나가게 */
+#cardRag .chat-bubble {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* details 자체 폭 제한 */
+#cardRag #ragEvidenceWrap {
+    max-width: 100%;
+}
+
+/* details 내부 모든 자식 폭 제한 */
+#cardRag #ragEvidenceWrap>* {
+    max-width: 100%;
+}
+
+/* 근거 리스트 컨테이너(ul/div 둘 다 커버) */
+#cardRag #ragEvidenceWrap #ragSourcesList {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* 카드형 src-card가 있으면 카드도 폭 제한 */
+#cardRag #ragEvidenceWrap .src-card {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* 링크/긴 URL/긴 토큰 줄바꿈 강제 */
+#cardRag #ragEvidenceWrap a,
+#cardRag #ragEvidenceWrap .src-url,
+#cardRag #ragEvidenceWrap .src-title,
+#cardRag #ragEvidenceWrap .src-snippet {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* 혹시 src-url이 한 줄 ellipsis라면 폭 제한 */
+#cardRag #ragEvidenceWrap .src-url {
+    display: block;
+    max-width: 100%;
+}
+
+/* 스니펫 4줄 클램프(호환: webkit + 표준 같이) */
+#cardRag #ragEvidenceWrap .src-snippet {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+}
+
+/* =========================================================
+   ✅ RAG 근거 보기 (mz-evidence) — 말풍선 내부용 + 튕김 방지
+   ========================================================= */
+
+/* ✅ 말풍선 밖으로 안 튀게: 컨테이너 자체가 줄바꿈/폭 제한 */
+.chat-bubble .mz-evidence {
+    margin-top: 10px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+
+    /* 핵심 */
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* ✅ summary = 알약 버튼 */
+.chat-bubble .mz-evidence>summary.mz-ev-sum {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 12px;
+    border-radius: 999px;
+
+    background: linear-gradient(90deg, #f9fafb, #e5edff);
+    border: 1px solid rgba(148, 163, 184, 0.85);
+
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+
+    /* 핵심 */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 기본 마커 제거 */
+.chat-bubble .mz-evidence>summary.mz-ev-sum::-webkit-details-marker {
+    display: none;
+}
+
+.chat-bubble .mz-evidence>summary.mz-ev-sum::marker {
+    content: "";
+}
+
+/* open 상태 강조 */
+.chat-bubble .mz-evidence[open]>summary.mz-ev-sum {
+    border-color: rgba(96, 165, 250, 0.70);
+}
+
+/* ✅ 리스트 영역 자체가 말풍선 폭을 넘지 않도록 */
+.chat-bubble .mz-evidence .mz-ev-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+
+    display: grid;
+    gap: 10px;
+
+    /* 핵심 */
+    max-width: 100%;
+}
+
+/* ✅ 카드 하나가 폭 넘으면 줄바꿈/숨김 처리 */
+.chat-bubble .mz-evidence .mz-ev-item {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 14px;
+    background: rgba(148, 163, 184, 0.06);
+    padding: 10px 12px;
+
+    /* 핵심 */
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* ✅ 링크/제목이 긴 URL이어도 튀어나가지 않게 */
+.chat-bubble .mz-evidence .mz-ev-title {
+    display: block;
+    font-weight: 900;
+    color: var(--text-main);
+    text-decoration: none;
+    line-height: 1.35;
+
+    /* 핵심 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+/* ✅ 스니펫은 긴 단어/URL도 강제 줄바꿈 */
+.chat-bubble .mz-evidence .mz-ev-sn {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-sub);
+    line-height: 1.55;
+
+    /* 핵심: 긴 토큰(긴URL/해시)도 줄바꿈 */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+
+    /* 길면 4줄만(호환: webkit + 표준 같이) */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+}
+
+.chat-bubble .mz-evidence .mz-ev-meta {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-soft);
+    opacity: 0.9;
+
+    /* 혹시라도 긴 텍스트 대비 */
+    overflow-wrap: anywhere;
+}
+
+/* 다크 모드 */
+html[data-theme="dark"] .chat-bubble .mz-evidence>summary.mz-ev-sum {
+    background: rgba(248, 250, 252, 0.92);
+    border-color: rgba(191, 219, 254, 1);
+    color: #0f172a;
+}
+
+html[data-theme="dark"] .chat-bubble .mz-evidence .mz-ev-item {
+    border-color: rgba(55, 65, 81, 0.95);
+    background: rgba(2, 6, 23, 0.35);
+}
+
+/* 모바일: 높이/패딩 약간 축소 */
+@media (max-width: 640px) {
+    .chat-stream {
+        padding: 10px;
+        max-height: min(58vh, 640px);
+    }
+
+    .chat-bubble {
+        max-width: 94%;
+        border-radius: 14px;
+    }
+}
+
+/* 모션 민감 사용자 배려 */
+@media (prefers-reduced-motion: reduce) {
+    .chat-stream {
+        scroll-behavior: auto;
+    }
+}
+
+/* WEB 카드 빈 상태 */
+#cardWeb #webAnswerEmpty {
+    margin-top: 10px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px dashed rgba(148, 163, 184, 0.55);
+    background: rgba(148, 163, 184, 0.06);
+    color: var(--text-sub);
+}
+
+html[data-theme="dark"] #cardWeb #webAnswerEmpty {
+    border-color: rgba(75, 85, 99, 0.95);
+    background: rgba(2, 6, 23, 0.45);
+    color: #cbd5f5;
+}
+
+/* =========================
+   Link UX hardening (wrap + hover + focus)
+   - URL이 길어도 레이아웃 안 깨지게
+   - 채팅/답변 영역 링크 스타일 통일
+   ========================= */
+
+#chatThread a[href],
+#web-answer-block a[href],
+#rag-answer-block a[href] {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+#chatThread a[href]:hover,
+#web-answer-block a[href]:hover,
+#rag-answer-block a[href]:hover {
+    text-decoration: underline;
+}
+
+#chatThread a[href]:focus-visible,
+#web-answer-block a[href]:focus-visible,
+#rag-answer-block a[href]:focus-visible {
+    outline: 2px solid rgba(148, 163, 184, 0.55);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+/* ✅ 소스 카드(렌더SourcesList) 안의 링크는 밑줄 제거 + hover에만 표시 */
+#chatThread .sources-block .src-head {
+    text-decoration: none;
+    display: block;
+}
+
+/* ✅ 밑줄은 제목에만 (블록 전체 밑줄 방지) */
+#chatThread .sources-block .src-head:hover .src-title {
+    text-decoration: underline;
+}
+
+/* ✅ 소스 카드의 URL 표시가 길면 말줄임/줄바꿈 */
+.sources-block .src-url {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* ✅ 코드 블록이 가로로 길면 스크롤로 처리(레이아웃 깨짐 방지) */
+.answer-prose pre,
+html.is-chat-adapter-page #chatThread pre {
+    overflow: auto;
+    max-width: 100%;
+}
+
+/* =========================
+   (Optional) chat bubble link affordance
+   ========================= */
+
+#chatThread .mz-bubble a[href] {
+    text-decoration: underline;
+    text-decoration-color: rgba(148, 163, 184, 0.55);
+}
+
+#chatThread .mz-bubble a[href]:hover {
+    text-decoration-color: rgba(148, 163, 184, 0.85);
 }

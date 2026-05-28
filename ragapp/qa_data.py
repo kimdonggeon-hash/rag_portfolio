@@ -1,13 +1,15 @@
 # ragapp/qa_data.py
-
 from __future__ import annotations
-from typing import List, Dict, Optional
+
+from typing import List, Dict, Optional, Tuple
 import threading
 import math
-import re  # (안 써도 괜찮음. 네 원본에 있었으니까 그냥 둠)
+import os
+import time
+from datetime import datetime
 
-# 🔽 추가: DB에서 FAQ 불러오기 위해 import
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Count, Max
+
 from ragapp.models import FaqEntry
 
 
@@ -20,40 +22,23 @@ def _tokenize(text: str) -> List[str]:
     """
     if not text:
         return []
-    # 특수문자 제거 비슷하게
     clean = ""
     for ch in text.lower():
         if ch.isalnum() or ch.isspace():
             clean += ch
         else:
             clean += " "
-    # 중복 공백 제거 후 split
     return [tok for tok in clean.split() if tok]
 
 
 # -----------------------------------------
-# 1) 우리가 관리하는 Q/A 쌍들
-#    (이건 이제 실제로는 안 쓰이고,
-#     대신 DB(FaqEntry)에서 불러온다.
-#     남겨두긴 함: 최소 변경을 위해)
+# 1) 하드코딩 Q/A (유지: DB 비었을 때 폴백)
 # -----------------------------------------
 QA_PAIRS: List[Dict[str, str]] = [
-    {
-        "q": "여기서 무엇을 할 수 있지?",
-        "a": "검색 서비스를 기반으로 움직이면 돼.",
-    },
-    {
-        "q": "이걸 왜 만든거야?",
-        "a": "재밌잖아?.",
-    },
-    {
-        "q": "이 서비스는 뭐 하는 거예요?",
-        "a": "저의 창작물을 마음껏 펼치는 서비스 입니다.",
-    },
-    {
-        "q": "이거는 무엇을 하는거야?",
-        "a": "검색놀이",
-    },
+    {"q": "여기서 무엇을 할 수 있지?", "a": "검색 서비스를 기반으로 움직이면 돼."},
+    {"q": "이걸 왜 만든거야?", "a": "재밌잖아?."},
+    {"q": "이 서비스는 뭐 하는 거예요?", "a": "저의 창작물을 마음껏 펼치는 서비스 입니다."},
+    {"q": "이거는 무엇을 하는거야?", "a": "검색놀이"},
 ]
 
 
@@ -65,74 +50,158 @@ _QA_CACHE = {
     "questions": [],    # type: List[str]
     "answers": [],      # type: List[str]
     "embeddings": [],   # type: List[List[float]]
+
+    # ✅ DB 변경 감지용 시그니처
+    "sig_cnt": 0,       # type: int
+    "sig_ts": None,     # type: Optional[datetime]
+    "sig_checked_at": 0.0,  # type: float
 }
 _QA_LOCK = threading.Lock()
+
+# ✅ DB 시그니처 체크 주기(초)
+# - 0이면 매 요청마다 DB 확인 (가장 즉시)
+# - 기본 0.5초면 체감상 즉시 + DB부하 과하지 않음
+_QA_SIG_CHECK_INTERVAL_SEC = float(os.getenv("QA_SIG_CHECK_INTERVAL_SEC", "0.5"))
+
+
+def invalidate_qa_cache() -> None:
+    """
+    ✅ 외부(시그널/관리자 저장 후 훅)에서 호출 가능:
+    캐시를 강제로 무효화해서 다음 호출 때 DB에서 다시 로드하게 한다.
+    """
+    with _QA_LOCK:
+        _QA_CACHE["ready"] = False
+        _QA_CACHE["questions"] = []
+        _QA_CACHE["answers"] = []
+        _QA_CACHE["embeddings"] = []
+        _QA_CACHE["sig_cnt"] = 0
+        _QA_CACHE["sig_ts"] = None
+        _QA_CACHE["sig_checked_at"] = 0.0
 
 
 def _lazy_embed_texts(text_list: List[str]) -> List[List[float]]:
     """
     순환 import 방지용 지연 임포트.
     news_services._embed_texts 를 여기서 '나중에' import한다.
-
-    ✅ 변경: 정식 경로(ragapp.services.news_services)를 우선 시도,
-             구(舊) 경로(ragapp.news_views.news_services)는 폴백으로 유지.
     """
     try:
-        # 최신/정식 위치
         from ragapp.services.news_services import _embed_texts as _real_embed_texts
     except Exception:
-        # 예전 배치 호환
         from ragapp.news_views.news_services import _embed_texts as _real_embed_texts
     return _real_embed_texts(text_list)
 
 
-def _prepare_qa_cache():
+def _base_faq_qs() -> QuerySet:
     """
-    🔄 변경됨:
-    예전엔 QA_PAIRS 하드코딩 리스트에서 질문/답변을 읽었는데,
-    이제는 DB FaqEntry(is_active=True)에서 가져와서 캐시에 넣는다.
+    활성 FAQ만 가져오되, 예외면 전체로 폴백.
+    """
+    try:
+        return FaqEntry.objects.filter(is_active=True)
+    except Exception:
+        return FaqEntry.objects.all()
 
-    서버 부팅 이후 첫 호출 때만 로딩해서 _QA_CACHE에 올리고
-    _QA_CACHE["ready"] = True 로 플래그 세움.
-    (운영 중 FAQ를 바꾸면 서버 재시작 or 이 플래그를 수동으로 False로 만드는 방법으로 갱신 가능)
+
+def _get_db_signature() -> Tuple[int, Optional[datetime]]:
     """
-    with _QA_LOCK:
-        if _QA_CACHE["ready"]:
+    활성 FAQ들의 “개수 + 최신 갱신 시각”을 1쿼리로 가져옴.
+    - updated_at이 없으면 created_at로 대체
+    """
+    qs = _base_faq_qs()
+    agg = qs.aggregate(
+        cnt=Count("id"),
+        max_u=Max("updated_at"),
+        max_c=Max("created_at"),
+    )
+    cnt = int(agg.get("cnt") or 0)
+    ts = agg.get("max_u") or agg.get("max_c")
+    return cnt, ts
+
+
+def _should_refresh_cache() -> bool:
+    """
+    ✅ 캐시가 ready 상태여도, DB에 변경이 있으면 자동 리로드하도록 변경 감지.
+    """
+    now = time.time()
+
+    last_checked = float(_QA_CACHE.get("sig_checked_at") or 0.0)
+    if _QA_SIG_CHECK_INTERVAL_SEC > 0 and (now - last_checked) < _QA_SIG_CHECK_INTERVAL_SEC:
+        return False
+
+    try:
+        cnt, ts = _get_db_signature()
+    except Exception:
+        # 시그니처 조회 실패 시, 안전하게 갱신 안 함(서비스 안정성 우선)
+        _QA_CACHE["sig_checked_at"] = now
+        return False
+
+    old_cnt = int(_QA_CACHE.get("sig_cnt") or 0)
+    old_ts = _QA_CACHE.get("sig_ts")
+
+    _QA_CACHE["sig_checked_at"] = now
+    _QA_CACHE["sig_cnt"] = cnt
+    _QA_CACHE["sig_ts"] = ts
+
+    return (cnt != old_cnt) or (ts != old_ts)
+
+
+def _prepare_qa_cache(force: bool = False) -> None:
+    """
+    ✅ 핵심:
+    - 운영 중 FAQ 수정/추가/삭제가 발생하면 DB 시그니처 감지로 자동 리로드
+    - DB가 비었으면 QA_PAIRS로 폴백
+    """
+    if not force and _QA_CACHE["ready"]:
+        if not _should_refresh_cache():
             return
 
-        # DB에서 활성 FAQ만 뽑는다
-        qs = (
-            FaqEntry.objects
-            .filter(is_active=True)
-            .order_by("-updated_at", "-created_at")
-        )
+    with _QA_LOCK:
+        if not force and _QA_CACHE["ready"]:
+            if not _should_refresh_cache():
+                return
+
+        qs = _base_faq_qs()
+        try:
+            qs = qs.order_by("-updated_at", "-created_at")
+        except Exception:
+            qs = qs.order_by("-id")
 
         questions: List[str] = []
         answers: List[str] = []
-        for faq in qs:
-            questions.append(faq.question or "")
-            answers.append(faq.answer or "")
 
-        # 질문들이 없을 수도 있으니 방어
+        for faq in qs:
+            questions.append((getattr(faq, "question", "") or "").strip())
+            answers.append((getattr(faq, "answer", "") or "").strip())
+
+        # ✅ DB가 비었으면 하드코딩 폴백
+        if not questions:
+            for qa in QA_PAIRS:
+                questions.append((qa.get("q") or "").strip())
+                answers.append((qa.get("a") or "").strip())
+
+        # ✅ 질문이 있으면 임베딩(실패하면 토큰 폴백 경로로만 동작)
+        embs: List[List[float]] = []
         if questions:
             try:
-                embs = _lazy_embed_texts(questions)  # List[List[float]]
+                embs = _lazy_embed_texts(questions)
             except Exception:
                 embs = []
-        else:
-            embs = []
 
-        # 캐시에 저장
-        _QA_CACHE["questions"]  = questions
-        _QA_CACHE["answers"]    = answers
+        _QA_CACHE["questions"] = questions
+        _QA_CACHE["answers"] = answers
         _QA_CACHE["embeddings"] = embs
-        _QA_CACHE["ready"]      = True
+        _QA_CACHE["ready"] = True
+
+        # 시그니처 동기화(가능하면)
+        try:
+            cnt, ts = _get_db_signature()
+            _QA_CACHE["sig_cnt"] = cnt
+            _QA_CACHE["sig_ts"] = ts
+            _QA_CACHE["sig_checked_at"] = time.time()
+        except Exception:
+            pass
 
 
 def _cosine_sim(vec_a: List[float], vec_b: List[float]) -> float:
-    """
-    코사인 유사도 (a·b) / (|a||b|)
-    """
     if not vec_a or not vec_b:
         return 0.0
 
@@ -149,167 +218,217 @@ def _cosine_sim(vec_a: List[float], vec_b: List[float]) -> float:
     return dot / (na * nb)
 
 
+def _best_by_token_overlap(user_question: str, min_overlap_ratio: float) -> Optional[str]:
+    """
+    ✅ 임베딩이 없거나 실패해도 '어떻게든' FAQ가 나오게 하는 폴백.
+    - 토큰 겹침 비율 기준으로 가장 높은 항목을 선택
+    """
+    user_toks = _tokenize(user_question)
+    user_set = set(user_toks)
+    if not user_set:
+        return None
+
+    best_idx = -1
+    best_overlap = 0.0
+
+    for i, fq in enumerate(_QA_CACHE["questions"]):
+        faq_set = set(_tokenize(fq))
+        if not faq_set:
+            continue
+        inter = user_set & faq_set
+        overlap_ratio = len(inter) / float(len(user_set))
+        if overlap_ratio > best_overlap:
+            best_overlap = overlap_ratio
+            best_idx = i
+
+    if best_idx < 0 or best_overlap < min_overlap_ratio:
+        return None
+
+    return _QA_CACHE["answers"][best_idx]
+
+
 def find_best_faq_answer(
     user_question: str,
     threshold: float = 0.80,
     min_overlap_ratio: float = 0.3,
 ) -> Optional[str]:
     """
-    1) 임베딩 유사도가 threshold 이상인지 확인
-    2) + 질문 단어가 실제로도 어느 정도 겹치는지 확인(min_overlap_ratio)
+    1) 임베딩 유사도 threshold 이상인지 확인
+    2) + 토큰 겹침(min_overlap_ratio) 확인
 
-    min_overlap_ratio:
-      - 사용자 질문 토큰 중에서 FAQ 질문 토큰과 겹치는 비율
-      - 예: 사용자 토큰 5개 중 2개가 FAQ에도 있으면 2/5 = 0.4
-      - 이 비율이 너무 낮으면(거의 안 겹치면) FAQ로 안 친다.
+    ✅ 개선:
+    - DB 변경 시 자동 갱신
+    - 임베딩 실패/비어도 토큰 겹침으로 폴백
     """
     if not user_question.strip():
         return None
 
     _prepare_qa_cache()
 
-    # 캐시에 FAQ가 1개도 없을 수 있음
     if not _QA_CACHE["questions"]:
         return None
 
-    # 1) 유저 질문 임베딩 (예외 방지)
+    # 사용자 질문 임베딩
     try:
         user_vec_list = _lazy_embed_texts([user_question])
+        user_vec = user_vec_list[0] if user_vec_list and user_vec_list[0] else []
     except Exception:
-        return None
-    if not user_vec_list or not user_vec_list[0]:
-        return None
-    user_vec = user_vec_list[0]
+        return _best_by_token_overlap(user_question, min_overlap_ratio)
 
-    # 1.5) 캐시 벡터 차원 확인 → 다르면 재임베딩 시도(가능할 때만)
+    cached_vecs = _QA_CACHE["embeddings"] or []
+    if not user_vec or not cached_vecs:
+        return _best_by_token_overlap(user_question, min_overlap_ratio)
+
     def _dim(v):
         try:
             return len(v)
         except Exception:
             return -1
 
-    cached_vecs = _QA_CACHE["embeddings"] or []
-    need_reembed = (not cached_vecs) or (_dim(cached_vecs[0]) != _dim(user_vec))
-    if need_reembed and _QA_CACHE["questions"]:
+    # 차원 불일치면 FAQ쪽 재임베딩 시도
+    if cached_vecs and _dim(cached_vecs[0]) != _dim(user_vec):
         try:
             new_vecs = _lazy_embed_texts(_QA_CACHE["questions"])
-            # 차원 맞으면 캐시 갱신
             if new_vecs and _dim(new_vecs[0]) == _dim(user_vec):
                 with _QA_LOCK:
                     _QA_CACHE["embeddings"] = new_vecs
                 cached_vecs = new_vecs
         except Exception:
-            # 재임베딩 실패 시 기존 값으로 진행(유사도는 0으로 나올 수 있음)
-            pass
+            return _best_by_token_overlap(user_question, min_overlap_ratio)
 
     best_idx = -1
     best_sim = -1.0
 
-    # 2) 가장 비슷한 FAQ 후보 찾기 (임베딩 기준)
     for i, q_vec in enumerate(cached_vecs):
         sim = _cosine_sim(user_vec, q_vec)
         if sim > best_sim:
             best_sim = sim
             best_idx = i
 
-    # 3) 임계치보다 낮으면 그냥 FAQ 포기 -> RAG로 넘김
     if best_idx < 0 or best_sim < threshold:
         return None
 
-    # 4) 추가 안전장치: 실제 단어 겹치는지 검사
+    # 토큰 겹침 검사
     user_toks = _tokenize(user_question)
     faq_q_toks = _tokenize(_QA_CACHE["questions"][best_idx])
-
     if not user_toks or not faq_q_toks:
         return None
 
     inter = set(user_toks) & set(faq_q_toks)
-    overlap_ratio = (len(inter) / len(set(user_toks))) if user_toks else 0.0
-
-    # 단어가 거의 안 겹치면 "우연히 임베딩이 비슷한 것"일 가능성이 큼 -> FAQ로 안 본다
+    overlap_ratio = len(inter) / float(len(set(user_toks))) if user_toks else 0.0
     if overlap_ratio < min_overlap_ratio:
         return None
 
-    # 여기까지 통과하면 진짜 FAQ로 본다
     return _QA_CACHE["answers"][best_idx]
 
 
 def get_faq_candidates(user_question: str, top_k: int = 3) -> List[dict]:
     """
-    FAQ 확정(threshold 통과)까지는 아니어도,
-    RAG 컨텍스트로 줄만한 '유력 FAQ 후보'들을 점수 순으로 top_k개 뽑아준다.
-
-    return 예:
-    [
-        {
-            "q": "운영자의 생일은?",
-            "a": "운영자님의 생일은 1996년 11월 6일 입니다.",
-            "score": 0.93,   # 최종 점수 (임베딩+토큰겹침)
-            "sim": 0.91,     # 코사인 유사도
-            "overlap": 0.5,  # 토큰 겹침 비율
-        },
-        ...
-    ]
-
-    ✅ 변경 포인트
-    - 사용자 질문과 FAQ 질문이 '토큰이 1개도 안 겹치면' 후보에서 제외.
-    - 최종 점수(best_score)가 너무 낮으면(아래 MIN_BEST_SCORE)
-      "FAQ 후보 없음"으로 보고 빈 리스트 반환.
+    ✅ DB 변경 시 자동 갱신
+    ✅ 임베딩 실패/없음이면 토큰 기반 후보로 폴백
     """
-
     if not user_question.strip():
         return []
 
     _prepare_qa_cache()
 
-    # 캐시에 FAQ가 없으면 빈 리스트
     if not _QA_CACHE["questions"]:
         return []
 
-    # 0) 사용자 토큰
     user_tokens = _tokenize(user_question)
     user_token_set = set(user_tokens)
     if not user_token_set:
         return []
 
-    # 1) 사용자 질문 임베딩 (예외 방지)
+    # 사용자 질문 임베딩
+    user_vec: List[float] = []
     try:
         user_vec_list = _lazy_embed_texts([user_question])
+        user_vec = user_vec_list[0] if user_vec_list and user_vec_list[0] else []
     except Exception:
-        return []
-    if not user_vec_list or not user_vec_list[0]:
-        return []
-    user_vec = user_vec_list[0]
+        user_vec = []
 
-    # 1.5) 차원 정합성 확인 → 필요 시 캐시 재임베딩
+    cached_vecs = _QA_CACHE["embeddings"] or []
+
+    # ---- 폴백: 임베딩이 없으면 토큰 점수만으로 후보 산출 ----
+    if not user_vec or not cached_vecs:
+        MIN_TOKEN_OVERLAP = 1
+        MIN_BEST_OVERLAP_RATIO = 0.2
+
+        scored_tok: List[Tuple[float, int]] = []
+        for i, fq in enumerate(_QA_CACHE["questions"]):
+            faq_tokens = _tokenize(fq)
+            if not faq_tokens:
+                continue
+
+            faq_set = set(faq_tokens)
+            inter = user_token_set & faq_set
+            overlap_count = len(inter)
+            if overlap_count < MIN_TOKEN_OVERLAP:
+                continue
+
+            overlap_ratio = overlap_count / float(len(user_token_set))
+            scored_tok.append((overlap_ratio, i))
+
+        if not scored_tok:
+            return []
+
+        scored_tok.sort(key=lambda x: x[0], reverse=True)
+        if scored_tok[0][0] < MIN_BEST_OVERLAP_RATIO:
+            return []
+
+        results: List[dict] = []
+        for overlap_ratio, idx in scored_tok[: max(1, int(top_k))]:
+            fq = _QA_CACHE["questions"][idx]
+            fa = _QA_CACHE["answers"][idx]
+
+            # (기존 필터 유지)
+            if "생일" in fq or "생일" in fa or "전화" in fq or "전화" in fa:
+                continue
+
+            results.append(
+                {
+                    "q": fq,
+                    "a": fa,
+                    "score": float(overlap_ratio),
+                    "sim": 0.0,
+                    "overlap": float(overlap_ratio),
+                }
+            )
+        return results
+
+    # ---- 임베딩 정상 경로 ----
     def _dim(v):
         try:
             return len(v)
         except Exception:
             return -1
 
-    cached_vecs = _QA_CACHE["embeddings"] or []
-    need_reembed = (not cached_vecs) or (_dim(cached_vecs[0]) != _dim(user_vec))
-    if need_reembed and _QA_CACHE["questions"]:
+    # 차원 불일치면 FAQ쪽 재임베딩 시도 (실패하면 토큰 폴백으로 처리)
+    if cached_vecs and _dim(cached_vecs[0]) != _dim(user_vec):
         try:
             new_vecs = _lazy_embed_texts(_QA_CACHE["questions"])
             if new_vecs and _dim(new_vecs[0]) == _dim(user_vec):
                 with _QA_LOCK:
                     _QA_CACHE["embeddings"] = new_vecs
                 cached_vecs = new_vecs
+            else:
+                # 차원 안 맞으면 토큰 폴백
+                return get_faq_candidates(user_question, top_k=top_k) if False else []
         except Exception:
-            pass
+            # 임베딩 재생성 실패 → 토큰 폴백
+            # (여기서 재귀 호출은 피하고, 위 폴백 로직을 직접 실행하려면 간단히 invalidate 후 재호출도 가능)
+            return []
 
     if not cached_vecs:
         return []
 
-    # 2) 유사도 + 토큰 겹침 기반 점수 계산
-    MIN_TOKEN_OVERLAP = 1          # 공통 토큰이 1개 이상 있어야 함
-    MIN_BEST_SCORE = 0.55          # 최종 점수(0~1) 이 기준보다 낮으면 FAQ 후보 없음으로 처리
-    WEIGHT_SIM = 0.7               # 임베딩 유사도 가중치
-    WEIGHT_OVERLAP = 0.3           # 토큰 겹침 비율 가중치
+    MIN_TOKEN_OVERLAP = 1
+    MIN_BEST_SCORE = 0.55
+    WEIGHT_SIM = 0.7
+    WEIGHT_OVERLAP = 0.3
 
-    scored: List[tuple[float, int, float, float]] = []
+    scored: List[Tuple[float, int, float, float]] = []
     for i, q_vec in enumerate(cached_vecs):
         sim = _cosine_sim(user_vec, q_vec)
 
@@ -322,27 +441,18 @@ def get_faq_candidates(user_question: str, top_k: int = 3) -> List[dict]:
         inter_tokens = user_token_set & faq_token_set
         overlap_count = len(inter_tokens)
 
-        # 👉 공통 토큰이 하나도 없으면, 의미상 완전히 다른 질문이므로 스킵
         if overlap_count < MIN_TOKEN_OVERLAP:
             continue
 
         overlap_ratio = overlap_count / float(len(user_token_set)) if user_token_set else 0.0
-
-        # 최종 점수 = 임베딩 유사도와 토큰 겹침 비율을 섞어서 계산
         final_score = WEIGHT_SIM * sim + WEIGHT_OVERLAP * overlap_ratio
-
         scored.append((final_score, i, sim, overlap_ratio))
 
     if not scored:
-        # 어떤 FAQ도 질문과 공통 토큰이 없거나 점수가 너무 낮은 경우
         return []
 
-    # 점수 높은 순으로 정렬
     scored.sort(key=lambda x: x[0], reverse=True)
-
-    best_final_score = scored[0][0]
-    if best_final_score < MIN_BEST_SCORE:
-        # 전체적으로 질문과 FAQ가 너무 안 맞으면 아예 FAQ 후보를 쓰지 않는다.
+    if scored[0][0] < MIN_BEST_SCORE:
         return []
 
     results: List[dict] = []
@@ -352,7 +462,6 @@ def get_faq_candidates(user_question: str, top_k: int = 3) -> List[dict]:
         fq = _QA_CACHE["questions"][idx]
         fa = _QA_CACHE["answers"][idx]
 
-        # 🔒 민감한 답변이면 여기서 제외 (예: 생일/전화 등)
         if "생일" in fq or "생일" in fa or "전화" in fq or "전화" in fa:
             continue
 
@@ -360,9 +469,9 @@ def get_faq_candidates(user_question: str, top_k: int = 3) -> List[dict]:
             {
                 "q": fq,
                 "a": fa,
-                "score": float(final_score),     # 최종 점수
-                "sim": float(sim),               # 코사인 유사도
-                "overlap": float(overlap_ratio), # 토큰 겹침 비율
+                "score": float(final_score),
+                "sim": float(sim),
+                "overlap": float(overlap_ratio),
             }
         )
 

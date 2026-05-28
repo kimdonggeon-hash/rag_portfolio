@@ -28,19 +28,85 @@
 
     function getReqId() {
         try {
-            return (
-                (window.newReqId && window.newReqId("qarag")) ||
-                "qarag-" + Date.now().toString(36)
-            );
+            return (window.newReqId && window.newReqId("qarag")) || "qarag-" + Date.now().toString(36);
         } catch (_) {
             return "qarag-" + Date.now().toString(36);
         }
     }
 
+    // ✅ 사용량 위젯 카운트(있으면 갱신)
+    function bumpUsage(kind) {
+        try {
+            if (window.QARAG_USAGE && typeof window.QARAG_USAGE.bump === "function") {
+                window.QARAG_USAGE.bump(kind);
+            }
+        } catch (_) { }
+    }
+
     // QARAG 세션 id (탭마다 하나)
     const QARAG_SESSION_ID = (window.QARAG_SESSION_ID =
-        window.QARAG_SESSION_ID ||
-        "qarag-" + Math.random().toString(36).slice(2) + Date.now().toString(36));
+        window.QARAG_SESSION_ID || "qarag-" + Math.random().toString(36).slice(2) + Date.now().toString(36));
+
+    // ─────────────────────────────────────
+    // ✅ 동의 게이트(폼이 없어도 강제)
+    // ─────────────────────────────────────
+    function passConsentGateForQarag() {
+        try {
+            if (typeof window.ensureConsentGate === "function") {
+                const panel = document.getElementById("qaragPanel") || document.body;
+                return window.ensureConsentGate(panel) !== false;
+            }
+        } catch (_) { }
+        return true;
+    }
+
+    // ─────────────────────────────────────
+    // ✅ PII 탐지/마스킹 (질문은 차단, 피드백/코멘트는 마스킹)
+    // ─────────────────────────────────────
+    const PII_RULES = [
+        { key: "email", re: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi },
+        { key: "phone_mobile", re: /\b01[016789][-\s]?\d{3,4}[-\s]?\d{4}\b/g },
+        { key: "phone_land", re: /\b0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}\b/g },
+        { key: "rrn", re: /\b\d{6}[-\s]?[1-4]\d{6}\b/g },
+    ];
+
+    function detectLikelyPII(text) {
+        const s = String(text || "");
+        if (!s.trim()) return false;
+        for (const r of PII_RULES) {
+            try {
+                if (r.re.test(s)) return true;
+            } catch (_) {
+            } finally {
+                try { r.re.lastIndex = 0; } catch (_) { }
+            }
+        }
+        return false;
+    }
+
+    function redactPII(text) {
+        let s = String(text || "");
+        if (!s.trim()) return s;
+        for (const r of PII_RULES) {
+            try {
+                s = s.replace(r.re, "[REDACTED]");
+            } catch (_) {
+            } finally {
+                try { r.re.lastIndex = 0; } catch (_) { }
+            }
+        }
+        return s;
+    }
+
+    // ─────────────────────────────────────
+    // ✅ AI 생성 배지 유틸 (봇 말풍선에만)
+    // ─────────────────────────────────────
+    function _makeAIBadge() {
+        const badge = document.createElement("span");
+        badge.className = "ai-generated-badge";
+        badge.textContent = "AI 생성";
+        return badge;
+    }
 
     // ─────────────────────────────────────
     // 말풍선 렌더링 (순수 RAG/FAQ 전용)
@@ -54,11 +120,7 @@
         const now = Date.now();
         const s = String(text || "");
 
-        if (
-            role === lastMsg.role &&
-            s === lastMsg.text &&
-            now - lastMsg.at < 1500
-        ) {
+        if (role === lastMsg.role && s === lastMsg.text && now - lastMsg.at < 1500) {
             return null;
         }
         lastMsg.role = role;
@@ -66,13 +128,28 @@
         lastMsg.at = now;
 
         const isUser = role === "user" || role === "me" || role === "operator-me";
+        const isBot = !isUser;
 
         const wrap = document.createElement("div");
         wrap.className = "qarag-msgwrap " + (isUser ? "user" : "bot");
+        if (isBot) wrap.dataset.aiGenerated = "1";
 
         const div = document.createElement("div");
         div.className = "qarag-msg " + (isUser ? "user" : "bot");
-        div.textContent = s;
+        if (isBot) div.dataset.aiGenerated = "1";
+
+        // ✅ user는 텍스트만
+        if (isUser) {
+            div.textContent = s;
+        } else {
+            // ✅ bot은 "AI 생성" 배지 + 텍스트(텍스트 노드로 안전하게)
+            div.appendChild(_makeAIBadge());
+
+            const body = document.createElement("span");
+            body.className = "qarag-msg-text";
+            body.textContent = s;
+            div.appendChild(body);
+        }
 
         wrap.appendChild(div);
         box.appendChild(wrap);
@@ -89,8 +166,9 @@
     function makeFeedbackRow(question, answer) {
         const row = document.createElement("div");
         row.className = "qarag-feedback-row";
-        row.dataset.question = question || "";
-        row.dataset.answer = answer || "";
+        // ✅ 저장/전송용 데이터는 마스킹된 값으로 유지
+        row.dataset.question = redactPII(question || "");
+        row.dataset.answer = redactPII(answer || "");
         row.innerHTML = `
       <div class="qarag-feedback-card">
         <div class="qarag-feedback-head">
@@ -104,6 +182,167 @@
       </div>
     `;
         return row;
+    }
+
+    // ─────────────────────────────────────
+    // 429(사용량/레이트리밋) UX 개선 유틸
+    // ─────────────────────────────────────
+    function _parseMaybeJson(text) {
+        const t = (text || "").trim();
+        if (!t) return null;
+        try { return JSON.parse(t); } catch (_) { return null; }
+    }
+
+    function _isHtmlLike(text) {
+        const t0 = (text || "").trim().slice(0, 40).toLowerCase();
+        return t0.startsWith("<!doctype") || t0.startsWith("<html");
+    }
+
+    function _labelForKind(kind) {
+        switch (kind) {
+            case "web": return "웹 검색";
+            case "rag": return "RAG 질문";
+            case "pdf": return "PDF";
+            case "image": return "이미지 업로드";
+            case "table": return "표 업로드";
+            default: return "요청";
+        }
+    }
+
+    function _guessKindFromUrl(url) {
+        const u = String(url || "").toLowerCase();
+        if (u.includes("/api/web")) return "web";
+        if (u.includes("/api/rag")) return "rag";
+        if (u.includes("/api/pdf")) return "pdf";
+        if (u.includes("/media/")) return "image";
+        if (u.includes("/table/")) return "table";
+        return "rag";
+    }
+
+    // /api/usage/status/는 위젯 갱신 대응용이니 429 메시지 만들 때 활용
+    const _USAGE_CACHE = { at: 0, data: null, inflight: null };
+
+    async function _getUsageStatusSafe(signal) {
+        // 너무 자주 안 치게 2초 캐시
+        const now = Date.now();
+        if (_USAGE_CACHE.data && now - _USAGE_CACHE.at < 2000) return _USAGE_CACHE.data;
+        if (_USAGE_CACHE.inflight) return _USAGE_CACHE.inflight;
+
+        const candidates = ["/api/usage/status/", "/api/usage/status"];
+        _USAGE_CACHE.inflight = (async () => {
+            for (const url of candidates) {
+                try {
+                    const res = await fetch(url, {
+                        method: "GET",
+                        credentials: "same-origin",
+                        signal,
+                        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+                    });
+                    if (!res.ok) continue;
+                    const j = await res.json().catch(() => null);
+                    if (!j) continue;
+                    if (j.ok === false) continue;
+                    _USAGE_CACHE.at = Date.now();
+                    _USAGE_CACHE.data = j;
+                    return j;
+                } catch (e) {
+                    if (e && e.name === "AbortError") throw e;
+                }
+            }
+            return null;
+        })().finally(() => {
+            _USAGE_CACHE.inflight = null;
+        });
+
+        return _USAGE_CACHE.inflight;
+    }
+
+    function _readUsageNumber(usage, pathArr) {
+        try {
+            let cur = usage;
+            for (const k of pathArr) {
+                if (!cur || typeof cur !== "object") return null;
+                cur = cur[k];
+            }
+            if (cur === null || cur === undefined) return null;
+            const n = Number(cur);
+            return Number.isFinite(n) ? n : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    async function _humanize429(errObj, signal) {
+        const code = String(errObj.code || "").toLowerCase();
+        const message = String(errObj.message || "").toLowerCase();
+
+        if (code.includes("rate") || message.includes("too many") || message.includes("rate")) {
+            const sec = errObj.retryAfter ? `${errObj.retryAfter}초 후 ` : "";
+            return `요청이 너무 빠르게 들어왔어요. ${sec}다시 시도해 주세요.`;
+        }
+
+        const usage = await _getUsageStatusSafe(signal);
+        const kind = errObj.kind || _guessKindFromUrl(errObj.url);
+        const label = _labelForKind(kind);
+
+        if (usage) {
+            const limit =
+                _readUsageNumber(usage, ["limits", kind]) ??
+                _readUsageNumber(usage, ["limit", kind]) ??
+                _readUsageNumber(usage, ["daily_limits", kind]) ??
+                _readUsageNumber(usage, ["limits", kind.toUpperCase()]) ??
+                null;
+
+            const used =
+                _readUsageNumber(usage, ["used", kind]) ??
+                _readUsageNumber(usage, ["usage", kind]) ??
+                _readUsageNumber(usage, ["count", kind]) ??
+                null;
+
+            const remaining =
+                _readUsageNumber(usage, ["remaining", kind]) ??
+                _readUsageNumber(usage, ["left", kind]) ??
+                null;
+
+            if (typeof limit === "number" && typeof used === "number") {
+                return `오늘 ${label} 사용 가능 횟수를 다 썼어요. (사용: ${used}/${limit})\n내일 다시 시도해 주세요.`;
+            }
+            if (typeof remaining === "number" && remaining <= 0) {
+                return `오늘 ${label} 사용 가능 횟수를 다 썼어요.\n내일 다시 시도해 주세요.`;
+            }
+        }
+
+        if (errObj.message && String(errObj.message).trim().length > 0) {
+            return String(errObj.message);
+        }
+
+        return `오늘 ${label} 사용 가능 횟수를 다 썼어요.\n내일 다시 시도해 주세요.`;
+    }
+
+    function _makeErr(message, props) {
+        const e = new Error(message || "요청 실패");
+        try {
+            if (props && typeof props === "object") {
+                Object.keys(props).forEach((k) => { e[k] = props[k]; });
+            }
+        } catch (_) { }
+        return e;
+    }
+
+    function _errRank(e) {
+        const s = Number(e && e.status) || 0;
+        if (s === 429) return 100;
+        if (s === 403) return 80;
+        if (s === 401) return 70;
+        if (s >= 500) return 60;
+        if (s === 404) return 10;
+        return 30;
+    }
+
+    function _pickBetterErr(a, b) {
+        if (!a) return b;
+        if (!b) return a;
+        return _errRank(b) >= _errRank(a) ? b : a;
     }
 
     // ─────────────────────────────────────
@@ -130,6 +369,7 @@
         const baseHeaders = {
             "X-Request-Id": reqId,
             "X-Requested-With": "XMLHttpRequest",
+            Accept: "application/json",
         };
         if (csrftoken) baseHeaders["X-CSRFToken"] = csrftoken;
 
@@ -152,39 +392,115 @@
                 log("QARAG_FETCH → " + c.url, { reqId, payload, method: init.method });
 
                 const res = await fetch(c.url, init);
-                const text = await res.text();
+                const retryAfter = parseInt(res.headers.get("Retry-After") || "0", 10) || null;
 
-                const t0 = (text || "").trim().slice(0, 20).toLowerCase();
-                if (t0.startsWith("<!doctype") || t0.startsWith("<html")) {
-                    lastErr = new Error("JSON이 아닌 응답(로그인/에러 페이지) @ " + c.url);
-                    continue;
-                }
-
-                let j = null;
-                try {
-                    j = JSON.parse(text);
-                } catch (_) { }
-
-                if (!res.ok) {
-                    lastErr = new Error("HTTP " + res.status + " @ " + c.url);
-                    continue;
-                }
-                if (j && j.ok === false) {
-                    lastErr = new Error(
-                        (j.error || j.message || "API 실패") + " @ " + c.url
+                const text = await res.text().catch(() => "");
+                if (_isHtmlLike(text)) {
+                    lastErr = _pickBetterErr(
+                        lastErr,
+                        _makeErr("JSON이 아닌 응답(로그인/에러 페이지) @ " + c.url, {
+                            status: res.status || 0,
+                            url: c.url,
+                            code: "non_json_response",
+                            userMessage: "요청이 차단되었거나 로그인 페이지가 반환됐어요. 다시 시도해 주세요.",
+                        })
                     );
                     continue;
                 }
 
+                const j = _parseMaybeJson(text);
+
+                const code = (j && (j.error || j.code)) || "";
+                const msg =
+                    (j && (j.message || j.detail)) ||
+                    (text && String(text).trim().slice(0, 300)) ||
+                    ("HTTP " + res.status);
+
+                if (!res.ok) {
+                    if (res.status === 429) {
+                        const kind = _guessKindFromUrl(c.url);
+                        const friendly = await _humanize429(
+                            { status: 429, url: c.url, code, message: msg, retryAfter, kind },
+                            signal
+                        );
+
+                        lastErr = _pickBetterErr(
+                            lastErr,
+                            _makeErr(friendly, {
+                                status: 429,
+                                url: c.url,
+                                code: code || "too_many_requests",
+                                retryAfter,
+                                userMessage: friendly,
+                                kind,
+                            })
+                        );
+                        continue;
+                    }
+
+                    const userMessage =
+                        res.status === 403
+                            ? "요청 권한이 없거나 보안 정책에 의해 차단됐어요. 새로고침 후 다시 시도해 주세요."
+                            : res.status === 401
+                                ? "로그인이 필요해요. 다시 로그인 후 시도해 주세요."
+                                : "요청에 실패했어요. (HTTP " + res.status + ")";
+
+                    lastErr = _pickBetterErr(
+                        lastErr,
+                        _makeErr(msg + " @ " + c.url, {
+                            status: res.status,
+                            url: c.url,
+                            code: code || "http_error",
+                            userMessage: msg && String(msg).trim() ? String(msg) : userMessage,
+                        })
+                    );
+                    continue;
+                }
+
+                if (j && j.ok === false) {
+                    if (String(code).toLowerCase().includes("rate") || String(code).toLowerCase().includes("quota")) {
+                        const kind = _guessKindFromUrl(c.url);
+                        const friendly = await _humanize429(
+                            { status: 429, url: c.url, code, message: msg, retryAfter: null, kind },
+                            signal
+                        );
+                        lastErr = _pickBetterErr(
+                            lastErr,
+                            _makeErr(friendly, { status: 429, url: c.url, code, userMessage: friendly, kind })
+                        );
+                    } else {
+                        lastErr = _pickBetterErr(
+                            lastErr,
+                            _makeErr((code || msg || "API 실패") + " @ " + c.url, {
+                                status: 200,
+                                url: c.url,
+                                code: code || "api_failed",
+                                userMessage: msg || "요청에 실패했어요.",
+                            })
+                        );
+                    }
+                    continue;
+                }
+
+                const codeUp = String((j && (j.code || j.error_code || j.err_code)) || "").toUpperCase();
+                const blocked = !!(j && (codeUp === "PII_BLOCKED" || j.mode === "blocked"));
+
+                if (blocked) {
+                    const txt =
+                        (j && (j.answer_text || j.answer || j.msg || j.message || j.detail || j.error)) ||
+                        "개인정보로 보이는 내용이 있어 전송을 중단했어요.";
+
+                    throw _makeErr(txt, {
+                        status: 200,
+                        url: c.url,
+                        code: "PII_BLOCKED",
+                        userMessage: txt,
+                        blocked: true,
+                    });
+                }
+
                 if (j) {
-                    const ans =
-                        j.answer_text ||
-                        j.answer ||
-                        j.text ||
-                        j.reply ||
-                        j.result ||
-                        j.a ||
-                        j.data;
+                    const ans = j.answer_text || j.answer || j.text || j.reply || j.result || j.a || j.data;
                     if (ans && String(ans).trim()) return String(ans);
                 }
 
@@ -192,7 +508,15 @@
                 return fallback || "응답이 없습니다.";
             } catch (e) {
                 if (e && e.name === "AbortError") throw e;
-                lastErr = e;
+                lastErr = _pickBetterErr(
+                    lastErr,
+                    _makeErr(e && e.message ? e.message : "요청 실패", {
+                        status: 0,
+                        url: (c && c.url) || "",
+                        code: "network_error",
+                        userMessage: "네트워크 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
+                    })
+                );
             }
         }
 
@@ -205,9 +529,7 @@
     const BUSY = { inflight: false, lastQ: "", lastAt: 0, ctrl: null };
 
     function abortInflight() {
-        try {
-            BUSY.ctrl && BUSY.ctrl.abort();
-        } catch (_) { }
+        try { BUSY.ctrl && BUSY.ctrl.abort(); } catch (_) { }
     }
 
     async function sendQarag(ev) {
@@ -218,11 +540,18 @@
         const q = (input?.value || "").trim();
         if (!q) return false;
 
+        if (!passConsentGateForQarag()) {
+            addBubble("bot", "먼저 저장 동의가 필요해요. 안내를 확인하고 다시 시도해 주세요.");
+            return false;
+        }
+
+        if (detectLikelyPII(q)) {
+            addBubble("bot", "개인정보로 보이는 내용이 포함되어 전송하지 않았어요. 지우고 다시 시도해 주세요.");
+            return false;
+        }
+
         const now = Date.now();
-        if (
-            BUSY.inflight ||
-            (BUSY.lastQ === q && now - BUSY.lastAt < 1200)
-        ) {
+        if (BUSY.inflight || (BUSY.lastQ === q && now - BUSY.lastAt < 1200)) {
             return false;
         }
 
@@ -249,6 +578,8 @@
             const answer = await callRagAPI(q, BUSY.ctrl.signal);
             addBubble("bot", answer);
 
+            bumpUsage("rag");
+
             const box = document.getElementById("qaragMessages");
             if (box) {
                 box.appendChild(makeFeedbackRow(q, answer));
@@ -259,17 +590,21 @@
                 log("QARAG_ABORT", e);
             } else {
                 log("QARAG_ERR", e);
-                addBubble(
-                    "bot",
-                    "❌ 오류: " + (e && e.message ? e.message : "요청 실패")
-                );
+                const friendly = e && e.userMessage ? e.userMessage : e && e.message ? e.message : "요청 실패";
+                addBubble("bot", "⚠️ " + friendly);
             }
         } finally {
             BUSY.inflight = false;
             if (input) {
                 input.disabled = false;
                 input.placeholder = "메시지 보내기…";
-                input.focus();
+                // ⚠️ 패널이 닫히는 도중(숨김/inert)에는 focus를 주지 않음
+                try {
+                    const panel = document.getElementById("qaragPanel");
+                    if (panel && !panel.hidden && panel.getAttribute("aria-hidden") !== "true" && !panel.hasAttribute("inert")) {
+                        input.focus();
+                    }
+                } catch (_) { }
             }
             if (btn) {
                 btn.disabled = false;
@@ -288,15 +623,12 @@
     function centerQaragPanel(panel) {
         if (!panel) return;
 
-        // 이미 사용자가 한번이라도 움직였으면 자동 중앙정렬 안 함
         if (panel.dataset.userMoved === "1") return;
         if (panel.dataset.centered === "1") return;
 
         const rect = panel.getBoundingClientRect();
-        const vw =
-            window.innerWidth || document.documentElement.clientWidth || 0;
-        const vh =
-            window.innerHeight || document.documentElement.clientHeight || 0;
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
 
         if (!rect.width || !rect.height || !vw || !vh) return;
 
@@ -326,11 +658,7 @@
 
         function startDrag(e) {
             const target = e.target;
-            if (
-                target &&
-                target.closest &&
-                target.closest("button, a, input, textarea, [data-no-drag]")
-            ) {
+            if (target && target.closest && target.closest("button, a, input, textarea, [data-no-drag]")) {
                 return;
             }
 
@@ -393,6 +721,60 @@
     }
 
     // ─────────────────────────────────────
+    // ✅ 접근성 안전: 패널 열기/닫기 포커스 관리
+    // ─────────────────────────────────────
+    let _qaragReturnFocusEl = null;
+
+    function _isFocusable(el) {
+        if (!el || !(el instanceof HTMLElement)) return false;
+        if (el.hasAttribute("disabled")) return false;
+        const tab = el.getAttribute("tabindex");
+        if (tab === "-1") return false;
+        // hidden/aria-hidden/inert는 포커스 대상에서 제외
+        if (el.hidden) return false;
+        if (el.getAttribute("aria-hidden") === "true") return false;
+        if (el.hasAttribute("inert")) return false;
+        return true;
+    }
+
+    function _safeFocus(el) {
+        try {
+            if (!_isFocusable(el)) return false;
+            el.focus({ preventScroll: true });
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function _firstFocusable(root) {
+        if (!root) return null;
+        return root.querySelector(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+    }
+
+    function _moveFocusOutsidePanel(panel, launch) {
+        try {
+            const ae = document.activeElement;
+            if (ae instanceof HTMLElement && panel && panel.contains(ae)) {
+                // 1) 저장해둔 복귀 포커스
+                if (_qaragReturnFocusEl && document.contains(_qaragReturnFocusEl)) {
+                    if (_safeFocus(_qaragReturnFocusEl)) return;
+                }
+                // 2) launch 버튼
+                if (launch && document.contains(launch)) {
+                    if (_safeFocus(launch)) return;
+                }
+                // 3) 최후: body
+                if (document.body) {
+                    try { document.body.focus({ preventScroll: true }); } catch (_) { }
+                }
+            }
+        } catch (_) { }
+    }
+
+    // ─────────────────────────────────────
     // 패널 열기/닫기
     // ─────────────────────────────────────
     function wirePanel() {
@@ -411,10 +793,21 @@
         }
 
         function open() {
+            // 열기 직전 포커스 저장(닫을 때 복귀)
+            try {
+                const ae = document.activeElement;
+                _qaragReturnFocusEl = (ae instanceof HTMLElement) ? ae : null;
+            } catch (_) {
+                _qaragReturnFocusEl = null;
+            }
+
             panel.hidden = false;
             panel.classList.add("show");
+
+            // ✅ 먼저 상호작용 허용
             panel.removeAttribute("inert");
             panel.setAttribute("aria-hidden", "false");
+
             launch.setAttribute("aria-expanded", "true");
             document.body.classList.add("qarag-open");
 
@@ -426,18 +819,29 @@
 
             centerQaragPanel(panel);
 
-            const input = document.getElementById("qaragInput");
-            if (input) setTimeout(() => input.focus(), 0);
+            // ✅ 포커스를 패널 내부로 이동 (닫기 버튼 우선, 없으면 입력)
+            requestAnimationFrame(() => {
+                const input = document.getElementById("qaragInput");
+                const target = close || input || _firstFocusable(panel) || panel;
+                if (target && typeof target.focus === "function") {
+                    try { target.focus({ preventScroll: true }); } catch (_) { }
+                }
+            });
         }
 
         function closeFn() {
             // RAG 요청 중단
             abortInflight();
 
-            if (panel.contains(document.activeElement)) launch.focus();
+            // ✅ (핵심) aria-hidden/inert/hidden 적용 전에 포커스를 패널 밖으로 이동
+            _moveFocusOutsidePanel(panel, launch);
 
+            // ✅ 상호작용 차단
             panel.setAttribute("inert", "");
+
+            // aria-hidden은 '보이는 동안 페이드아웃'을 위해 유지 가능
             panel.setAttribute("aria-hidden", "true");
+
             panel.classList.remove("show");
             launch.setAttribute("aria-expanded", "false");
             document.body.classList.remove("qarag-open");
@@ -447,6 +851,7 @@
                 backdrop.setAttribute("aria-hidden", "true");
             }
 
+            // 애니메이션 이후 숨김 (hidden은 접근성 트리에서도 제거)
             setTimeout(() => {
                 panel.hidden = true;
                 if (backdrop) backdrop.hidden = true;
@@ -499,8 +904,7 @@
                     if (h < baseHeight) h = baseHeight;
                     if (h > maxHeight) h = maxHeight;
                     input.style.height = h + "px";
-                    input.style.overflowY =
-                        input.scrollHeight > maxHeight ? "auto" : "hidden";
+                    input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
                 }
 
                 input.addEventListener("input", autoResize);
@@ -567,21 +971,25 @@
         let reasons = [];
         let comment = "";
         if (opts && typeof opts === "object") {
-            if (Array.isArray(opts.reasons))
-                reasons = opts.reasons.map((x) => String(x));
+            if (Array.isArray(opts.reasons)) reasons = opts.reasons.map((x) => String(x));
             if (typeof opts.comment === "string") comment = opts.comment;
         } else if (typeof opts === "string") comment = opts;
 
         const djangoSessionId = getCookie("sessionid") || null;
 
+        // ✅ 마스킹 적용(피드백/코멘트/answer/question)
+        const safeQuestion = redactPII(question);
+        const safeAnswer = redactPII(answer);
+        const safeComment = redactPII(comment);
+
         const payload = {
             answer_type: "qa",
             from_ui: "qarag_main",
             helpful,
-            question,
-            answer,
+            question: safeQuestion,
+            answer: safeAnswer,
             reasons,
-            comment,
+            comment: safeComment,
             stage,
             session_id: QARAG_SESSION_ID,
         };
@@ -597,6 +1005,7 @@
                 "X-Requested-With": "XMLHttpRequest",
                 "X-Request-Id": reqId,
                 "X-CSRFToken": csrftoken || "",
+                Accept: "application/json",
             },
             credentials: "same-origin",
             body: JSON.stringify(payload),
@@ -604,32 +1013,21 @@
             .then(async (res) => {
                 const text = await res.text();
                 let j = {};
-                try {
-                    j = JSON.parse(text);
-                } catch (_) { }
+                try { j = JSON.parse(text); } catch (_) { }
                 if (!res.ok || (j && j.ok === false)) {
-                    const msg =
-                        (j && (j.error || j.message || j.detail)) ||
-                        "HTTP " + res.status;
+                    const msg = (j && (j.error || j.message || j.detail)) || "HTTP " + res.status;
                     throw new Error(msg);
                 }
                 return j;
             })
             .catch((e) => {
-                log(
-                    "QARAG_FEEDBACK_ERR",
-                    e && e.message ? e.message : e
-                );
+                log("QARAG_FEEDBACK_ERR", e && e.message ? e.message : e);
                 throw e;
             });
     }
 
     function showBadFeedbackForm(row) {
-        if (
-            row.nextElementSibling &&
-            row.nextElementSibling.classList?.contains("qarag-feedback-form")
-        )
-            return;
+        if (row.nextElementSibling && row.nextElementSibling.classList?.contains("qarag-feedback-form")) return;
 
         const card = document.createElement("div");
         card.className = "qarag-feedback-form";
@@ -663,41 +1061,23 @@
         const skipBtn = card.querySelector(".qarag-feedback-skip");
         const chips = card.querySelectorAll(".qarag-feedback-chip");
 
-        chips.forEach((chip) =>
-            chip.addEventListener("click", () =>
-                chip.classList.toggle("is-active")
-            )
-        );
+        chips.forEach((chip) => chip.addEventListener("click", () => chip.classList.toggle("is-active")));
 
         function collect() {
             const commentRaw = (textarea && textarea.value) || "";
             const selected = Array.from(chips)
                 .filter((c) => c.classList.contains("is-active"))
-                .map(
-                    (c) =>
-                        c.getAttribute("data-reason") ||
-                        c.textContent.trim()
-                );
+                .map((c) => c.getAttribute("data-reason") || c.textContent.trim());
             return { selected, comment: commentRaw.trim() };
         }
 
         async function submitDetail() {
             const { selected, comment } = collect();
             try {
-                await sendFeedback(
-                    "bad",
-                    { reasons: selected, comment },
-                    row
-                );
-                addBubble(
-                    "bot",
-                    "말씀해 주셔서 정말 감사합니다. 더 나은 답변을 위해 바로 반영해 볼게요. 🙏"
-                );
+                await sendFeedback("bad", { reasons: selected, comment }, row);
+                addBubble("bot", "말씀해 주셔서 정말 감사합니다. 더 나은 답변을 위해 바로 반영해 볼게요. 🙏");
             } catch (_) {
-                addBubble(
-                    "bot",
-                    "피드백 전송에 문제가 있었어요. 잠시 후 다시 시도해 주세요."
-                );
+                addBubble("bot", "피드백 전송에 문제가 있었어요. 잠시 후 다시 시도해 주세요.");
             } finally {
                 card.remove();
             }
@@ -717,15 +1097,8 @@
         if (skipBtn) {
             skipBtn.addEventListener("click", function () {
                 const { selected } = collect();
-                sendFeedback(
-                    "bad-skip",
-                    { reasons: selected, comment: "" },
-                    row
-                ).catch(() => { });
-                addBubble(
-                    "bot",
-                    "알려주셔서 감사합니다. 더 좋은 답을 준비해 볼게요. 🙏"
-                );
+                sendFeedback("bad-skip", { reasons: selected, comment: "" }, row).catch(() => { });
+                addBubble("bot", "알려주셔서 감사합니다. 더 좋은 답을 준비해 볼게요. 🙏");
                 card.remove();
             });
         }
@@ -733,8 +1106,7 @@
 
     // 클릭 이벤트 위임 (👍/👎)
     document.addEventListener("click", function (e) {
-        const btn =
-            e.target.closest && e.target.closest(".qarag-thumb-btn");
+        const btn = e.target.closest && e.target.closest(".qarag-thumb-btn");
         if (!btn) return;
 
         const row = btn.closest(".qarag-feedback-row");
@@ -743,16 +1115,11 @@
 
         const kind = btn.dataset.kind || "";
 
-        row
-            .querySelectorAll(".qarag-thumb-btn")
-            .forEach((b) => (b.disabled = true));
+        row.querySelectorAll(".qarag-thumb-btn").forEach((b) => (b.disabled = true));
 
         if (kind === "good") {
             sendFeedback("good", null, row).catch(() => { });
-            addBubble(
-                "bot",
-                "도움이 되었다니 기뻐요! 다음에도 더 좋은 답변으로 도와 드릴게요. 😊"
-            );
+            addBubble("bot", "도움이 되었다니 기뻐요! 다음에도 더 좋은 답변으로 도와 드릴게요. 😊");
         } else if (kind === "bad") {
             showBadFeedbackForm(row);
         }

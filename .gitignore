@@ -65,3 +65,15 @@ build/
 portfolio/Lib/
 portfolio/
 .history/
+
+env.yaml
+job.env
+
+.env
+job.env
+db.sqlite3
+vector_store.sqlite3
+env_job_*.yaml
+env.yaml
+deleted_image_ids.json
+env

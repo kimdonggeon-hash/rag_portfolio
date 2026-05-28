@@ -1,0 +1,43 @@
+{# ragapp/templates/legal/_processors_table.html #}
+<section class="card">
+  <h2>처리위탁(수탁자) 안내</h2>
+  <p class="muted" style="margin-top:-4px">
+    서비스 운영을 위해 아래 업체에 일부 업무(인프라/로그/AI 처리 등)를 위탁할 수 있습니다.
+  </p>
+
+  <style>
+    .legal-tbl{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#fff}
+    .legal-tbl th,.legal-tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+    .legal-tbl th{background:#fafbff;text-align:left;font-size:.86rem;color:#0b1220}
+    .legal-tbl td{font-size:.92rem;color:#111827}
+    .legal-tbl tr:last-child th,.legal-tbl tr:last-child td{border-bottom:0}
+    .legal-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;border:1px solid #c7d2fe;background:var(--pill);color:#3730a3;font-weight:900;font-size:.78rem}
+  </style>
+
+  {% if cfg.processors %}
+    <table class="legal-tbl" role="table" aria-label="처리위탁 표">
+      <thead>
+        <tr>
+          <th style="width:22%">수탁자</th>
+          <th style="width:18%">위탁업무</th>
+          <th>처리 항목</th>
+          <th style="width:20%">보관/파기</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in cfg.processors %}
+          <tr>
+            <td>
+              <span class="legal-badge">{{ row.vendor }}</span>
+            </td>
+            <td>{{ row.task }}</td>
+            <td class="muted" style="color:#111827">{{ row.items }}</td>
+            <td class="muted">{{ row.retention }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">현재 구성 기준으로 표시할 수탁자 정보가 없습니다.</p>
+  {% endif %}
+</section>

@@ -566,3 +566,248 @@ a:hover {
     background: rgba(15, 23, 42, 0.96);
     color: #cbd5f5;
 }
+
+/* =========================
+   Header layout polish
+========================= */
+.fx-header .fx-wrap.fx-row.fx-center {
+    gap: 12px;
+}
+
+/* nav가 가운데 “자연스럽게” 자리잡게: 너무 좌측으로 쏠리지 않게 */
+.fx-nav {
+    flex: 1 1 auto;
+    justify-content: center;
+    max-width: 640px;
+    margin: 0 8px;
+}
+
+/* =========================
+   ✅ usage widget (image/table only, calm)
+========================= */
+.fx-usage {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-left: auto;
+    /* 헤더 오른쪽 고정 */
+}
+
+.fx-usage::before {
+    content: "오늘 남은";
+    font-size: 11px;
+    letter-spacing: .02em;
+    color: var(--muted);
+    white-space: nowrap;
+    margin-right: 2px;
+}
+
+/* pill (이미지/표만) */
+.fx-usage-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+
+    font-size: 11.5px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text);
+
+    background: rgba(2, 8, 23, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    box-shadow: none;
+
+    transition: background .12s ease, border-color .12s ease;
+}
+
+.fx-usage-pill b {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 650;
+}
+
+/* 0이면 살짝만 경고 */
+.fx-usage-pill.fx-usage-zero {
+    border-color: rgba(239, 68, 68, 0.55);
+    background: rgba(239, 68, 68, 0.08);
+    color: #fecaca;
+}
+
+.fx-usage-pill:hover {
+    background: rgba(15, 23, 42, 0.75);
+    border-color: rgba(148, 163, 184, 0.42);
+}
+
+/* =========================
+   Responsive: 헤더 2줄 자연스럽게
+========================= */
+@media (max-width: 980px) {
+    .fx-header .fx-wrap.fx-row.fx-center {
+        flex-wrap: wrap;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        gap: 10px;
+    }
+
+    .fx-brand {
+        order: 1;
+    }
+
+    .fx-usage {
+        order: 2;
+        margin-left: auto;
+    }
+
+    .fx-nav {
+        order: 3;
+        width: 100%;
+        max-width: none;
+        justify-content: flex-start;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* 더 좁으면 라벨 숨기고 pill만 */
+@media (max-width: 520px) {
+    .fx-usage::before {
+        content: "";
+        margin-right: 0;
+    }
+}
+
+/* =========================
+   ✅ Image mode segmented bar (productized)
+   - header 중앙 모드 선택용
+========================= */
+
+.fx-modebar {
+    flex: 1 1 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 280px;
+}
+
+/* Segmented control */
+.fx-seg {
+    --seg-gap: 6px;
+    --seg-pad: 6px;
+    --seg-h: 42px;
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--seg-gap);
+    padding: var(--seg-pad);
+    height: var(--seg-h);
+    border-radius: 999px;
+
+    background: rgba(15, 23, 42, 0.70);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+
+    backdrop-filter: saturate(170%) blur(16px);
+    -webkit-backdrop-filter: saturate(170%) blur(16px);
+
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+/* sliding thumb */
+.fx-seg-thumb {
+    position: absolute;
+    top: var(--seg-pad);
+    bottom: var(--seg-pad);
+    left: var(--seg-pad);
+
+    width: calc((100% - (var(--seg-pad) * 2) - var(--seg-gap)) / 2);
+    border-radius: 999px;
+
+    background:
+        radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+        linear-gradient(120deg, #0a84ff, #36c3ff);
+
+    box-shadow:
+        0 10px 22px rgba(15, 118, 255, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+    transition: transform 0.18s ease;
+}
+
+.fx-seg.is-right .fx-seg-thumb {
+    transform: translateX(calc(100% + var(--seg-gap)));
+}
+
+/* items */
+.fx-seg-item {
+    position: relative;
+    z-index: 2;
+
+    flex: 1 1 0;
+    height: calc(var(--seg-h) - (var(--seg-pad) * 2));
+    border-radius: 999px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+
+    padding: 0 14px;
+    color: rgba(229, 231, 235, 0.82);
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+
+    opacity: 0.9;
+    transition: opacity .14s ease, transform .12s ease, color .14s ease;
+}
+
+.fx-seg-item:hover {
+    opacity: 1;
+    transform: translateY(-0.5px);
+    color: #ffffff;
+}
+
+.fx-seg-item.is-active {
+    color: #020617;
+    /* thumb 위에서 대비 */
+    opacity: 1;
+}
+
+.fx-seg-ico {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.fx-seg-item:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .22), 0 0 0 1px rgba(99, 102, 241, .55) inset;
+}
+
+/* 모바일: 가운데 세그는 스크롤 대신 폭 확보 */
+@media (max-width: 980px) {
+    .fx-modebar {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .fx-seg {
+        width: 100%;
+        max-width: 520px;
+    }
+}
+
+@media (max-width: 520px) {
+    .fx-seg {
+        --seg-h: 44px;
+    }
+
+    .fx-seg-item {
+        font-size: 12.5px;
+        padding: 0 10px;
+    }
+}

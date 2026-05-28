@@ -1,0 +1,380 @@
+/* ragapp/static/ragapp/css/board_admin_logs_v2.css
+   Admin Logs v2 (scoped) — product UI
+   depends on board tokens: --bg, --surface, --surface-2, --ink, --muted, --line, --shadow, --radius, --accent
+*/
+
+.adminlogs-page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 18px 16px 72px;
+}
+
+/* ── Toolbar ─────────────────────────────────────── */
+.adminlogs-page .adminlog-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+
+    margin: 10px 0 14px;
+    padding: 14px;
+
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) + 2px);
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--surface) 92%, transparent),
+            color-mix(in srgb, var(--surface-2) 62%, transparent));
+    box-shadow: var(--shadow, 0 18px 40px rgba(2, 6, 23, .08));
+}
+
+@supports (backdrop-filter: blur(10px)) {
+    .adminlogs-page .adminlog-toolbar {
+        backdrop-filter: blur(10px);
+    }
+}
+
+.adminlogs-page .board-title {
+    margin: 0 0 6px;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+}
+
+.adminlogs-page .adminlog-meta {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.adminlogs-page .adminlog-meta--right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.adminlogs-page .adminlog-meta--spaced {
+    margin-top: 10px;
+}
+
+/* ── Filter Card ─────────────────────────────────── */
+.adminlogs-page .board-card {
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) + 2px);
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--surface) 96%, transparent),
+            color-mix(in srgb, var(--surface-2) 62%, transparent));
+    box-shadow: var(--shadow, 0 18px 40px rgba(2, 6, 23, .08));
+    padding: 12px;
+}
+
+.adminlogs-page .adminlog-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.adminlogs-page .adminlog-input,
+.adminlogs-page .adminlog-select {
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    color: var(--ink);
+    outline: none;
+    box-shadow: 0 1px 0 rgba(2, 6, 23, .03);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.adminlogs-page .adminlog-select {
+    padding-right: 34px;
+    cursor: pointer;
+}
+
+.adminlogs-page .adminlog-input::placeholder {
+    color: color-mix(in srgb, var(--muted) 86%, transparent);
+}
+
+.adminlogs-page .adminlog-input:focus,
+.adminlogs-page .adminlog-select:focus {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.adminlogs-page .adminlog-input--xs {
+    max-width: 160px;
+}
+
+.adminlogs-page .adminlog-input--lg {
+    min-width: min(520px, 78vw);
+}
+
+/* 버튼(이 페이지에서만 살짝 “제품” 느낌 업) */
+.adminlogs-page .board-btn {
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+.adminlogs-page .board-btn:hover {
+    transform: translateY(-1px);
+}
+
+.adminlogs-page .board-btn:active {
+    transform: translateY(0);
+}
+
+.adminlogs-page .board-btn.primary {
+    box-shadow: 0 14px 28px rgba(79, 70, 229, .18);
+}
+
+/* ── List ────────────────────────────────────────── */
+.adminlogs-page .adminlog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.adminlogs-page .log-item {
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) + 2px);
+    padding: 14px;
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--surface) 92%, transparent),
+            var(--surface));
+    box-shadow: 0 14px 32px rgba(2, 6, 23, .07);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+.adminlogs-page .log-item:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+    box-shadow: 0 20px 46px rgba(2, 6, 23, .10);
+}
+
+.adminlogs-page .log-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.adminlogs-page .log-title {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* pills */
+.adminlogs-page .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+    color: color-mix(in srgb, var(--ink) 86%, var(--muted));
+}
+
+.adminlogs-page .pill.dim {
+    opacity: .92;
+}
+
+.adminlogs-page .pill.ok {
+    border-color: rgba(34, 197, 94, .35);
+    background: rgba(34, 197, 94, .10);
+    color: #166534;
+}
+
+.adminlogs-page .pill.warn {
+    border-color: rgba(239, 68, 68, .35);
+    background: rgba(239, 68, 68, .10);
+    color: #991b1b;
+}
+
+.adminlogs-page .pill.info {
+    border-color: rgba(34, 211, 238, .40);
+    background: rgba(34, 211, 238, .12);
+    color: color-mix(in srgb, var(--ink) 75%, #0891b2);
+}
+
+/* kv */
+.adminlogs-page .log-kv {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.adminlogs-page .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: color-mix(in srgb, var(--ink) 78%, var(--muted));
+}
+
+.adminlogs-page .dim {
+    color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+/* details */
+.adminlogs-page .log-body {
+    margin-top: 12px;
+    border: 1px dashed color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: 16px;
+    padding: 12px;
+    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+
+.adminlogs-page .log-body-title {
+    font-weight: 950;
+    font-size: 12px;
+    margin: 0 0 8px;
+    color: var(--ink);
+}
+
+.adminlogs-page .log-body-text {
+    margin: 0 0 8px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: color-mix(in srgb, var(--ink) 80%, var(--muted));
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.adminlogs-page .log-body-text:last-child {
+    margin-bottom: 0;
+}
+
+/* empty */
+.adminlogs-page .board-empty {
+    margin-top: 12px;
+    padding: 18px;
+    border: 1px dashed color-mix(in srgb, var(--line) 85%, transparent);
+    border-radius: calc(var(--radius) + 4px);
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--surface) 86%, transparent),
+            color-mix(in srgb, var(--surface-2) 62%, transparent));
+    color: var(--muted);
+}
+
+.adminlogs-page .board-empty::before {
+    content: "📭";
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    margin-right: 10px;
+    vertical-align: -8px;
+}
+
+/* responsive */
+@media (max-width: 860px) {
+    .adminlogs-page {
+        padding: 14px 12px 64px;
+    }
+
+    .adminlogs-page .adminlog-input--lg {
+        min-width: 100%;
+    }
+
+    .adminlogs-page .adminlog-filters {
+        width: 100%;
+    }
+
+    .adminlogs-page .adminlog-meta--right {
+        justify-content: flex-start;
+    }
+}
+
+/* ── Empty CTA Card (logs=0) ───────────────────────── */
+.adminlogs-page .adminlog-empty {
+    margin-top: 14px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+
+    padding: 18px;
+    border-radius: calc(var(--radius) + 6px);
+    border: 1px dashed color-mix(in srgb, var(--line) 85%, transparent);
+
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--surface) 88%, transparent),
+            color-mix(in srgb, var(--surface-2) 64%, transparent));
+    box-shadow: var(--shadow, 0 18px 40px rgba(2, 6, 23, .08));
+}
+
+.adminlogs-page .adminlog-empty-ico {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+
+    font-size: 20px;
+    flex: 0 0 auto;
+}
+
+.adminlogs-page .adminlog-empty-body {
+    min-width: 0;
+}
+
+.adminlogs-page .adminlog-empty-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 950;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.adminlogs-page .adminlog-empty-sub {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: color-mix(in srgb, var(--ink) 80%, var(--muted));
+}
+
+.adminlogs-page .adminlog-empty-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.adminlogs-page .adminlog-empty-hint {
+    font-size: 12px;
+    color: var(--muted);
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+@media (max-width: 640px) {
+    .adminlogs-page .adminlog-empty {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .adminlogs-page .adminlog-empty-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+    }
+}

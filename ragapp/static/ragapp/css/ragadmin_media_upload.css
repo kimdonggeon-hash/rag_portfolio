@@ -1,0 +1,563 @@
+:root {
+    color-scheme: light dark;
+    --bg: #0b1220;
+    --panel: rgba(255, 255, 255, 0.06);
+    --panel2: rgba(255, 255, 255, 0.08);
+    --bd: rgba(148, 163, 184, 0.22);
+    --txt: rgba(255, 255, 255, 0.92);
+    --muted: rgba(255, 255, 255, 0.65);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --r: 18px;
+    --r2: 14px;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #eef3ff;
+        --panel: rgba(15, 23, 42, 0.06);
+        --panel2: rgba(15, 23, 42, 0.08);
+        --bd: rgba(15, 23, 42, 0.16);
+        --txt: rgba(15, 23, 42, 0.92);
+        --muted: rgba(15, 23, 42, 0.62);
+        --shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
+    }
+}
+
+* {
+    box-sizing: border-box
+}
+
+html,
+body {
+    height: 100%
+}
+
+body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: radial-gradient(1200px 800px at 20% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
+        radial-gradient(1200px 800px at 90% 10%, rgba(129, 140, 248, 0.18), transparent 60%),
+        var(--bg);
+    color: var(--txt);
+}
+
+a {
+    color: inherit;
+    text-decoration: none
+}
+
+.dg-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
+}
+
+.small {
+    font-size: 12px;
+    opacity: .9
+}
+
+.dg-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--bd);
+    background: rgba(2, 6, 23, 0.35);
+    backdrop-filter: blur(10px);
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-topbar {
+        background: rgba(255, 255, 255, 0.55)
+    }
+}
+
+.dg-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.2px
+}
+
+.dg-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px
+}
+
+.dg-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end
+}
+
+.dg-btn {
+    padding: 9px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--bd);
+    background: var(--panel2);
+    color: var(--txt);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dg-btn.ghost {
+    background: transparent
+}
+
+.dg-btn.ok {
+    border-color: rgba(34, 197, 94, 0.35)
+}
+
+.dg-btn.danger {
+    border-color: rgba(239, 68, 68, 0.35)
+}
+
+.dg-wrap {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 520px 1fr;
+    gap: 14px;
+    align-items: start;
+}
+
+@media (max-width: 1020px) {
+    .dg-wrap {
+        grid-template-columns: 1fr
+    }
+}
+
+.dg-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--bd);
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
+}
+
+.dg-toast.ok {
+    border-color: rgba(34, 197, 94, 0.35)
+}
+
+.dg-toast.err {
+    border-color: rgba(239, 68, 68, 0.35)
+}
+
+.dg-panel {
+    border-radius: var(--r);
+    border: 1px solid var(--bd);
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.dg-panel-head {
+    padding: 12px 12px 10px;
+    border-bottom: 1px solid var(--bd);
+    background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dg-panel-title {
+    font-weight: 800
+}
+
+.dg-panel-sub {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap
+}
+
+.dg-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border: 1px solid var(--bd);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-alert {
+    margin: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--bd);
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-alert {
+        background: rgba(255, 255, 255, 0.55)
+    }
+}
+
+.dg-alert.ok {
+    border-color: rgba(34, 197, 94, 0.35)
+}
+
+.dg-alert.err {
+    border-color: rgba(239, 68, 68, 0.35)
+}
+
+.dg-upload {
+    padding-bottom: 12px
+}
+
+.dg-form-row {
+    padding: 12px;
+    display: grid;
+    gap: 8px
+}
+
+.dg-label {
+    font-size: 12px;
+    color: var(--muted)
+}
+
+.dg-hint {
+    font-size: 12px;
+    color: var(--muted)
+}
+
+.dg-input {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--bd);
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.12);
+    color: var(--txt);
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-input {
+        background: rgba(255, 255, 255, 0.55)
+    }
+}
+
+.dg-check {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 13px
+}
+
+.dg-actions {
+    padding: 0 12px 12px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap
+}
+
+.dg-status {
+    padding: 0 12px;
+    color: var(--muted);
+    font-size: 13px;
+    min-height: 18px
+}
+
+.dg-previews {
+    padding: 0 12px 12px
+}
+
+.dg-previews-title {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 6px 0 8px
+}
+
+.dg-previews-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+@media (max-width: 520px) {
+    .dg-previews-grid {
+        grid-template-columns: repeat(3, 1fr)
+    }
+}
+
+.dg-prev {
+    border-radius: 12px;
+    border: 1px solid var(--bd);
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.18);
+    height: 84px;
+}
+
+.dg-prev img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block
+}
+
+.dg-results {
+    padding-bottom: 12px
+}
+
+.dg-results-tools {
+    padding: 10px 12px;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--bd)
+}
+
+.dg-empty {
+    margin: 12px;
+    border-radius: var(--r);
+    border: 1px dashed var(--bd);
+    padding: 16px;
+    color: var(--muted)
+}
+
+.dg-list {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px
+}
+
+.dg-item {
+    border-radius: var(--r2);
+    border: 1px solid var(--bd);
+    background: rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+}
+
+.dg-item.is-fail {
+    border-color: rgba(239, 68, 68, 0.35)
+}
+
+.dg-item[open] {
+    border-color: rgba(56, 189, 248, 0.35)
+}
+
+.dg-item summary {
+    list-style: none
+}
+
+.dg-item summary::-webkit-details-marker {
+    display: none
+}
+
+.dg-item-sum {
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 72px 1fr 180px;
+    gap: 12px;
+    align-items: center;
+    padding: 10px;
+}
+
+@media (max-width: 1020px) {
+    .dg-item-sum {
+        grid-template-columns: 72px 1fr
+    }
+
+    .dg-sum-right {
+        display: none
+    }
+}
+
+.dg-thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 14px;
+    border: 1px solid var(--bd);
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.dg-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block
+}
+
+.dg-thumb-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.dg-sum-top {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    flex-wrap: wrap
+}
+
+.dg-sum-title {
+    font-weight: 800
+}
+
+.dg-sum-sub {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+
+    /* ✅ 2줄까지만 보여주고 깔끔히 자르기 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+
+    /* ✅ 표준(가능한 브라우저용) */
+    line-clamp: 3;
+
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+
+    line-height: 1.35;
+    max-height: calc(1.35em * 3);
+}
+
+.dg-sum-right {
+    text-align: right;
+    justify-self: end;
+    color: var(--muted)
+}
+
+.dg-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--bd);
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-badge.good {
+    border-color: rgba(34, 197, 94, 0.35);
+    color: rgba(34, 197, 94, 0.9)
+}
+
+.dg-badge.bad {
+    border-color: rgba(239, 68, 68, 0.35);
+    color: rgba(239, 68, 68, 0.9)
+}
+
+.dg-item-body {
+    border-top: 1px solid var(--bd);
+    padding: 10px
+}
+
+.dg-meta {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px
+}
+
+.dg-meta-row {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 10px;
+    align-items: baseline
+}
+
+.dg-pill {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2px 8px;
+    border: 1px solid var(--bd);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--muted);
+    width: fit-content;
+}
+
+.dg-pill.ai {
+    border-color: rgba(99, 102, 241, 0.35);
+    color: rgba(99, 102, 241, 0.9)
+}
+
+.dg-text {
+    color: var(--txt)
+}
+
+.dg-item-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap
+}
+
+/* Lightbox */
+.dg-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100
+}
+
+.dg-lb-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6)
+}
+
+.dg-lb-panel {
+    position: relative;
+    max-width: 1100px;
+    margin: 5vh auto 0;
+    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid var(--bd);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 12px;
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-lb-panel {
+        background: rgba(255, 255, 255, 0.92)
+    }
+}
+
+.dg-lb-close {
+    position: absolute;
+    top: 10px;
+    right: 10px
+}
+
+#dgLbImg {
+    width: 100%;
+    max-height: 75vh;
+    object-fit: contain;
+    display: block;
+    border-radius: 14px;
+    border: 1px solid var(--bd);
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.dg-lb-meta {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px
+}

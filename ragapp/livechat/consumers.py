@@ -8,116 +8,207 @@ from typing import Any, Dict, Optional, Tuple
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.conf import settings
+from django.core.cache import cache
+from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
+
+# ✅ PII guard (저장/전송 직전 차단) - import 실패해도 WS 부팅/동작은 살아야 함
+try:
+    from ragapp.pii import guard_text as _guard_text_impl, summarize_hits as _summarize_hits_impl  # type: ignore
+except Exception:  # pragma: no cover
+    _guard_text_impl = None  # type: ignore
+    _summarize_hits_impl = None  # type: ignore
+
+# ✅ PII fallback detector (HTTP 미들웨어와 동일한 엔진 사용)
+try:
+    from ragapp.utils.pii_guard import detect_pii_any as _detect_pii_any_impl  # type: ignore
+except Exception:  # pragma: no cover
+    _detect_pii_any_impl = None  # type: ignore
 
 from ragapp.livechat import agent_api
 
+# ✅ 단일 저장/조회 유틸 (핵심)
+from ragapp.livechat.store import save_ws_message, ensure_room_row
+
 log = logging.getLogger(__name__)
 
-# (프로젝트에 이미 있는 모델 기준으로 import 시도)
 try:
     from ragapp.models import LiveChatSession  # type: ignore
 except Exception:  # pragma: no cover
     LiveChatSession = None  # type: ignore
 
-# ✅ LiveChatMessage는 “단일 출처”를 우선 사용 (충돌 방지 + history API 정합성)
-#    - models_chat_retention 쪽이 실제 저장용이면 여기로 고정
-try:
-    from ragapp.models_chat_retention import LiveChatMessage  # type: ignore
-except Exception:  # pragma: no cover
+_END_TYPES = {"end", "closed", "close"}
+
+# ─────────────────────────────────────
+# settings safe getter (import 시점/초기화 타이밍 이슈 방지)
+# ─────────────────────────────────────
+def _get_setting(name: str, default: Any) -> Any:
     try:
-        from ragapp.models import LiveChatMessage  # type: ignore
-    except Exception:  # pragma: no cover
-        LiveChatMessage = None  # type: ignore
-
-# 🔹 욕설/보관 관련 추가 (있으면 쓰고, 없으면 조용히 비활성)
-try:
-    from ragapp.models_chat_retention import (  # type: ignore
-        ChatEvidence,
-        RetentionClass,
-        compute_purge_at,
-        LiveChatAbuseKeyword,
-    )
-except Exception:  # pragma: no cover
-    ChatEvidence = None            # type: ignore
-    RetentionClass = None          # type: ignore
-    compute_purge_at = None        # type: ignore
-    LiveChatAbuseKeyword = None    # type: ignore
+        return getattr(settings, name, default)
+    except ImproperlyConfigured:
+        return default
+    except Exception:
+        return default
 
 
 # ─────────────────────────────────────
-#  욕설/모욕 자동 감지 (DB + fallback)
+# 욕설/모욕/성희롱 차단(전송 직전)
+# - settings에서 LIVECHAT_ABUSE_PATTERNS / LIVECHAT_SEXUAL_PATTERNS 로 덮어쓰기 가능
+# ※ 중요: import 시점에 settings 접근 금지 → lazy compile로 변경
 # ─────────────────────────────────────
-
-# 기본 fallback 키워드 (DB 비어있을 때만 의미 있음)
-STATIC_ABUSE_KEYWORDS = [
-    "씨발",
-    "씹년",
-    "병신",
-    "지랄",
-    "개새끼",
-    "꺼져",
-    "죽여버린다",
-    "fuck",
-    "bitch",
-    "asshole",
+_DEFAULT_ABUSE_PATTERNS = [
+    r"(씨\s*발|ㅅ\s*ㅂ)",
+    r"(병\s*신)",
+    r"(개\s*새\s*끼)",
+    r"(좆)",
+    r"(멍청(하|해))",
+]
+_DEFAULT_SEXUAL_PATTERNS = [
+    r"(성희롱)",
+    r"(섹스)",
+    r"(야동)",
 ]
 
-# ✅ 자동 인사말 텍스트 (한 세션에서 한 번만 허용)
+
+def _compile_patterns(patterns) -> list[re.Pattern]:
+    out: list[re.Pattern] = []
+    for p in (patterns or []):
+        try:
+            out.append(re.compile(str(p), re.IGNORECASE))
+        except Exception:
+            continue
+    return out
+
+
+# ✅ lazy cache
+_LC_ABUSE_RE: Optional[list[re.Pattern]] = None
+_LC_SEXUAL_RE: Optional[list[re.Pattern]] = None
+
+
+def _get_abuse_regexes() -> list[re.Pattern]:
+    global _LC_ABUSE_RE
+    if _LC_ABUSE_RE is None:
+        pats = _get_setting("LIVECHAT_ABUSE_PATTERNS", _DEFAULT_ABUSE_PATTERNS)
+        _LC_ABUSE_RE = _compile_patterns(pats)
+    return _LC_ABUSE_RE
+
+
+def _get_sexual_regexes() -> list[re.Pattern]:
+    global _LC_SEXUAL_RE
+    if _LC_SEXUAL_RE is None:
+        pats = _get_setting("LIVECHAT_SEXUAL_PATTERNS", _DEFAULT_SEXUAL_PATTERNS)
+        _LC_SEXUAL_RE = _compile_patterns(pats)
+    return _LC_SEXUAL_RE
+
+
+def _match_any(regexes: list[re.Pattern], text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    for rx in regexes:
+        try:
+            if rx.search(t):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _boolish(v: Any, default: bool = True) -> bool:
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().lower()
+    if s in ("1", "true", "t", "yes", "y", "on"):
+        return True
+    if s in ("0", "false", "f", "no", "n", "off"):
+        return False
+    return default
+
+
+def _end_on(kind: str) -> bool:
+    """
+    기본값 True: 직원 보호 목적이면 차단 후 즉시 종료가 안전.
+    settings로 끌 수 있음:
+      LIVECHAT_END_ON_ABUSE=False
+      LIVECHAT_END_ON_SEXUAL=False
+      LIVECHAT_END_ON_PII=False
+    """
+    if kind == "abuse":
+        return _boolish(_get_setting("LIVECHAT_END_ON_ABUSE", True), default=True)
+    if kind == "sexual":
+        return _boolish(_get_setting("LIVECHAT_END_ON_SEXUAL", True), default=True)
+    if kind == "pii":
+        return _boolish(_get_setting("LIVECHAT_END_ON_PII", True), default=True)
+    return True
+
+
+# ─────────────────────────────────────
+# PII helper (guard_text 미존재/오류에도 안전)
+# - ragapp.pii가 있으면 우선 사용
+# - 그 다음 detect_pii_any fallback으로 "카드/계좌 포함" 전역 차단 유지
+# ─────────────────────────────────────
+def _guard_text(text: str) -> Tuple[bool, Any]:
+    """
+    returns: (ok, hits)
+      ok=True  -> 통과
+      ok=False -> PII 감지
+    """
+    t = str(text or "")
+
+    # 1) 기존 ragapp.pii 사용(있으면)
+    try:
+        if callable(_guard_text_impl):
+            ok, hits = _guard_text_impl(t)
+            if not ok:
+                return False, hits
+            # ✅ 기존 guard가 통과해도, fallback까지 한 번 더 검사해서 정책 일치(카드/계좌 등)
+    except Exception:
+        # 가드 자체가 터지면 "안전" 쪽으로 = 차단
+        return False, [{"type": "pii", "value": "guard_error"}]
+
+    # 2) fallback detector (HTTP 미들웨어와 동일 엔진)
+    try:
+        if callable(_detect_pii_any_impl):
+            r = _detect_pii_any_impl(t)
+            if getattr(r, "hit", False):
+                return False, [{"type": "pii", "kind": getattr(r, "kind", "PII")}]
+            return True, []
+    except Exception:
+        return False, [{"type": "pii", "value": "fallback_error"}]
+
+    # 3) 둘 다 없으면(비정상) → 전부 차단 정책이면 막는 게 안전
+    return False, [{"type": "pii", "value": "no_detector"}]
+
+
+def _summarize_hits(hits: Any) -> str:
+    try:
+        if callable(_summarize_hits_impl):
+            return _summarize_hits_impl(hits) or ""
+    except Exception:
+        return ""
+    return ""
+
+
+# ─────────────────────────────────────
+# 안전 로그 (본문/PII 금지)
+# ─────────────────────────────────────
+def _safe_log(event: str, **meta: Any) -> None:
+    try:
+        payload = {"event": event, **meta}
+        log.info("[LIVECHAT] %s", json.dumps(payload, ensure_ascii=False, default=str)[:4000])
+    except Exception:
+        log.info("[LIVECHAT] %s meta=%s", event, str(meta)[:1000])
+
+
+# ─────────────────────────────────────
+# 기본 텍스트
+# ─────────────────────────────────────
 AUTO_GREETING_TEXT = (
     "상담사가 연결되었습니다. 안녕하세요, 김동건 포트폴리오 실시간 상담입니다. 무엇을 도와드릴까요?"
 )
-
-
-def _detect_abuse_flag(text: str) -> Optional[str]:
-    """
-    욕설/모욕 감지.
-    - 1순위: LiveChatAbuseKeyword 테이블에서 is_active=True 인 패턴 검사
-    - 2순위: STATIC_ABUSE_KEYWORDS 리스트로 보조 검사
-    - 매칭되면 'auto:kw:<패턴>' 형태 문자열 반환
-    """
-    if not text:
-        return None
-
-    # 원문/소문자/공백제거 버전 모두 준비
-    orig = str(text)
-    t_lower = orig.lower()
-    t_compact = re.sub(r"\s+", "", t_lower)
-
-    # 1) DB 기반 금지어
-    if LiveChatAbuseKeyword is not None:
-        try:
-            qs = LiveChatAbuseKeyword.objects.filter(is_active=True).order_by("id")
-            for kw in qs:
-                pattern = (kw.pattern or "").strip()
-                if not pattern:
-                    continue
-
-                if kw.use_regex:
-                    # 정규식 패턴
-                    try:
-                        r = re.compile(pattern, re.IGNORECASE)
-                    except Exception:
-                        # 잘못된 정규식은 그냥 무시
-                        continue
-                    if r.search(orig) or r.search(t_compact):
-                        return f"auto:kw:{pattern}"
-                else:
-                    # 단순 포함 키워드
-                    p = pattern.lower()
-                    if p in t_lower or p in t_compact:
-                        return f"auto:kw:{pattern}"
-        except Exception:
-            # DB 쿼리 문제 생겨도 아래 static 리스트로 계속 진행
-            pass
-
-    # 2) static 키워드 fallback
-    for kw in STATIC_ABUSE_KEYWORDS:
-        k = kw.lower()
-        if k in t_lower or k in t_compact:
-            return f"auto:kw:{kw}"
-
-    return None
 
 
 def _safe_group_name(s: str) -> str:
@@ -131,19 +222,9 @@ def _safe_group_name(s: str) -> str:
     return g or "unknown"
 
 
-def _model_fields(model) -> set[str]:
-    try:
-        # ForeignKey 등도 포함해서 name 기준으로 필드 이름 세트 반환
-        return {f.name for f in model._meta.get_fields() if hasattr(f, "attname")}
-    except Exception:
-        return set()
-
-
 def _to_int(v: Any) -> Optional[int]:
     try:
-        if v is None:
-            return None
-        if isinstance(v, bool):
+        if v is None or isinstance(v, bool):
             return None
         if isinstance(v, int):
             return v
@@ -156,15 +237,10 @@ def _to_int(v: Any) -> Optional[int]:
 
 
 def _ts_ms(v: Any) -> Optional[int]:
-    """
-    ts는 ms(int) 기준으로 맞춤.
-    - 초 단위/문자열 등 최대한 보정해서 ms 단위 int 로.
-    """
     if v is None:
         return None
     try:
         if isinstance(v, int):
-            # 너무 작으면(초단위 가능성) ms로 보정
             return v * 1000 if v < 10_000_000_000 else v
         if isinstance(v, float):
             i = int(v)
@@ -180,59 +256,337 @@ def _ts_ms(v: Any) -> Optional[int]:
     return None
 
 
+def _normalize_sender_role(sender: str, max_len: int = 16) -> Tuple[str, bool]:
+    raw = (sender or "").strip()
+    s = raw.lower()
+
+    if "operator" in s or s in ("master", "admin", "staff"):
+        norm = "operator"
+    elif "user" in s or s in ("client", "customer", "visitor"):
+        norm = "user"
+    elif s in ("system", "bot", "assistant"):
+        norm = "system"
+    elif not s:
+        norm = "system"
+    else:
+        norm = raw
+
+    trimmed = False
+    if len(norm) > max_len:
+        norm = norm[:max_len]
+        trimmed = True
+    return norm, trimmed
+
+
+def _unwrap_payload(d: Any) -> Dict[str, Any]:
+    """
+    프론트/브로드캐스트 형태가 다양해서 payload 래핑을 흡수.
+    - {"payload": {...}} 형태면 payload를 우선 사용
+    """
+    if isinstance(d, dict):
+        p = d.get("payload")
+        if isinstance(p, dict):
+            merged = dict(d)
+            merged.update(p)
+            return merged
+        return d
+    return {}
+
+
+def _pick_first(d: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    for k in keys:
+        if k in d and d.get(k) is not None:
+            v = d.get(k)
+            if isinstance(v, str):
+                if v.strip() != "":
+                    return v
+            else:
+                return v
+    return default
+
+
+def _pick_sender_raw(d: Dict[str, Any]) -> str:
+    return str(
+        _pick_first(
+            d,
+            "role",
+            "sender",
+            "from",
+            "author",
+            "user_role",
+            default="system",
+        )
+        or "system"
+    )
+
+
+def _pick_text(d: Dict[str, Any]) -> str:
+    v = _pick_first(d, "content", "text", "message", "body", "msg", default="")
+    return str(v or "")
+
+
+def _pick_type(d: Dict[str, Any]) -> str:
+    t = _pick_first(d, "type", "msg_type", "event", default="message")
+    return str(t or "message").lower()
+
+
+def _pick_room(d: Dict[str, Any], fallback_room: str) -> str:
+    r = _pick_first(d, "room", "room_id", "roomId", "rid", default=fallback_room)
+    return str(r or fallback_room or "unknown")
+
+
+@database_sync_to_async
+def _ensure_room_row_async(room: str) -> None:
+    ensure_room_row(room=room)
+
+
 # ─────────────────────────────────────
-# MasterConsumer (운영자 로비 / 상담사 온라인 상태)
+# WS 동시 접속 제한 (Cloud Run max instances=1이면 이걸로 충분)
+# settings로 덮어쓰기 가능:
+#   LIVECHAT_MAX_WS_CONNECTIONS=10
+#   LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM=3
+#   LIVECHAT_WS_SLOT_TTL=3700
+# ─────────────────────────────────────
+def _lc_ttl() -> int:
+    v = _to_int(_get_setting("LIVECHAT_WS_SLOT_TTL", 3700))
+    return int(v or 3700)
+
+
+def _lc_max_total() -> int:
+    v = _to_int(_get_setting("LIVECHAT_MAX_WS_CONNECTIONS", 10))
+    return int(v or 10)
+
+
+def _lc_max_per_room() -> int:
+    v = _to_int(_get_setting("LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM", 3))
+    return int(v or 3)
+
+
+def _cache_get_int(key: str) -> int:
+    try:
+        v = cache.get(key)
+        return int(v) if v is not None else 0
+    except Exception:
+        return 0
+
+
+def _cache_set_int(key: str, value: int, ttl: int) -> None:
+    try:
+        cache.set(key, int(value), ttl)
+    except Exception:
+        pass
+
+
+def _cache_incr(key: str, ttl: int, delta: int = 1) -> int:
+    try:
+        cache.add(key, 0, ttl)
+        return int(cache.incr(key, delta))  # type: ignore
+    except Exception:
+        cur = _cache_get_int(key)
+        nxt = max(0, cur + int(delta))
+        _cache_set_int(key, nxt, ttl)
+        return nxt
+
+
+def _cache_decr(key: str, ttl: int, delta: int = 1) -> int:
+    try:
+        cache.add(key, 0, ttl)
+        return int(cache.decr(key, delta))  # type: ignore
+    except Exception:
+        cur = _cache_get_int(key)
+        nxt = max(0, cur - int(delta))
+        _cache_set_int(key, nxt, ttl)
+        return nxt
+
+
+def _lc_key_total() -> str:
+    return "livechat:ws:total"
+
+
+def _lc_key_room(room: str) -> str:
+    return f"livechat:ws:room:{_safe_group_name(room)}"
+
+
+def _acquire_ws_slot(room: str) -> Tuple[bool, str]:
+    """
+    returns (ok, reason)
+      reason: "busy_total" | "busy_room" | "ok"
+    """
+    ttl = _lc_ttl()
+
+    total = _cache_incr(_lc_key_total(), ttl, 1)
+    if total > _lc_max_total():
+        _cache_decr(_lc_key_total(), ttl, 1)
+        return False, "busy_total"
+
+    rk = _lc_key_room(room)
+    per = _cache_incr(rk, ttl, 1)
+    if per > _lc_max_per_room():
+        _cache_decr(rk, ttl, 1)
+        _cache_decr(_lc_key_total(), ttl, 1)
+        return False, "busy_room"
+
+    return True, "ok"
+
+
+def _release_ws_slot(room: str) -> None:
+    ttl = _lc_ttl()
+    _cache_decr(_lc_key_room(room), ttl, 1)
+    _cache_decr(_lc_key_total(), ttl, 1)
+
+
+# ─────────────────────────────────────
+# MasterConsumer
 # ─────────────────────────────────────
 class MasterConsumer(AsyncWebsocketConsumer):
     """
-    운영자 로비(대기요청) 채널:
-      ws://<host>/ws/chat/master
-
-    - views._send_master(...) 가 group_send("livechat_master", ...) 하는 걸
-      그대로 브로드캐스트.
-    - 접속/해제 시 agent_api 를 통해 상담사 온라인/오프라인 카운트.
+    운영자(마스터) 알림 채널.
+    ✅ 운영자 메시지가 master WS로 들어와도
+       - room 지정이 있으면 해당 room으로 브로드캐스트 + DB 저장까지 처리
     """
+
     group_name = "livechat_master"
 
     async def connect(self):
-        # 그룹 등록 + 연결
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
-        # 초기 연결 알림 (선택)
         try:
             await self.send(text_data=json.dumps({"type": "master_connected"}))
         except Exception:
             pass
 
-        # ✅ 상담사 1명 온라인으로 카운트
         try:
             agent_api.mark_operator_online()
         except Exception:
             log.warning("mark_operator_online failed", exc_info=True)
 
     async def disconnect(self, close_code):
-        # ✅ 상담사 1명 오프라인 처리
         try:
             agent_api.mark_operator_offline()
         except Exception:
             log.warning("mark_operator_offline failed", exc_info=True)
 
-        # 그룹 제거
         try:
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
         except Exception:
             pass
 
     async def receive(self, text_data=None, bytes_data=None):
-        # 마스터는 클라이언트 → 서버 메시지는 사용하지 않음
-        return
+        if not text_data:
+            return
+
+        try:
+            raw = json.loads(text_data)
+        except Exception:
+            raw = {}
+
+        data = _unwrap_payload(raw)
+        room = _pick_room(data, fallback_room="")
+        if not room:
+            return
+
+        sender_raw = _pick_sender_raw(data)
+        text = _pick_text(data)
+        msg_type = _pick_type(data)
+
+        session_id = _to_int(_pick_first(data, "session_id", "sessionId", "sid", default=None))
+        ts = _ts_ms(_pick_first(data, "ts", default=None)) or int(timezone.now().timestamp() * 1000)
+
+        sender_norm, _ = _normalize_sender_role(sender_raw, max_len=16)
+        if sender_norm not in ("operator", "system", "user"):
+            sender_norm = "operator"
+
+        effective_type = msg_type or "message"
+
+        # ✅ Master에서도 PII 차단 (전역 정책)
+        if effective_type not in _END_TYPES:
+            ok, hits = _guard_text(str(text))
+            if not ok:
+                msg = (
+                    _summarize_hits(hits)
+                    or _get_setting("PII_BLOCK_MESSAGE", "개인정보(카드/계좌 등)는 입력할 수 없습니다.")
+                )
+                try:
+                    await self.send(
+                        text_data=json.dumps(
+                            {
+                                "type": "blocked",
+                                "code": "PII_BLOCKED",
+                                "sender": "system",
+                                "role": "system",
+                                "text": msg,
+                                "message": msg,
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": ts,
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                except Exception:
+                    pass
+
+                _safe_log("master_block", reason="pii", room=room, sid=session_id, len=len(text))
+
+                if _end_on("pii"):
+                    try:
+                        await self.close(code=1000)
+                    except Exception:
+                        pass
+                return
+
+        _safe_log(
+            "master_recv",
+            room=room,
+            sid=session_id,
+            sender=sender_norm,
+            type=effective_type,
+            len=len(text),
+        )
+
+        payload = {
+            "type": effective_type,
+            "sender": sender_raw,  # 화면 표시용 원문
+            "role": sender_norm,  # ✅ 표준 role
+            "text": text,
+            "content": text,  # ✅ 프론트 호환
+            "ts": ts,
+            "room": room,
+            "session_id": session_id,
+        }
+
+        group_name = "livechat_room_" + _safe_group_name(room)
+
+        try:
+            await self.channel_layer.group_send(group_name, {"type": "room_message", "payload": payload})
+        except Exception as e:
+            _safe_log("master_warn", reason="group_send_failed", room=room, sid=session_id, err=str(e)[:200])
+
+        # ✅ DB 저장 (operator 저장 마스킹은 store.py에서 처리됨)
+        try:
+            persist = _boolish(_get_setting("LIVECHAT_PERSIST_MESSAGES", True), default=True)
+            if persist:
+                msg_id = await database_sync_to_async(save_ws_message)(
+                    room=room,
+                    session_id=session_id,
+                    sender_norm=sender_norm,
+                    effective_type=effective_type,
+                    body=str(text),
+                    ts=ts,
+                )
+                _safe_log(
+                    "save_ok" if msg_id else "save_skip",
+                    room=room,
+                    sid=session_id,
+                    sender=sender_norm,
+                    type=effective_type,
+                    msg_id=msg_id,
+                )
+        except Exception as e:
+            _safe_log("save_fail", room=room, sid=session_id, err_cls=e.__class__.__name__, err=str(e)[:200])
 
     async def broadcast(self, event: Dict[str, Any]):
-        """
-        views._send_master(...) 에서 group_send 할 때 쓰는 핸들러
-        event = {"type": "broadcast", "payload": {...}}
-        """
         payload = event.get("payload") or {}
         try:
             await self.send(text_data=json.dumps(payload))
@@ -241,32 +595,70 @@ class MasterConsumer(AsyncWebsocketConsumer):
 
 
 # ─────────────────────────────────────
-# RoomConsumer (사용자 ↔ 상담사 개별 룸)
+# RoomConsumer
 # ─────────────────────────────────────
 class RoomConsumer(AsyncWebsocketConsumer):
-    """
-    개별 룸 채널:
-      ws://<host>/ws/chat/<room>
-
-    같은 room group으로 메시지 브로드캐스트.
-    + DB의 session 상태(start/end)를 갱신하고 master로 이벤트를 뿌림
-    + 메시지를 LiveChatMessage에 저장 (history API가 session_id로 읽는 구조를 맞춤)
-    """
-
     async def connect(self):
         self.room = self.scope["url_route"]["kwargs"].get("room") or "unknown"
         self.group_name = "livechat_room_" + _safe_group_name(str(self.room))
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        # accept는 안내 메시지 보내려면 필요
         await self.accept()
 
-        # 클라이언트 쪽에서 연결 상태 확인용
+        # ✅ WS 동시 접속 제한 (혼잡 시 안내 후 종료)
+        self._slot_ok = False
+        reason = "ok"
         try:
-            await self.send(
-                text_data=json.dumps({"type": "room_connected", "room": self.room})
+            ok, reason = await database_sync_to_async(_acquire_ws_slot)(str(self.room))
+            self._slot_ok = bool(ok)
+        except Exception:
+            # 카운터 자체가 실패하면 안전하게 "허용"
+            self._slot_ok = True
+            reason = "ok"
+
+        if not self._slot_ok:
+            msg = (
+                "현재 상담 연결이 혼잡합니다. 잠시 후 다시 시도해 주세요."
+                if reason == "busy_total"
+                else "현재 해당 상담방 연결이 혼잡합니다. 잠시 후 다시 시도해 주세요."
             )
+            payload = {
+                "type": "end",
+                "code": "BUSY",
+                "sender": "system",
+                "role": "system",
+                "text": msg,
+                "content": msg,
+                "room": self.room,
+                "ts": int(timezone.now().timestamp() * 1000),
+            }
+            try:
+                await self.send(text_data=json.dumps(payload, ensure_ascii=False))
+            except Exception:
+                pass
+            try:
+                await self.close(code=1013)
+            except Exception:
+                pass
+            return
+
+        # ✅ 슬롯 통과한 경우에만 그룹 참가
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
         except Exception:
             pass
+
+        try:
+            await _ensure_room_row_async(room=str(self.room))
+        except Exception:
+            pass
+
+        try:
+            await self.send(text_data=json.dumps({"type": "room_connected", "room": self.room}))
+        except Exception:
+            pass
+
+        _safe_log("ws_connected", room=str(self.room), group=self.group_name)
 
     async def disconnect(self, close_code):
         try:
@@ -274,34 +666,20 @@ class RoomConsumer(AsyncWebsocketConsumer):
         except Exception:
             pass
 
+        # ✅ 슬롯 반납
+        try:
+            if getattr(self, "_slot_ok", False):
+                await database_sync_to_async(_release_ws_slot)(str(getattr(self, "room", "unknown")))
+        except Exception:
+            pass
+
+        _safe_log("ws_disconnected", room=str(getattr(self, "room", "unknown")), code=close_code)
+
     async def _broadcast_master(self, payload: Dict[str, Any]):
         try:
-            await self.channel_layer.group_send(
-                "livechat_master",
-                {"type": "broadcast", "payload": payload},
-            )
+            await self.channel_layer.group_send("livechat_master", {"type": "broadcast", "payload": payload})
         except Exception as e:
             log.warning("broadcast master failed: %s", e)
-
-    # ─────────────────────────────────────────────────────────────
-    # DB helpers
-    # ─────────────────────────────────────────────────────────────
-    def _get_session_and_fields_sync(
-        self, room: str, session_id: Optional[int]
-    ) -> Tuple[Optional[Any], set]:
-        if LiveChatSession is None:
-            return None, set()
-        model = LiveChatSession
-        fields = _model_fields(model)
-
-        qs = model.objects.all()
-        obj = None
-
-        if session_id:
-            obj = qs.filter(id=session_id).order_by("-id").first()
-        if obj is None and room:
-            obj = qs.filter(room=room).order_by("-id").first()
-        return obj, fields
 
     @database_sync_to_async
     def _resolve_session_id_by_room(self, room: str) -> Optional[int]:
@@ -309,402 +687,349 @@ class RoomConsumer(AsyncWebsocketConsumer):
             return None
         try:
             s = LiveChatSession.objects.filter(room=room).order_by("-id").first()
+            if s:
+                return int(s.id)
+        except Exception:
+            pass
+
+        try:
+            s = LiveChatSession.objects.filter(code=room).order_by("-id").first()
             return int(s.id) if s else None
         except Exception:
             return None
 
-    @database_sync_to_async
-    def _mark_started(self, room: str, session_id: Optional[int]) -> Optional[Dict[str, Any]]:
-        obj, fields = self._get_session_and_fields_sync(room, session_id)
-        if obj is None:
-            return None
-
-        changed = []
-        now = timezone.now()
-
-        if "started_at" in fields and getattr(obj, "started_at", None) is None:
-            setattr(obj, "started_at", now)
-            changed.append("started_at")
-
-        if "status" in fields:
-            cur = (getattr(obj, "status", "") or "").strip()
-            if cur in ("waiting", "대기", ""):
-                setattr(obj, "status", "active")
-                changed.append("status")
-
-        if changed:
-            try:
-                obj.save(update_fields=changed)
-            except Exception:
-                obj.save()
-
-        started_at = getattr(obj, "started_at", None) if "started_at" in fields else None
-        return {
-            "id": getattr(obj, "id", None),
-            "room": getattr(obj, "room", room),
-            "status": getattr(obj, "status", None) if "status" in fields else None,
-            "started_at": started_at.isoformat() if started_at else None,
-        }
-
-    @database_sync_to_async
-    def _mark_ended(self, room: str, session_id: Optional[int]) -> Optional[Dict[str, Any]]:
-        obj, fields = self._get_session_and_fields_sync(room, session_id)
-        if obj is None:
-            return None
-
-        changed = []
-        now = timezone.now()
-
-        if "ended_at" in fields and getattr(obj, "ended_at", None) is None:
-            setattr(obj, "ended_at", now)
-            changed.append("ended_at")
-
-        if "status" in fields:
-            setattr(obj, "status", "ended")
-            changed.append("status")
-
-        if changed:
-            try:
-                obj.save(update_fields=changed)
-            except Exception:
-                obj.save()
-
-        ended_at = getattr(obj, "ended_at", None) if "ended_at" in fields else None
-        return {
-            "id": getattr(obj, "id", None),
-            "room": getattr(obj, "room", room),
-            "status": getattr(obj, "status", None) if "status" in fields else None,
-            "ended_at": ended_at.isoformat() if ended_at else None,
-        }
-
-    @database_sync_to_async
-    def _session_allows_message(self, room: str, session_id: Optional[int]) -> bool:
-        """
-        이 세션이 '아직 진행 중인지' 확인.
-        - 명확히 진행 상태(대기/진행 등)만 허용하고,
-          그 외 모든 상태는 '종료된 것으로 보고' 메시지 차단.
-        """
-        if LiveChatSession is None:
-            return True
-
-        obj, fields = self._get_session_and_fields_sync(room, session_id)
-        if obj is None:
-            # 세션을 못 찾으면 더 받게 하지 말고 차단 쪽으로 보는 게 안전하지만,
-            # UX를 위해 일단 허용 쪽으로 둔다.
-            return True
-
-        if "status" not in fields:
-            return True
-
-        status_raw = getattr(obj, "status", "")  # enum/str 둘 다 고려
-        cur = str(status_raw or "").strip().lower()
-        if not cur:
-            # 상태가 비어 있으면 "종료"라고 단정하긴 애매하니 허용
-            return True
-
-        # 🔹 진행 중으로 인정할 상태들(허용 리스트)
-        allowed = {
-            "waiting",
-            "대기",
-            "pending",
-            "active",
-            "진행",
-            "in_progress",
-        }
-
-        # enum 쓸 때는 값이 "ACTIVE", "WAITING" 같이 올 수도 있어서 보정
-        cur_upper = cur.upper()
-        if cur in allowed or cur_upper in {"WAITING", "PENDING", "ACTIVE", "IN_PROGRESS"}:
-            return True
-
-        # 그 외의 상태(ended, 종료, done, saved, ended_need_save 등)는 모두 "종료"로 보고 차단
-        return False
-
-    # ✅ 이 세션에 상담사 메시지가 이미 있는지 확인
-    def _has_operator_message_sync(self, session_id: Optional[int]) -> bool:
-        if LiveChatMessage is None or not session_id:
-            return False
-        try:
-            fields = _model_fields(LiveChatMessage)
-            qs = LiveChatMessage.objects.all()
-
-            # 세션 기준 필터
-            if "session_id" in fields:
-                qs = qs.filter(session_id=session_id)
-            elif "session" in fields:
-                qs = qs.filter(session_id=session_id)
-            else:
-                return False
-
-            # role / sender 기준으로 상담사만
-            if "role" in fields:
-                qs = qs.filter(role__iexact="operator")
-            elif "sender" in fields:
-                qs = qs.filter(sender__iexact="operator")
-
-            return qs.exists()
-        except Exception:
-            return False
-
-    @database_sync_to_async
-    def _has_operator_message(self, session_id: Optional[int]) -> bool:
-        return self._has_operator_message_sync(session_id)
-
-    @database_sync_to_async
-    def _save_message_if_possible(
-        self,
-        session_id: Optional[int],
-        room: str,
-        sender: str,
-        msg_type: str,
-        text: str,
-        ts: Optional[int],
-    ):
-        """
-        LiveChatMessage 저장 + (있으면) 자동 욕설 감지/태깅/증빙 생성
-        """
-        if LiveChatMessage is None:
-            return
-
-        try:
-            fields = _model_fields(LiveChatMessage)
-            kwargs: Dict[str, Any] = {}
-
-            # ✅ session_id / session
-            if "session_id" in fields:
-                kwargs["session_id"] = session_id
-            elif "session" in fields and session_id is not None:
-                # FK여도 session_id 컬럼이 있을 수 있으니 그대로 사용
-                kwargs["session_id"] = session_id
-
-            # ✅ room
-            if "room" in fields:
-                kwargs["room"] = room
-
-            # ✅ role / sender
-            if "role" in fields:
-                kwargs["role"] = sender
-            elif "sender" in fields:
-                kwargs["sender"] = sender
-
-            # ✅ content / text
-            if "content" in fields:
-                kwargs["content"] = text
-            elif "text" in fields:
-                kwargs["text"] = text
-
-            # ✅ type / msg_type
-            if "msg_type" in fields:
-                kwargs["msg_type"] = msg_type or "message"
-            elif "type" in fields:
-                kwargs["type"] = msg_type or "message"
-
-            # ✅ ts
-            if "ts" in fields:
-                kwargs["ts"] = ts
-
-            # ── 실제 메시지 저장
-            msg = LiveChatMessage.objects.create(**kwargs)
-
-            # ─────────────────────────────────────
-            #  자동 욕설/모욕 감지 (user 메시지만)
-            # ─────────────────────────────────────
-            abuse_reason: Optional[str] = None
-            if sender and str(sender).lower() == "user":
-                abuse_reason = _detect_abuse_flag(text)
-
-            # 감지된 경우에만 보존 클래스/플래그 설정
-            if abuse_reason and RetentionClass is not None:
-                try:
-                    # RetentionClass.ABUSE 값 가져오기 (TextChoices or 단순 상수 대응)
-                    if hasattr(RetentionClass, "ABUSE"):
-                        rc_member = RetentionClass.ABUSE
-                        rc_value = getattr(rc_member, "value", rc_member)
-                    else:
-                        rc_value = "ABUSE"
-
-                    changed_fields = []
-
-                    if "retention_class" in fields:
-                        msg.retention_class = rc_value
-                        changed_fields.append("retention_class")
-
-                    if "flagged_at" in fields:
-                        from django.utils import timezone as _tz  # 안전 import
-                        msg.flagged_at = _tz.now()
-                        changed_fields.append("flagged_at")
-
-                    if "flag_reason" in fields:
-                        msg.flag_reason = abuse_reason
-                        changed_fields.append("flag_reason")
-
-                    if "purge_at" in fields and compute_purge_at is not None:
-                        msg.purge_at = compute_purge_at(
-                            getattr(msg, "created_at", None),
-                            msg.retention_class,
-                        )
-                        changed_fields.append("purge_at")
-
-                    if changed_fields:
-                        msg.save(update_fields=changed_fields)
-
-                    # (옵션) 증빙 테이블 자동 생성
-                    if ChatEvidence is not None:
-                        try:
-                            ce_kwargs: Dict[str, Any] = {
-                                "session": getattr(msg, "session", None),
-                                "message": msg,
-                                "captured_text": getattr(msg, "content", text),
-                                "reason": abuse_reason,
-                                # created_by는 null 허용이면 생략, 아니면 여기서 에러 → 무시
-                            }
-                            ChatEvidence.objects.create(**ce_kwargs)
-                        except Exception:
-                            # 증빙 생성 실패해도 메시지 저장/태깅은 유지
-                            pass
-
-                except Exception:
-                    # 태깅/증빙 쪽은 실패해도 전체 WS는 깨지지 않게
-                    pass
-
-        except Exception:
-            # 최악의 경우에도 WS 자체는 계속 돌아가게 실패 삼킴
-            return
-
-    # ─────────────────────────────────────────────────────────────
-    # WS receive
-    # ─────────────────────────────────────────────────────────────
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:
             return
+
         try:
-            data = json.loads(text_data)
+            raw = json.loads(text_data)
         except Exception:
-            data = {}
+            raw = {}
 
-        sender = (data.get("sender") or "system")
-        text = (data.get("text") or "")
-        msg_type = (data.get("type") or "").lower()
+        data = _unwrap_payload(raw)
 
-        room = str(self.room or "unknown")
-
-        # session_id 입력 형태 흡수
-        session_id = _to_int(
-            data.get("session_id") or data.get("sessionId") or data.get("sid")
-        )
-
-        # ✅ session_id가 비면 room 기준 최근 세션으로 보정
+        room = _pick_room(data, fallback_room=str(getattr(self, "room", "unknown")))
+        session_id = _to_int(_pick_first(data, "session_id", "sessionId", "sid", default=None))
         if session_id is None and room and LiveChatSession is not None:
             session_id = await self._resolve_session_id_by_room(room)
 
-        ts = _ts_ms(data.get("ts")) or int(timezone.now().timestamp() * 1000)
+        sender_raw = _pick_sender_raw(data)
+        text = _pick_text(data)
+        effective_type = _pick_type(data)
 
-        s_lower = str(sender).lower()
-        effective_type = msg_type or "message"
+        ts = _ts_ms(_pick_first(data, "ts", default=None)) or int(timezone.now().timestamp() * 1000)
 
-        # 🔐 이미 종료된 세션이면 user 메시지 차단
-        if s_lower == "user" and effective_type not in ("end", "closed", "close"):
-            try:
-                allowed = await self._session_allows_message(room, session_id)
-            except Exception:
-                allowed = True
+        sender_norm, _trimmed = _normalize_sender_role(sender_raw, max_len=16)
 
-            if not allowed:
-                # 선택: 고객 쪽에만 종료 안내 (그룹 브로드캐스트/DB 저장 X)
+        _safe_log(
+            "ws_recv",
+            room=room,
+            sid=session_id,
+            sender=sender_norm,
+            type=effective_type,
+            len=len(text),
+        )
+
+        # end류는 텍스트 없는 이벤트로
+        if sender_norm == "user" and effective_type in _END_TYPES:
+            text = ""
+
+        # ✅ 전송 직전 차단(user): PII/욕설·모욕/성희롱
+        if sender_norm == "user" and effective_type not in _END_TYPES:
+            # (1) PII
+            ok, hits = _guard_text(str(text))
+            if not ok:
+                msg = (
+                    _summarize_hits(hits)
+                    or _get_setting("PII_BLOCK_MESSAGE", "개인정보로 보이는 내용은 상담사에게 전달되지 않습니다.")
+                )
                 try:
                     await self.send(
                         text_data=json.dumps(
                             {
-                                "type": "system",
-                                "code": "chat_ended",
-                                "message": "이미 종료된 상담입니다. 새 상담을 다시 시작해주세요.",
+                                "type": "blocked",
+                                "code": "PII_BLOCKED",
+                                "sender": "system",
+                                "role": "system",
+                                "text": msg,
+                                "message": msg,
                                 "room": room,
                                 "session_id": session_id,
                                 "ts": ts,
-                            }
+                            },
+                            ensure_ascii=False,
                         )
                     )
                 except Exception:
                     pass
+
+                _safe_log("ws_block", reason="pii", room=room, sid=session_id, len=len(text))
+
+                if _end_on("pii"):
+                    end_text = "정책 위반(개인정보)으로 상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요."
+                    end_payload = {
+                        "type": "end",
+                        "code": "PII_END",
+                        "sender": "system",
+                        "role": "system",
+                        "text": end_text,
+                        "content": end_text,
+                        "ts": ts,
+                        "room": room,
+                        "session_id": session_id,
+                    }
+
+                    # ✅ 고객에게 먼저 확실히 안내
+                    try:
+                        await self.send(text_data=json.dumps(end_payload, ensure_ascii=False))
+                    except Exception:
+                        pass
+
+                    # ✅ 그룹에는 "나 제외"로 송신(중복 방지)
+                    try:
+                        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                    except Exception:
+                        pass
+                    try:
+                        await self.channel_layer.group_send(self.group_name, {"type": "room_message", "payload": end_payload})
+                    except Exception:
+                        pass
+
+                    # ✅ 마스터 상태 이벤트도 남김(선택)
+                    try:
+                        await self._broadcast_master(
+                            {
+                                "type": "session_ended",
+                                "reason": "pii",
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": int(timezone.now().timestamp() * 1000),
+                            }
+                        )
+                    except Exception:
+                        pass
+
+                    try:
+                        await self.close(code=1000)
+                    except Exception:
+                        pass
                 return
 
-        # ✅ 한 세션에서 자동 인사말은 한 번만 허용
-        is_auto_greeting = (
-            s_lower == "operator"
-            and isinstance(text, str)
-            and text.strip() == AUTO_GREETING_TEXT.strip()
-        )
-        if is_auto_greeting and session_id is not None:
-            try:
-                already_has_operator = await self._has_operator_message(session_id)
-            except Exception:
-                already_has_operator = False
+            # (2) 성희롱
+            if _match_any(_get_sexual_regexes(), str(text)):
+                msg = "성희롱/부적절한 성적 표현은 전송되지 않습니다."
+                try:
+                    await self.send(
+                        text_data=json.dumps(
+                            {
+                                "type": "blocked",
+                                "code": "SEXUAL_BLOCKED",
+                                "sender": "system",
+                                "role": "system",
+                                "text": msg,
+                                "message": msg,
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": ts,
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                except Exception:
+                    pass
 
-            if already_has_operator:
-                # 이미 이 세션에 상담사 메시지가 한 번 이상 있는 경우
-                # 자동 인사말은 다시 보내지 않음 (브로드캐스트/저장 둘 다 스킵)
+                _safe_log("ws_block", reason="sexual", room=room, sid=session_id, len=len(text))
+
+                if _end_on("sexual"):
+                    end_text = "정책 위반(성희롱)으로 상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요."
+                    end_payload = {
+                        "type": "end",
+                        "code": "SEXUAL_END",
+                        "sender": "system",
+                        "role": "system",
+                        "text": end_text,
+                        "content": end_text,
+                        "ts": ts,
+                        "room": room,
+                        "session_id": session_id,
+                    }
+
+                    try:
+                        await self.send(text_data=json.dumps(end_payload, ensure_ascii=False))
+                    except Exception:
+                        pass
+
+                    try:
+                        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                    except Exception:
+                        pass
+                    try:
+                        await self.channel_layer.group_send(self.group_name, {"type": "room_message", "payload": end_payload})
+                    except Exception:
+                        pass
+
+                    try:
+                        await self._broadcast_master(
+                            {
+                                "type": "session_ended",
+                                "reason": "sexual",
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": int(timezone.now().timestamp() * 1000),
+                            }
+                        )
+                    except Exception:
+                        pass
+
+                    try:
+                        await self.close(code=1000)
+                    except Exception:
+                        pass
+                return
+
+            # (3) 욕설/모욕
+            if _match_any(_get_abuse_regexes(), str(text)):
+                msg = "욕설/모욕 표현은 전송되지 않습니다."
+                try:
+                    await self.send(
+                        text_data=json.dumps(
+                            {
+                                "type": "blocked",
+                                "code": "ABUSE_BLOCKED",
+                                "sender": "system",
+                                "role": "system",
+                                "text": msg,
+                                "message": msg,
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": ts,
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                except Exception:
+                    pass
+
+                _safe_log("ws_block", reason="abuse", room=room, sid=session_id, len=len(text))
+
+                if _end_on("abuse"):
+                    end_text = "정책 위반(욕설/모욕)으로 상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요."
+                    end_payload = {
+                        "type": "end",
+                        "code": "ABUSE_END",
+                        "sender": "system",
+                        "role": "system",
+                        "text": end_text,
+                        "content": end_text,
+                        "ts": ts,
+                        "room": room,
+                        "session_id": session_id,
+                    }
+
+                    try:
+                        await self.send(text_data=json.dumps(end_payload, ensure_ascii=False))
+                    except Exception:
+                        pass
+
+                    try:
+                        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                    except Exception:
+                        pass
+                    try:
+                        await self.channel_layer.group_send(self.group_name, {"type": "room_message", "payload": end_payload})
+                    except Exception:
+                        pass
+
+                    try:
+                        await self._broadcast_master(
+                            {
+                                "type": "session_ended",
+                                "reason": "abuse",
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": int(timezone.now().timestamp() * 1000),
+                            }
+                        )
+                    except Exception:
+                        pass
+
+                    try:
+                        await self.close(code=1000)
+                    except Exception:
+                        pass
                 return
 
         payload = {
             "type": effective_type,
-            "sender": sender,
+            "sender": sender_raw,  # 화면 표시용(원문)
+            "role": sender_norm,  # ✅ 표준 role
             "text": text,
+            "content": text,  # ✅ 프론트 호환
             "ts": ts,
             "room": room,
             "session_id": session_id,
         }
 
-        # 1) 룸 그룹으로 브로드캐스트
-        await self.channel_layer.group_send(
-            self.group_name,
-            {"type": "room_message", "payload": payload},
-        )
-
-        # 2) 메시지 저장 (+ 욕설 감지/증빙)
+        # 1) 룸 브로드캐스트 (화면 표시)
         try:
-            await self._save_message_if_possible(
-                session_id=session_id,
-                room=room,
-                sender=str(sender),
-                msg_type=effective_type,
-                text=str(text),
-                ts=ts,
-            )
-        except Exception:
-            pass
+            await self.channel_layer.group_send(self.group_name, {"type": "room_message", "payload": payload})
+        except Exception as e:
+            _safe_log("ws_warn", reason="group_send_failed", room=room, sid=session_id, err=str(e)[:200])
+            log.warning("group_send failed: %s", e)
 
-        # 3) 상태 이벤트 처리 + master로 브로드캐스트
+        # 2) ✅ DB 저장 (store.py가 operator 저장 마스킹 담당)
+        try:
+            persist = _boolish(_get_setting("LIVECHAT_PERSIST_MESSAGES", True), default=True)
+            if persist:
+                msg_id = await database_sync_to_async(save_ws_message)(
+                    room=room,
+                    session_id=session_id,
+                    sender_norm=sender_norm,
+                    effective_type=effective_type,
+                    body=str(text),
+                    ts=ts,
+                )
+                _safe_log(
+                    "save_ok" if msg_id else "save_skip",
+                    room=room,
+                    sid=session_id,
+                    sender=sender_norm,
+                    type=effective_type,
+                    len=len(text),
+                    msg_id=msg_id,
+                )
+            else:
+                _safe_log("save_skip", reason="persist_off", room=room, sid=session_id)
+        except Exception as e:
+            _safe_log("save_fail", room=room, sid=session_id, err_cls=e.__class__.__name__, err=str(e)[:200])
 
-        # 상담사 메시지로 session_started 처리
-        if s_lower == "operator" and msg_type not in ("end", "closed", "close"):
-            info = await self._mark_started(room, session_id)
-            if info:
+        # 3) master 브로드캐스트(상태 이벤트)
+        if sender_norm == "operator" and effective_type not in _END_TYPES:
+            try:
                 await self._broadcast_master(
                     {
                         "type": "session_started",
-                        "room": info.get("room") or room,
-                        "session_id": info.get("id") or session_id,
-                        "status": info.get("status"),
-                        "started_at": info.get("started_at"),
+                        "room": room,
+                        "session_id": session_id,
                         "ts": int(timezone.now().timestamp() * 1000),
                     }
                 )
+            except Exception:
+                pass
 
-        # end류면 종료 처리
-        if msg_type in ("end", "closed", "close"):
-            info = await self._mark_ended(room, session_id)
-            if info:
+        if effective_type in _END_TYPES:
+            try:
                 await self._broadcast_master(
                     {
                         "type": "session_ended",
-                        "room": info.get("room") or room,
-                        "session_id": info.get("id") or session_id,
-                        "status": info.get("status"),
-                        "ended_at": info.get("ended_at"),
+                        "room": room,
+                        "session_id": session_id,
                         "ts": int(timezone.now().timestamp() * 1000),
                     }
                 )
-
+            except Exception:
+                pass
             try:
                 await self.close(code=1000)
             except Exception:

@@ -1,0 +1,135 @@
+{% extends "ragapp/_base_feature.html" %}
+{% load static %}
+
+{% block title %}접근이 제한되었습니다{% endblock %}
+
+{% block content %}
+<style>
+  :root{
+    --g-bg: var(--bg-main, #0b1220);
+    --g-card: var(--card-bg, #0f172a);
+    --g-ink: var(--text-main, #e5e7eb);
+    --g-dim: rgba(148,163,184,.88);
+    --g-line: rgba(148,163,184,.22);
+    --g-ring: rgba(99,102,241,.35);
+    --g-accent: #6366f1;
+    --g-danger: #ef4444;
+  }
+  .g-wrap{max-width:920px;margin:32px auto;padding:0 16px}
+  .g-card{
+    background:var(--g-card);
+    border:1px solid var(--g-line);
+    border-radius:18px;
+    box-shadow:0 18px 50px rgba(0,0,0,.35);
+    overflow:hidden;
+  }
+  .g-top{
+    padding:18px 20px;
+    border-bottom:1px solid rgba(148,163,184,.14);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    background:
+      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 55%),
+      radial-gradient(circle at bottom right, rgba(129,140,248,.18), transparent 55%),
+      rgba(2,6,23,.35);
+  }
+  .g-badge{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;color:var(--g-dim);
+    border:1px solid var(--g-line);
+    padding:6px 10px;border-radius:999px;
+    background:rgba(2,6,23,.55);
+  }
+  .g-badge strong{
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:#c7d2fe;
+    padding:2px 8px;border-radius:999px;
+    border:1px solid rgba(99,102,241,.35);
+    background:rgba(99,102,241,.10);
+  }
+  .g-body{padding:18px 20px;color:var(--g-ink)}
+  .g-title{margin:0 0 8px;font-size:20px;letter-spacing:.01em}
+  .g-msg{margin:0;color:rgba(226,232,240,.92);line-height:1.65}
+  .g-msg code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    font-size:12px;
+    padding:2px 6px;border-radius:8px;
+    border:1px solid rgba(148,163,184,.22);
+    background:rgba(2,6,23,.55);
+  }
+  .g-meta{
+    margin-top:14px;
+    background:rgba(2,6,23,.5);
+    border:1px dashed rgba(148,163,184,.35);
+    border-radius:14px;
+    padding:12px 13px;
+  }
+  .g-meta h3{margin:0 0 6px;font-size:13px;color:rgba(226,232,240,.92)}
+  .g-meta ul{margin:0;padding-left:18px;color:var(--g-dim);display:flex;flex-direction:column;gap:4px;font-size:12px}
+  .g-actions{
+    margin-top:16px;
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  }
+  .g-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:10px 14px;border-radius:12px;
+    border:1px solid var(--g-line);
+    background:rgba(2,6,23,.55);
+    color:var(--g-ink);
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .g-btn:hover{border-color:rgba(99,102,241,.55);box-shadow:0 0 0 3px var(--g-ring)}
+  .g-btn.primary{
+    background:linear-gradient(90deg,#6366f1,#4f46e5);
+    border-color:transparent;
+  }
+  .g-foot{
+    padding:14px 20px;
+    border-top:1px solid rgba(148,163,184,.14);
+    color:var(--g-dim);
+    font-size:12px;
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    background:rgba(2,6,23,.35);
+  }
+</style>
+
+<div class="g-wrap">
+  <div class="g-card" role="alert" aria-live="polite">
+    <div class="g-top">
+      <div class="g-badge">
+        <strong>{{ status }}</strong>
+        <span>{{ code }}</span>
+      </div>
+      <div class="g-badge" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08)">
+        <span style="color:#fecaca">Guard Block</span>
+      </div>
+    </div>
+
+    <div class="g-body">
+      <h1 class="g-title">{{ title }}</h1>
+      <p class="g-msg">{{ message|linebreaksbr }}</p>
+
+      {% if meta %}
+      <div class="g-meta">
+        <h3>참고 정보</h3>
+        <ul>
+          {% for m in meta %}
+            <li>{{ m }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="g-actions">
+        <a class="g-btn primary" href="{{ back_url|default:'/' }}">← 돌아가기</a>
+        <a class="g-btn" href="/">홈으로</a>
+      </div>
+    </div>
+
+    <div class="g-foot">
+      <span>이 화면은 보안 정책에 의해 표시됩니다.</span>
+      <span>필요하면 관리자에게 문의하세요.</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

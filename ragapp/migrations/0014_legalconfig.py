@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
                 ('service_name', models.CharField(default='AI 뉴스 분석 콘솔', max_length=120)),
                 ('effective_date', models.DateField(default=datetime.date.today)),
                 ('operator_name', models.CharField(default='김동건', max_length=120)),
-                ('contact_email', models.EmailField(blank=True, default='privacy@example.com', max_length=254)),
+                ('contact_email', models.EmailField(blank=True, default='kdg283@gmail.com', max_length=254)),
                 ('contact_phone', models.CharField(blank=True, default='', max_length=50)),
                 ('consent_gate_enabled', models.BooleanField(default=True)),
                 ('privacy_html', models.TextField(blank=True, default='')),

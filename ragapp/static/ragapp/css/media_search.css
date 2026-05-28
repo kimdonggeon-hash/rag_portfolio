@@ -1,0 +1,592 @@
+/* ragapp/static/ragapp/css/media_search.css */
+
+.ms-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    gap: 16px;
+}
+
+.ms-card {
+    background: var(--card-bg, #0f172a);
+    border: 1px solid var(--line, rgba(148, 163, 184, .18));
+    border-radius: 16px;
+    padding: 18px;
+}
+
+.ms-head {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.ms-title {
+    font-size: 20px;
+    margin: 0;
+}
+
+.ms-muted {
+    color: #94a3b8;
+}
+
+.ms-err {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, .08);
+    border: 1px solid rgba(239, 68, 68, .35);
+    color: #fecaca;
+}
+
+.ms-form {
+    display: grid;
+    gap: 10px;
+}
+
+.ms-busy {
+    margin-top: 6px;
+}
+
+.ms-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* ====== ONE-LINE BAR ====== */
+.ms-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+    /* ✅ 데스크탑: 한 줄 고정 */
+}
+
+.ms-q {
+    flex: 1 1 720px;
+    /* ✅ 검색어 입력칸 기본 길이 확 늘림 */
+    min-width: 420px;
+    /* ✅ 너무 일찍 줄바꿈 안 나게 */
+}
+
+/* ✅ 컨트롤/버튼은 내용만큼만 차지(검색어 칸이 남는 폭을 다 먹게) */
+.ms-stepper,
+.ms-btn,
+.ms-gear-wrap {
+    flex: 0 0 auto;
+}
+
+.ms-input,
+.ms-num,
+.ms-select {
+    width: 100%;
+    height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: var(--card-sub, #0b1326);
+    color: var(--ink, #e5e7eb);
+    outline: none;
+}
+
+.ms-input:focus,
+.ms-num:focus,
+.ms-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .25);
+}
+
+.ms-input-q {
+    height: 46px;
+}
+
+/* ====== compact steppers ====== */
+.ms-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 46px;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .14);
+    background: rgba(2, 6, 23, .18);
+}
+
+.ms-step {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(15, 23, 42, .6);
+    color: #e5e7eb;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+}
+
+.ms-step:hover {
+    border-color: rgba(148, 163, 184, .28);
+    background: rgba(15, 23, 42, .82);
+}
+
+.ms-num--k {
+    width: 74px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.ms-btn {
+    height: 46px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: #111b34;
+    color: #e5e7eb;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ms-btn.primary {
+    background: linear-gradient(90deg, #6366f1, #4f46e5);
+    border-color: transparent;
+}
+
+.ms-btn.ghost {
+    background: #0b1326;
+}
+
+.ms-btn--go {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.ms-btn--stash {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+/* ====== Gear + Popover ====== */
+.ms-gear-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.ms-gear {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .14);
+    background: rgba(2, 6, 23, .18);
+    color: rgba(226, 232, 240, .92);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+}
+
+.ms-gear:hover {
+    border-color: rgba(148, 163, 184, .24);
+    background: rgba(2, 6, 23, .28);
+}
+
+.ms-pop {
+    position: fixed;
+    z-index: 9998;
+    width: 320px;
+    max-width: calc(100vw - 20px);
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(2, 6, 23, .92);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .45);
+    padding: 12px;
+}
+
+.ms-pop-sec {
+    display: grid;
+    gap: 10px;
+}
+
+.ms-pop-title {
+    font-size: 12px;
+    color: rgba(226, 232, 240, .9);
+    letter-spacing: -.1px;
+}
+
+.ms-pop-row {
+    display: grid;
+    grid-template-columns: 1fr 62px;
+    gap: 10px;
+    align-items: center;
+}
+
+.ms-pop-val {
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(15, 23, 42, .45);
+    color: #e5e7eb;
+    display: grid;
+    place-items: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.ms-pop-sep {
+    height: 1px;
+    background: rgba(148, 163, 184, .12);
+    margin: 12px 0;
+}
+
+.ms-pop-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: rgba(226, 232, 240, .92);
+    user-select: none;
+}
+
+.ms-pop-grid {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 10px;
+    align-items: center;
+}
+
+.ms-pop-label {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.ms-pop-input {
+    height: 42px;
+    border-radius: 12px;
+}
+
+/* slider */
+.ms-range {
+    width: 100%;
+    height: 44px;
+    padding: 0 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(15, 23, 42, .35);
+    outline: none;
+}
+
+.ms-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #6366f1;
+    border: 2px solid rgba(255, 255, 255, .35);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
+    cursor: pointer;
+}
+
+.ms-range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, .22);
+}
+
+/* chips */
+.ms-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.ms-chips {
+    margin-top: 10px;
+    margin-bottom: 8px;
+}
+
+.ms-chip {
+    font-size: 12px;
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, .18);
+    padding: 4px 8px;
+    border-radius: 999px;
+    display: inline-block;
+    margin-right: 6px;
+    margin-bottom: 6px;
+}
+
+/* results grid */
+.ms-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.ms-item {
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 14px;
+    overflow: hidden;
+    background: #0b1326;
+    contain: content;
+}
+
+.ms-thumb-wrap {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: #0b152a;
+    overflow: hidden;
+}
+
+.ms-thumb-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg,
+            rgba(148, 163, 184, .08) 20%,
+            rgba(148, 163, 184, .16) 35%,
+            rgba(148, 163, 184, .08) 50%);
+    background-size: 200% 100%;
+    animation: msShimmer 1.15s linear infinite;
+    opacity: 1;
+    transition: opacity .18s ease-out;
+}
+
+.ms-thumb-wrap.is-loaded::before {
+    opacity: 0;
+    animation: none;
+}
+
+.ms-thumb-wrap.is-error::before {
+    opacity: 0;
+    animation: none;
+}
+
+.ms-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #0b152a;
+    opacity: 0;
+    transform: scale(1.01);
+    filter: saturate(0.98);
+    transition: opacity .22s ease-out, transform .22s ease-out, filter .22s ease-out;
+}
+
+.ms-thumb[data-loaded="1"] {
+    opacity: 1;
+    transform: scale(1);
+    filter: none;
+}
+
+.ms-thumb[data-error="1"] {
+    opacity: 0;
+}
+
+.ms-thumb-wrap.is-error::after {
+    content: "이미지 로드 실패";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    color: #9ca3af;
+    background: #020617;
+    border-top: 1px solid rgba(148, 163, 184, .12);
+}
+
+.ms-thumb--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #9ca3af;
+    background: #020617;
+}
+
+.ms-del-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 999px;
+    border: 1px solid rgba(248, 113, 113, .9);
+    background: rgba(15, 23, 42, .9);
+    color: #fecaca;
+    text-decoration: none;
+    backdrop-filter: blur(6px);
+}
+
+.ms-del-btn:hover {
+    background: rgba(248, 113, 113, .18);
+    border-color: rgba(248, 113, 113, 1);
+    color: #fee2e2;
+}
+
+.ms-meta {
+    padding: 10px;
+}
+
+.ms-cap {
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.ms-pager {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.ms-pill {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .18);
+}
+
+.ms-pill.disabled {
+    opacity: .5;
+    pointer-events: none;
+}
+
+.ms-item:hover {
+    border-color: rgba(148, 163, 184, .28);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .22);
+}
+
+/* focus */
+.ms-btn:focus-visible,
+.ms-pill:focus-visible,
+.ms-del-btn:focus-visible,
+.ms-input:focus-visible,
+.ms-num:focus-visible,
+.ms-range:focus-visible,
+.ms-step:focus-visible,
+.ms-gear:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .25);
+    border-color: #6366f1;
+}
+
+/* quota toast */
+.quota-toast {
+    position: fixed;
+    left: 50%;
+    top: 14px;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .38);
+    background: rgba(2, 6, 23, .88);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .35);
+    color: #e5e7eb;
+    font-size: 12.5px;
+    line-height: 1.2;
+    letter-spacing: -.1px;
+    max-width: min(720px, calc(100vw - 28px));
+}
+
+.quota-toast.is-show {
+    display: inline-flex;
+    animation: toastIn .16s ease-out;
+}
+
+.quota-toast .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, .14);
+    flex: 0 0 auto;
+}
+
+.quota-toast .msg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quota-toast .x {
+    border: 0;
+    background: transparent;
+    color: rgba(226, 232, 240, .9);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 999px;
+}
+
+.quota-toast .x:hover {
+    background: rgba(148, 163, 184, .14);
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes msShimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .ms-thumb,
+    .ms-thumb-wrap::before,
+    .quota-toast.is-show {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* wrap layout for small screens */
+@media (max-width: 900px) {
+    .ms-bar {
+        flex-wrap: wrap;
+    }
+
+    /* ✅ 이 구간부터는 자연스럽게 줄바꿈 허용 */
+    .ms-q {
+        flex: 1 1 100%;
+        min-width: 100%;
+    }
+}

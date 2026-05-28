@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple, Set
+from typing import Any, Dict, Optional, Tuple, Set, List
 
-from django.apps import apps
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Q
@@ -14,10 +13,17 @@ from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
+from ragapp.livechat.store import fetch_session_messages_for_log
 
 from ragapp.models import LiveChatSession
+
+# ✅ “무조건 보이게/저장되게” 핵심 유틸
+from ragapp.livechat.store import (
+    ensure_room_row,
+    save_ws_message,
+)
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +39,8 @@ END_MESSAGE = (
     "상담을 종료했습니다. 추가로 궁금한 점이 생기면 언제든지 질문 챗봇이나 실시간 상담을 이용해 주세요."
 )
 
+_END_TYPES = {"end", "closed", "close"}
+
 
 # ─────────────────────────────────────
 # 공통 유틸
@@ -47,17 +55,25 @@ def _json_body(request: HttpRequest) -> Dict[str, Any]:
 
 
 def _model_fields(model) -> Set[str]:
+    """
+    name + attname 둘 다 수집.
+    FK면 session / session_id 둘 다 잡히게.
+    """
+    out: Set[str] = set()
     try:
-        return {f.name for f in model._meta.get_fields() if hasattr(f, "attname")}
+        for f in model._meta.get_fields():
+            n = getattr(f, "name", None)
+            a = getattr(f, "attname", None)
+            if n:
+                out.add(str(n))
+            if a:
+                out.add(str(a))
     except Exception:
-        return set()
+        pass
+    return out
 
 
 def _to_int(v: Any) -> Optional[int]:
-    """
-    session_id 같이 들어오는 값들을 int로 정리하기 위한 헬퍼.
-    - 숫자 문자열이면 int로, 아니면 None
-    """
     try:
         if v is None:
             return None
@@ -71,6 +87,26 @@ def _to_int(v: Any) -> Optional[int]:
         return int(s)
     except Exception:
         return None
+
+
+def _ts_ms(v: Any) -> Optional[int]:
+    if v is None:
+        return None
+    try:
+        if isinstance(v, int):
+            return v * 1000 if v < 10_000_000_000 else v
+        if isinstance(v, float):
+            i = int(v)
+            return i * 1000 if i < 10_000_000_000 else i
+        s = str(v).strip()
+        if not s:
+            return None
+        if s.isdigit():
+            i = int(s)
+            return i * 1000 if i < 10_000_000_000 else i
+    except Exception:
+        pass
+    return None
 
 
 def _send_master(payload: Dict[str, Any]) -> None:
@@ -115,19 +151,16 @@ def _send_room(room: str, payload: Dict[str, Any]) -> None:
         log.warning("send room failed: %s", e)
 
 
-def _get_message_model():
+def _ensure_livechat_room_row(room_id: str) -> None:
     """
-    메시지 모델을 유연하게 찾기 위한 헬퍼.
-    - LiveChatMessage / LiveChatMsg / ChatMessage / LiveChatLog 중 하나를 ragapp에서 찾음
+    ✅ room_cnt=0 방지: 세션 생성 시 LiveChatRoom row를 가능하면 보장.
+    - store.ensure_room_row()는 DB 실제 컬럼 기준으로 안전하게 처리.
     """
-    for name in ("LiveChatMessage", "LiveChatMsg", "ChatMessage", "LiveChatLog"):
-        try:
-            m = apps.get_model("ragapp", name)
-            if m:
-                return m
-        except Exception:
-            continue
-    return None
+    try:
+        ensure_room_row(room=room_id)
+    except Exception:
+        # 절대 플로우 깨지면 안 됨
+        log.warning("ensure_room_row failed (ignored)", exc_info=True)
 
 
 def _has_unlogged_session(user) -> bool:
@@ -136,39 +169,30 @@ def _has_unlogged_session(user) -> bool:
     """
     fields = _model_fields(LiveChatSession)
 
-    # 기록으로 쓸 필드가 아예 없으면 이 기능은 비활성화
     note_fields = [f for f in ("session_note", "session_detail") if f in fields]
     if not note_fields:
         return False
 
     qs = LiveChatSession.objects.all()
 
-    # 상담사별로 나눠 관리하는 경우
     if "assigned_staff" in fields and user and not getattr(user, "is_anonymous", False):
         qs = qs.filter(assigned_staff=user)
 
-    # ✅ 이미 "완료/저장됨" 상태인 건 제외
     if "status" in fields:
-        done_values = ["done"]  # 옛날 문자열
+        done_values = ["done"]
         try:
-            # enum 기반 상태값(SAVED)이 있다면 같이 제외
-            done_values.append(LiveChatSession.Status.SAVED)
+            done_values.append(LiveChatSession.Status.SAVED)  # type: ignore[attr-defined]
         except Exception:
             pass
         qs = qs.exclude(status__in=done_values)
 
-    # 종료된 세션만 대상으로 (ended_at 있으면 우선)
     if "ended_at" in fields:
         qs = qs.filter(ended_at__isnull=False)
 
-    # 기록이 모두 비어 있는 세션만 남기기
     q = Q()
     for idx, fname in enumerate(note_fields):
         cond = Q(**{f"{fname}__isnull": True}) | Q(**{f"{fname}__exact": ""})
-        if idx == 0:
-            q = cond
-        else:
-            q &= cond
+        q = cond if idx == 0 else (q & cond)
     qs = qs.filter(q)
 
     return qs.exists()
@@ -182,15 +206,11 @@ def _has_unlogged_session(user) -> bool:
 def live_chat_view(request: HttpRequest) -> HttpResponse:
     """
     /ragadmin/live-chat/
-    - 상담사 콘솔 메인 화면
-    - 최근 세션 30개까지 전달
     """
     fields = _model_fields(LiveChatSession)
     initial_room = request.GET.get("room") or "master"
 
     qs = LiveChatSession.objects.all()
-
-    # 최신순(우선 created_at)
     if "created_at" in fields:
         qs = qs.order_by("-created_at")
     elif "started_at" in fields:
@@ -199,27 +219,38 @@ def live_chat_view(request: HttpRequest) -> HttpResponse:
         qs = qs.order_by("-id")
 
     sessions = list(qs[:30])
+
+    room_cnt = 0
+    if "room" in fields:
+        try:
+            room_cnt = (
+                LiveChatSession.objects.exclude(room__isnull=True)
+                .exclude(room__exact="")
+                .values("room")
+                .distinct()
+                .count()
+            )
+        except Exception:
+            room_cnt = 0
+
     ctx = {
         "initial_room": initial_room,
         "sessions": sessions,
+        "room_cnt": room_cnt,
     }
     return render(request, "ragadmin/live_chat.html", ctx)
 
 
 # ─────────────────────────────────────
-#  상담사용 "다음 상담 받기" API
+#  상담사용 "다음 상담 받기" (레거시/호환)
 # ─────────────────────────────────────
 @staff_member_required
 @csrf_protect
 @require_POST
 def api_livechat_next_session(request: HttpRequest) -> JsonResponse:
     """
-    /ragadmin/live-chat/next-session/ (예정)
-    - 상담사 콘솔의 '다음 상담 받기' 버튼에서 호출한다고 가정.
-    - 아직 상담 기록(session_note/session_detail)을 남기지 않은
-      종료 세션이 하나라도 있으면 다음 배정을 막는다.
+    (레거시 호환) status 문자열 기반 waiting → active 전환 버전
     """
-    # 1) 아직 기록 안 남긴 세션이 있으면 차단
     if _has_unlogged_session(request.user):
         return JsonResponse(
             {
@@ -233,11 +264,9 @@ def api_livechat_next_session(request: HttpRequest) -> JsonResponse:
     fields = _model_fields(LiveChatSession)
     qs = LiveChatSession.objects.all()
 
-    # '대기중' 상태만 후보로 사용 (status 필드가 있을 때)
     if "status" in fields:
         qs = qs.filter(status__in=["waiting", "대기", "pending"])
 
-    # 가장 오래된 것부터 배정
     if "created_at" in fields:
         qs = qs.order_by("created_at")
     elif "requested_at" in fields:
@@ -248,18 +277,13 @@ def api_livechat_next_session(request: HttpRequest) -> JsonResponse:
     session = qs.first()
     if not session:
         return JsonResponse(
-            {
-                "ok": False,
-                "reason": "NO_WAITING",
-                "message": "현재 대기 중인 상담이 없습니다.",
-            },
+            {"ok": False, "reason": "NO_WAITING", "message": "현재 대기 중인 상담이 없습니다."},
             status=200,
         )
 
     now = timezone.now()
-
     try:
-        update_fields: list[str] = []
+        update_fields: List[str] = []
 
         if "status" in fields:
             session.status = "active"
@@ -273,24 +297,15 @@ def api_livechat_next_session(request: HttpRequest) -> JsonResponse:
             setattr(session, "assigned_staff", request.user)
             update_fields.append("assigned_staff")
 
-        if update_fields:
-            session.save(update_fields=update_fields)
-        else:
-            session.save()
+        session.save(update_fields=update_fields) if update_fields else session.save()
     except Exception as e:
         log.exception("next-session assign failed: %s", e)
         return JsonResponse(
-            {
-                "ok": False,
-                "reason": "ASSIGN_FAILED",
-                "message": "세션 배정 처리 중 오류가 발생했습니다.",
-            },
+            {"ok": False, "reason": "ASSIGN_FAILED", "message": "세션 배정 처리 중 오류가 발생했습니다."},
             status=200,
         )
 
     ts = int(now.timestamp() * 1000)
-
-    # 마스터 콘솔에 배정 이벤트 브로드캐스트(선택)
     _send_master(
         {
             "type": "session_assigned",
@@ -301,83 +316,63 @@ def api_livechat_next_session(request: HttpRequest) -> JsonResponse:
         }
     )
 
-    return JsonResponse(
-        {
-            "ok": True,
-            "session_id": session.id,
-            "room": session.room,
-            "started_at": getattr(session, "started_at", None),
-        }
-    )
+    return JsonResponse({"ok": True, "session_id": session.id, "room": session.room, "started_at": getattr(session, "started_at", None)})
 
 
 @require_POST
 @staff_member_required
 @csrf_protect
-def api_livechat_next(request):
+def api_livechat_next(request: HttpRequest) -> JsonResponse:
     """
-    상담사 콘솔 우측 상단 '다음 상담 받기' 버튼용 API.
-
-    - ENDED_NEED_SAVE 상태인 세션이 하나라도 있으면
-      → ok=False, reason=NEED_NOTE 로 돌려보내서
-        "상담 기록 먼저 저장해 주세요" 경고를 띄우게 함.
-    - 그 외에는 WAITING 중에서 가장 오래된 세션 1개를 ACTIVE 로 전환하고 리턴.
+    (메인) Enum Status 기반 WAITING → ACTIVE 전환 버전
     """
-    # 1) 메모 필요 세션이 남아 있는지 확인
-    need_note_exists = LiveChatSession.objects.filter(
-        status=LiveChatSession.Status.ENDED_NEED_SAVE
-    ).exists()
+    # 1) ENDED_NEED_SAVE가 남아있으면 막기(가능하면)
+    try:
+        need_note_exists = LiveChatSession.objects.filter(status=LiveChatSession.Status.ENDED_NEED_SAVE).exists()  # type: ignore[attr-defined]
+    except Exception:
+        need_note_exists = False
 
-    if need_note_exists:
+    if need_note_exists or _has_unlogged_session(request.user):
         return JsonResponse(
-            {
-                "ok": False,
-                "reason": "NEED_NOTE",
-                "message": "이전에 종료된 상담의 상담 기록을 먼저 저장해 주세요.",
-            },
+            {"ok": False, "reason": "NEED_NOTE", "message": "이전에 종료된 상담의 상담 기록을 먼저 저장해 주세요."},
             status=200,
         )
 
-    # 2) WAITING(대기) 중에서 가장 오래된 하나 선택
-    session = (
-        LiveChatSession.objects.filter(status=LiveChatSession.Status.WAITING)
-        .order_by("created_at")
-        .first()
-    )
+    # 2) WAITING 중 가장 오래된 것
+    try:
+        session = (
+            LiveChatSession.objects.filter(status=LiveChatSession.Status.WAITING)  # type: ignore[attr-defined]
+            .order_by("created_at")
+            .first()
+        )
+    except Exception:
+        session = LiveChatSession.objects.order_by("created_at").first()
 
     if not session:
-        return JsonResponse(
-            {
-                "ok": False,
-                "reason": "NO_WAITING",
-                "message": "현재 대기 중인 상담이 없습니다.",
-            },
-            status=200,
-        )
+        return JsonResponse({"ok": False, "reason": "NO_WAITING", "message": "현재 대기 중인 상담이 없습니다."}, status=200)
 
-    # 3) ACTIVE 로 전환 (mark_active() 있으면 우선 사용)
+    # 3) ACTIVE 전환
     try:
         session.mark_active()
         update_fields = ["status", "started_at"]
     except Exception:
-        session.status = LiveChatSession.Status.ACTIVE
-        if not session.started_at:
+        try:
+            session.status = LiveChatSession.Status.ACTIVE  # type: ignore[attr-defined]
+        except Exception:
+            session.status = "active"
+        if not getattr(session, "started_at", None):
             session.started_at = timezone.now()
         update_fields = ["status", "started_at"]
 
     session.save(update_fields=update_fields)
 
-    # 4) 프런트에서 필요한 정보만 리턴
     return JsonResponse(
         {
             "ok": True,
             "session_id": session.id,
             "room": session.room,
             "status": session.status,
-            "page": {
-                "title": session.page_title or "",
-                "path": session.page_path or "",
-            },
+            "page": {"title": getattr(session, "page_title", "") or "", "path": getattr(session, "page_path", "") or ""},
         }
     )
 
@@ -392,14 +387,13 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
     /api/livechat/request/
     - 상담 요청이 오면 LiveChatSession을 '무조건 생성'
     - master 로비에 handoff 이벤트 브로드캐스트
-    - 리뉴얼: redirect_url(/c/<room>/)도 함께 내려줌
+    - redirect_url(/c/<room>/)도 함께 내려줌
     """
     data = _json_body(request)
     fields = _model_fields(LiveChatSession)
 
     room = (data.get("room") or "").strip()
     if not room:
-        # room이 없으면 임의 생성
         room = timezone.now().strftime("r%y%m%d%H%M%S%f")[-14:]
 
     s = LiveChatSession(room=room)
@@ -413,13 +407,11 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
         if "page_path" in fields and page.get("path"):
             s.page_path = str(page.get("path"))
 
-    # code / memo 등은 선택
     if "code" in fields and data.get("code"):
         s.code = str(data.get("code"))
     if "memo" in fields and data.get("memo"):
         s.memo = str(data.get("memo"))
 
-    # (선택) source / client_ip 같은 필드가 있으면 채워주기
     try:
         if "source" in fields and data.get("source"):
             s.source = str(data.get("source"))
@@ -433,82 +425,25 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
 
     s.save()
 
-    # ✅ 상담사 연결 대기 안내 메시지를 세션 첫 메시지 2개로 남기기
+    # ✅ LiveChatRoom row 보장 (실패해도 무시)
+    _ensure_livechat_room_row(s.room)
+
+    # ✅ (선택) 초기 system 메시지 2개: DB 컬럼 불일치에도 안전하게 저장
     try:
-        # LiveChatMessage 위치를 최대한 유연하게 찾음
-        MsgModel = None
-        try:
-            from ragapp.models_chat_retention import LiveChatMessage as _Msg  # type: ignore
-            MsgModel = _Msg
-        except Exception:
-            try:
-                from ragapp.models import LiveChatMessage as _Msg  # type: ignore
-                MsgModel = _Msg
-            except Exception:
-                MsgModel = None
-
-        if MsgModel is not None:
-            m_fields = _model_fields(MsgModel)
-
-            def _create_system_message(text: str) -> None:
-                msg_kwargs: Dict[str, Any] = {}
-
-                # 세션 FK / session_id
-                if "session" in m_fields:
-                    msg_kwargs["session"] = s
-                elif "session_id" in m_fields:
-                    msg_kwargs["session_id"] = s.id
-
-                # room 필드가 있으면 같이 기록
-                if "room" in m_fields:
-                    msg_kwargs["room"] = s.room
-
-                # role / sender
-                if "role" in m_fields:
-                    msg_kwargs["role"] = "system"
-                if "sender" in m_fields:
-                    msg_kwargs["sender"] = "system"
-
-                # 본문(content / text / body 등)
-                if "content" in m_fields:
-                    msg_kwargs["content"] = text
-                elif "text" in m_fields:
-                    msg_kwargs["text"] = text
-                elif "body" in m_fields:
-                    msg_kwargs["body"] = text
-
-                # msg_type / type 필드가 있으면 system 타입으로
-                if "msg_type" in m_fields:
-                    msg_kwargs["msg_type"] = "system"
-                elif "type" in m_fields:
-                    msg_kwargs["type"] = "system"
-
-                # ts 필드 있으면 ms 기준 타임스탬프
-                if "ts" in m_fields:
-                    msg_kwargs["ts"] = int(timezone.now().timestamp() * 1000)
-
-                MsgModel.objects.create(**msg_kwargs)
-
-            # 👉 여기서 실제로 두 줄 생성
-            _create_system_message("욕설 폭언 모욕적인 언행 발견시 즉시 상담 종료하고 보고 바랍니다.")
-            _create_system_message("오늘 하루도 좋은 하루 보내시길 바랍니다.")
-
-        else:
-            log.info("livechat initial system messages skipped: no LiveChatMessage model")
-
+        now_ts = int(timezone.now().timestamp() * 1000)
+        save_ws_message(room=s.room, session_id=s.id, sender_norm="system", effective_type="system", body="욕설 폭언 모욕적인 언행 발견시 즉시 상담 종료하고 보고 바랍니다.", ts=now_ts)
+        save_ws_message(room=s.room, session_id=s.id, sender_norm="system", effective_type="system", body="오늘 하루도 좋은 하루 보내시길 바랍니다.", ts=now_ts + 1)
     except Exception:
-        # 실패해도 전체 플로우는 유지
-        log.warning("livechat initial system messages failed", exc_info=True)
+        # 시스템 메시지 실패는 절대 전체 플로우를 막지 않음
+        log.warning("initial system messages skipped", exc_info=True)
 
     # ✅ 상담 전용 페이지 URL
     try:
         redirect_path = f"/c/{s.room}/"
         redirect_url = request.build_absolute_uri(redirect_path)
     except Exception:
-        redirect_path = f"/c/{s.room}/"
-        redirect_url = redirect_path
+        redirect_url = f"/c/{s.room}/"
 
-    # master 브로드캐스트 (기존 그대로)
     now_ts = int(timezone.now().timestamp() * 1000)
     _send_master(
         {
@@ -517,100 +452,131 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
             "session_id": s.id,
             "status": getattr(s, "status", None),
             "ts": now_ts,
-            "page": {
-                "title": getattr(s, "page_title", "") or "",
-                "path": getattr(s, "page_path", "") or "",
-            },
+            "page": {"title": getattr(s, "page_title", "") or "", "path": getattr(s, "page_path", "") or ""},
         }
     )
-
-    payload = {
-        "type": "handoff",
-        "room": s.room,
-        "session_id": s.id,
-        "ts": now_ts,
-        "page": {
-            "title": getattr(s, "page_title", "") or "",
-            "path": getattr(s, "page_path", "") or "",
-        },
-        "url": request.headers.get("Referer") or "",
-    }
-    _send_master(payload)
-
-    # ✅ 클라이언트에서 쓸 정보들
-    return JsonResponse(
+    _send_master(
         {
-            "ok": True,
+            "type": "handoff",
             "room": s.room,
             "session_id": s.id,
-            "redirect_url": redirect_url,  # QARAG → /c/<room>/ 이동용
+            "ts": now_ts,
+            "page": {"title": getattr(s, "page_title", "") or "", "path": getattr(s, "page_path", "") or ""},
+            "url": request.headers.get("Referer") or "",
         }
     )
 
+    return JsonResponse({"ok": True, "room": s.room, "session_id": s.id, "redirect_url": redirect_url})
 
 
 # ─────────────────────────────────────
-#  상담 내역 조회 API
+#  상담 내역 조회 API  (✅ store.fetch 기반 “무조건 안전 조회”)
 # ─────────────────────────────────────
 @require_GET
 def api_livechat_history(request: HttpRequest) -> JsonResponse:
     """
     /api/livechat/history/?session_id=...&limit=...
     /api/livechat/history/?room=...&limit=...
-
-    - session_id가 우선
-    - room만 오는 경우: LiveChatSession에서 room으로 세션 찾고 해당 session_id로 메시지 조회
+    옵션: before_ts=... (pagination)
     """
-    MessageModel = _get_message_model()
-    if not MessageModel:
-        return JsonResponse(
-            {"ok": False, "error": "message_model_not_enabled"},
-            status=200,
-        )
+    if not getattr(settings, "LIVECHAT_PERSIST_MESSAGES", True):
+        return JsonResponse({"ok": True, "messages": []})
 
-    session_id = (request.GET.get("session_id") or "").strip()
+    session_id = _to_int(request.GET.get("session_id") or request.GET.get("sid"))
     room = (request.GET.get("room") or "").strip()
-    limit = int((request.GET.get("limit") or "200").strip() or "200")
-    limit = max(1, min(limit, 2000))
+    limit = _to_int(request.GET.get("limit")) or 200
+    limit = max(1, min(limit, 500))
+    before_ts = _ts_ms(request.GET.get("before_ts"))
 
-    sid: Optional[int] = None
-    if session_id.isdigit():
-        sid = int(session_id)
+    # 1) 세션 찾기
+    sess: Optional[LiveChatSession] = None
+    if session_id:
+        sess = LiveChatSession.objects.filter(id=session_id).first()
+    if sess is None and room:
+        sess = LiveChatSession.objects.filter(room=room).order_by("-id").first()
 
-    if not sid and room:
-        # room 파라미터 지원: room으로 LiveChatSession 조회 → session_id 결정
-        try:
-            qs = LiveChatSession.objects.filter(room=room).order_by("-id")
-            s = qs.first()
-            if s:
-                sid = s.id
-        except Exception as e:
-            log.warning("history room->session lookup failed: %s", e)
+    if sess is None:
+        return JsonResponse({"ok": True, "room": room, "session_id": session_id, "messages": []})
 
-    if not sid:
-        return JsonResponse({"ok": True, "session_id": None, "messages": []})
+    # 2) 접근 제어(최소)
+    is_staff = bool(getattr(request.user, "is_authenticated", False) and getattr(request.user, "is_staff", False))
+    if not is_staff:
+        # 비로그인은 room 토큰이 일치해야만 조회 허용
+        if not room or str(getattr(sess, "room", "")) != room:
+            return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
-    try:
-        qs = MessageModel.objects.filter(session_id=sid).order_by("-created_at")[:limit]
-        items = list(reversed(list(qs)))
-    except Exception as e:
-        log.exception("history query failed: %s", e)
-        return JsonResponse(
-            {"ok": False, "error": "history_query_failed"},
-            status=200,
-        )
+    # 3) ✅ 단일 진실: store.fetch_session_messages_for_log
+    rows = fetch_session_messages_for_log(session_id=int(sess.id), limit=5000)
 
-    messages = []
-    for m in items:
-        messages.append(
-            {
-                "role": getattr(m, "role", "") or "",
-                "content": getattr(m, "content", "") or "",
-                "created_at": getattr(m, "created_at", None),
-            }
-        )
+    def _row_ts_ms(r: Dict[str, Any]) -> int:
+        ca = r.get("created_at")
+        if ca is not None:
+            try:
+                return int(ca.timestamp() * 1000)
+            except Exception:
+                pass
+        return int(timezone.now().timestamp() * 1000)
 
-    return JsonResponse({"ok": True, "session_id": sid, "messages": messages})
+    if before_ts:
+        rows = [r for r in rows if _row_ts_ms(r) < int(before_ts)]
+
+    if len(rows) > limit:
+        rows = rows[-limit:]  # 최신 limit개
+
+    messages: List[Dict[str, Any]] = []
+    for r in rows:
+        role = str((r.get("role") or "system")).strip().lower()
+        if role not in ("user", "operator", "system"):
+            role = "system"
+
+        # fetch는 text 키가 기본이지만, 템플릿/호환 위해 content도 같이 봄
+        text = r.get("text")
+        if text is None:
+            text = r.get("content", "")
+
+        ts = _row_ts_ms(r)
+
+        payload: Dict[str, Any] = {
+            "type": "message",
+            "sender": role,
+            "text": str(text or ""),
+            "ts": ts,
+            "room": str(getattr(sess, "room", room) or room),
+            "session_id": int(getattr(sess, "id", session_id) or 0),
+        }
+
+        # ✅ staff면 retention 메타도 같이 내려주면 디버깅/운영에 도움됨
+        if is_staff:
+            if "retention_class" in r:
+                payload["retention_class"] = r.get("retention_class")
+            if "purge_at" in r and r.get("purge_at") is not None:
+                try:
+                    payload["purge_at"] = r["purge_at"].isoformat()
+                except Exception:
+                    payload["purge_at"] = str(r.get("purge_at"))
+            if "flagged_at" in r and r.get("flagged_at") is not None:
+                try:
+                    payload["flagged_at"] = r["flagged_at"].isoformat()
+                except Exception:
+                    payload["flagged_at"] = str(r.get("flagged_at"))
+            if "flag_reason" in r:
+                payload["flag_reason"] = r.get("flag_reason", "")
+            if "abuse_flagged" in r:
+                payload["abuse_flagged"] = bool(r.get("abuse_flagged", False))
+
+        messages.append(payload)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "room": str(getattr(sess, "room", room) or room),
+            "session_id": int(getattr(sess, "id", session_id) or 0),
+            "status": getattr(sess, "status", None),
+            "started_at": getattr(sess, "started_at", None).isoformat() if getattr(sess, "started_at", None) else None,
+            "ended_at": getattr(sess, "ended_at", None).isoformat() if getattr(sess, "ended_at", None) else None,
+            "messages": messages,
+        }
+    )
 
 
 # ─────────────────────────────────────
@@ -622,52 +588,33 @@ def api_livechat_history(request: HttpRequest) -> JsonResponse:
 def api_livechat_save(request: HttpRequest) -> JsonResponse:
     """
     상담 종료 후, 상담사 콘솔에서 남긴 '상담 기록'을 저장하는 API.
-
-    기대 요청(JSON):
-    {
-      "session_id": 123,   # 또는 room
-      "room": "r-xxxxx",
-      "session_type": "상담 유형",
-      "session_note": "한 줄 요약",
-      "session_detail": "상세 기록"
-    }
     """
     data = _json_body(request)
 
-    # 1) 세션 찾기
     sid = _to_int(data.get("session_id"))
     room = (data.get("room") or "").strip()
 
     if not sid and not room:
-        return JsonResponse(
-            {"ok": False, "message": "session_id 또는 room 중 하나는 반드시 포함되어야 합니다."},
-            status=400,
-        )
+        return JsonResponse({"ok": False, "message": "session_id 또는 room 중 하나는 반드시 포함되어야 합니다."}, status=400)
 
     qs = LiveChatSession.objects.all()
     obj: Optional[LiveChatSession] = None
-
     if sid:
         obj = qs.filter(id=sid).first()
     if obj is None and room:
         obj = qs.filter(room=room).order_by("-id").first()
 
     if obj is None:
-        return JsonResponse(
-            {"ok": False, "message": "대상 상담 세션을 찾을 수 없습니다."},
-            status=404,
-        )
+        return JsonResponse({"ok": False, "message": "대상 상담 세션을 찾을 수 없습니다."}, status=404)
 
     fields = _model_fields(LiveChatSession)
     now = timezone.now()
 
-    # 2) 입력 값 정리
     session_type = (data.get("session_type") or "").strip()
     session_note = (data.get("session_note") or "").strip()
     session_detail = (data.get("session_detail") or "").strip()
 
     try:
-        # 존재하는 필드에만 안전하게 채워 넣기
         if "session_type" in fields:
             setattr(obj, "session_type", session_type or None)
         if "session_note" in fields:
@@ -675,7 +622,6 @@ def api_livechat_save(request: HttpRequest) -> JsonResponse:
         if "session_detail" in fields:
             setattr(obj, "session_detail", session_detail or None)
 
-        # memo 필드 있으면 요약/상세를 같이 넣어 주기 (비어 있을 때만)
         if "memo" in fields and (session_note or session_detail):
             if not getattr(obj, "memo", ""):
                 obj.memo = session_note or session_detail
@@ -685,13 +631,10 @@ def api_livechat_save(request: HttpRequest) -> JsonResponse:
         if "ended_at" in fields and not getattr(obj, "ended_at", None):
             obj.ended_at = now
 
-        # 3) 상태 전이
         mark_saved = getattr(obj, "mark_saved", None)
         if callable(mark_saved):
-            # 모델에 헬퍼가 있으면 그걸 믿고 사용
             mark_saved()
         elif "status" in fields:
-            # Status enum 이 있으면 쓰고, 아니면 문자열로
             Status = getattr(LiveChatSession, "Status", None)
             if Status is not None and hasattr(Status, "SAVED"):
                 obj.status = Status.SAVED  # type: ignore[attr-defined]
@@ -701,12 +644,8 @@ def api_livechat_save(request: HttpRequest) -> JsonResponse:
         obj.save()
     except Exception as e:
         log.exception("livechat api_livechat_save failed: %s", e)
-        return JsonResponse(
-            {"ok": False, "message": "상담 기록 저장 중 서버 오류가 발생했습니다."},
-            status=500,
-        )
+        return JsonResponse({"ok": False, "message": "상담 기록 저장 중 서버 오류가 발생했습니다."}, status=500)
 
-    # 4) 마스터 콘솔에 'session_saved' 브로드캐스트 (실패해도 치명적 아님)
     try:
         _send_master(
             {
@@ -720,7 +659,6 @@ def api_livechat_save(request: HttpRequest) -> JsonResponse:
     except Exception:
         pass
 
-    # 5) 프런트로 응답
     return JsonResponse(
         {
             "ok": True,
@@ -734,11 +672,9 @@ def api_livechat_save(request: HttpRequest) -> JsonResponse:
 
 
 # ─────────────────────────────────────
-#  상담 종료 API (한 번만 종료 + 한 번만 메시지)
+#  상담 종료 API
 # ─────────────────────────────────────
-def _get_session_by_sid_or_room(
-    sid: Optional[int], room: str
-) -> Tuple[Optional[LiveChatSession], Set[str]]:
+def _get_session_by_sid_or_room(sid: Optional[int], room: str) -> Tuple[Optional[LiveChatSession], Set[str]]:
     qs = LiveChatSession.objects.all()
     fields = _model_fields(LiveChatSession)
     obj: Optional[LiveChatSession] = None
@@ -755,11 +691,6 @@ def _get_session_by_sid_or_room(
 def api_livechat_end(request: HttpRequest) -> JsonResponse:
     """
     상담사가 콘솔에서 '상담 종료' 버튼 눌렀을 때 호출되는 API.
-
-    - 세션 상태를 "종료(저장 필요)" 상태로 바꾸고
-    - ended_at 타임스탬프를 찍은 뒤
-    - WebSocket(room)에 'end' 타입 메시지를 브로드캐스트해서
-      고객/상담사 화면 모두에 종료 안내를 전달한다.
     """
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
@@ -775,16 +706,13 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"ok": False, "message": "세션을 찾을 수 없습니다."}, status=404)
 
     now = timezone.now()
-    changed_fields: list[str] = []
+    changed_fields: List[str] = []
 
-    # 1) 상태/종료시간 갱신 (가능하면 모델 헬퍼 사용)
     try:
         mark_ended_need_save = getattr(obj, "mark_ended_need_save", None)
         if callable(mark_ended_need_save):
-            # 모델 내부 로직에 맡김 (status / ended_at 세팅)
             mark_ended_need_save()
         else:
-            # enum 기반 상태가 있으면 ENDED_NEED_SAVE, 아니면 문자열 "ended"
             if "status" in fields:
                 Status = getattr(LiveChatSession, "Status", None)
                 if Status is not None and hasattr(Status, "ENDED_NEED_SAVE"):
@@ -797,62 +725,131 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
                 obj.ended_at = now
                 changed_fields.append("ended_at")
 
-        # mark_ended_need_save 가 ended_at 을 보장하지 않을 수도 있으니 보정
         if "ended_at" in fields and not getattr(obj, "ended_at", None):
             obj.ended_at = now
             if "ended_at" not in changed_fields:
                 changed_fields.append("ended_at")
 
-        if changed_fields:
-            obj.save(update_fields=changed_fields)
-        else:
-            obj.save()
+        obj.save(update_fields=changed_fields) if changed_fields else obj.save()
     except Exception:
         log.exception("api_livechat_end: session status update failed")
 
     ts = int(now.timestamp() * 1000)
     room_name = getattr(obj, "room", room)
 
-    # 2) 방에 종료 메시지 브로드캐스트 (고객/상담사 화면)
+    _ensure_livechat_room_row(room_name)
+
     try:
         _send_room(
             room_name,
-            {
-                "type": "end",
-                "sender": "operator",
-                "text": end_text,
-                "ts": ts,
-                "room": room_name,
-                "session_id": getattr(obj, "id", None),
-            },
+            {"type": "end", "sender": "operator", "text": end_text, "ts": ts, "room": room_name, "session_id": getattr(obj, "id", None)},
         )
     except Exception:
         log.exception("api_livechat_end: room broadcast failed")
 
-    # 3) 마스터 콘솔에도 'session_ended' 이벤트 브로드캐스트
+    # ✅ (추가) 종료 멘트도 DB에 저장
+    try:
+        save_ws_message(
+            room=room_name,
+            session_id=getattr(obj, "id", None),
+            sender_norm="operator",
+            effective_type="end",
+            body=end_text,
+            ts=ts,
+        )
+    except Exception:
+        pass
+
     try:
         _send_master(
-            {
-                "type": "session_ended",
-                "room": room_name,
-                "session_id": getattr(obj, "id", None),
-                "status": getattr(obj, "status", None),
-                "ended_at": getattr(obj, "ended_at", None),
-                "ts": ts,
-            }
+            {"type": "session_ended", "room": room_name, "session_id": getattr(obj, "id", None), "status": getattr(obj, "status", None), "ended_at": getattr(obj, "ended_at", None), "ts": ts}
         )
     except Exception:
         log.exception("api_livechat_end: master broadcast failed")
 
-    return JsonResponse(
-        {
-            "ok": True,
-            "message": "상담을 종료했습니다.",
-            "session_id": getattr(obj, "id", None),
-            "room": room_name,
-            "session_status": getattr(obj, "status", None),
-        }
-    )
+    return JsonResponse({"ok": True, "message": "상담을 종료했습니다.", "session_id": getattr(obj, "id", None), "room": room_name, "session_status": getattr(obj, "status", None)})
+
+
+@require_POST
+@csrf_protect
+def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
+    """
+    고객(비로그인) 전용 상담 종료 API.
+    """
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+
+    end_text = (payload.get("text") or "").strip() or END_MESSAGE
+
+    obj, fields = _get_session_by_sid_or_room(None, (room or "").strip())
+    if obj is None:
+        return JsonResponse({"ok": False, "message": "세션을 찾을 수 없습니다."}, status=404)
+
+    now = timezone.now()
+    changed_fields: List[str] = []
+
+    try:
+        mark_ended_need_save = getattr(obj, "mark_ended_need_save", None)
+        if callable(mark_ended_need_save):
+            mark_ended_need_save()
+        else:
+            if "status" in fields:
+                Status = getattr(LiveChatSession, "Status", None)
+                if Status is not None and hasattr(Status, "ENDED_NEED_SAVE"):
+                    obj.status = Status.ENDED_NEED_SAVE  # type: ignore[attr-defined]
+                else:
+                    obj.status = "ended"
+                changed_fields.append("status")
+
+            if "ended_at" in fields and not getattr(obj, "ended_at", None):
+                obj.ended_at = now
+                changed_fields.append("ended_at")
+
+        if "ended_at" in fields and not getattr(obj, "ended_at", None):
+            obj.ended_at = now
+            if "ended_at" not in changed_fields:
+                changed_fields.append("ended_at")
+
+        obj.save(update_fields=changed_fields) if changed_fields else obj.save()
+    except Exception:
+        log.exception("api_livechat_client_end: session status update failed")
+
+    ts = int(now.timestamp() * 1000)
+    room_name = getattr(obj, "room", room)
+
+    _ensure_livechat_room_row(room_name)
+
+    try:
+        _send_room(
+            room_name,
+            {"type": "end", "sender": "client", "text": end_text, "ts": ts, "room": room_name, "session_id": getattr(obj, "id", None)},
+        )
+    except Exception:
+        log.exception("api_livechat_client_end: room broadcast failed")
+
+    # ✅ (추가) 클라이언트 종료 멘트도 DB에 저장
+    try:
+        save_ws_message(
+            room=room_name,
+            session_id=getattr(obj, "id", None),
+            sender_norm="user",
+            effective_type="end",
+            body=end_text,
+            ts=ts,
+        )
+    except Exception:
+        pass
+
+    try:
+        _send_master(
+            {"type": "session_ended", "room": room_name, "session_id": getattr(obj, "id", None), "status": getattr(obj, "status", None), "ended_at": getattr(obj, "ended_at", None), "ts": ts, "by": "client"}
+        )
+    except Exception:
+        log.exception("api_livechat_client_end: master broadcast failed")
+
+    return JsonResponse({"ok": True, "message": "상담을 종료했습니다.", "session_id": getattr(obj, "id", None), "room": room_name, "session_status": getattr(obj, "status", None)})
 
 
 # ─────────────────────────────────────
@@ -862,13 +859,11 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
 @require_GET
 def api_livechat_recent_sessions(request: HttpRequest) -> HttpResponse:
     """
-    /api/livechat/recent-sessions/ (또는 운영자용 URL에서 재사용)
-    - JS가 HTML/JSON 둘 다 받을 수 있게 응답을 유연하게.
+    /api/livechat/recent-sessions/
     """
     fields = _model_fields(LiveChatSession)
     qs = LiveChatSession.objects.all()
 
-    # 기본 정렬: 최신
     if "created_at" in fields:
         qs = qs.order_by("-created_at")
     else:
@@ -877,11 +872,7 @@ def api_livechat_recent_sessions(request: HttpRequest) -> HttpResponse:
     sessions = list(qs[:30])
 
     cleanup_url = "/ragadmin/live-chat/cleanup/"
-    html = render_to_string(
-        "ragadmin/_live_chat_session_items.html",
-        {"sessions": sessions, "cleanup_url": cleanup_url},
-        request=request,
-    )
+    html = render_to_string("ragadmin/_live_chat_session_items.html", {"sessions": sessions, "cleanup_url": cleanup_url}, request=request)
 
     accept = (request.headers.get("Accept") or "").lower()
     want_json = ("application/json" in accept) or (request.GET.get("format") == "json")
@@ -896,10 +887,6 @@ def api_livechat_recent_sessions(request: HttpRequest) -> HttpResponse:
 def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
     """
     /api/livechat/save-session/
-    - 운영자 후처리 저장(세션 메모/유형/상세)
-    - 저장 후 master로 session_saved 브로드캐스트(최근세션 실시간 갱신 트리거)
-    - ★ 여기서 session_note/session_detail 을 채워 넣으면
-      api_livechat_next_session 에서 '기록 완료'로 인식함.
     """
     data = _json_body(request)
     session_id = str(data.get("session_id") or "").strip()
@@ -916,7 +903,6 @@ def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
     fields = _model_fields(LiveChatSession)
     now = timezone.now()
 
-    # 입력
     stype = str(data.get("session_type") or "").strip()
     snote = str(data.get("session_note") or "").strip()
     sdetail = str(data.get("session_detail") or "").strip()
@@ -924,10 +910,10 @@ def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
     try:
         if "session_type" in fields and stype:
             s.session_type = stype
-        if "session_note" in fields and snote:
-            s.session_note = snote
-        if "session_detail" in fields and sdetail:
-            s.session_detail = sdetail
+        if "session_note" in fields:
+            s.session_note = snote or None  # type: ignore[attr-defined]
+        if "session_detail" in fields:
+            s.session_detail = sdetail or None  # type: ignore[attr-defined]
         if "memo" in fields and (sdetail or snote) and not getattr(s, "memo", ""):
             s.memo = sdetail or snote
         if "processed_at" in fields:
@@ -941,15 +927,7 @@ def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
         log.exception("save-session failed: %s", e)
         return JsonResponse({"ok": False, "error": "save_failed"}, status=200)
 
-    _send_master(
-        {
-            "type": "session_saved",
-            "room": s.room,
-            "session_id": s.id,
-            "ts": int(now.timestamp() * 1000),
-        }
-    )
-
+    _send_master({"type": "session_saved", "room": s.room, "session_id": s.id, "ts": int(now.timestamp() * 1000)})
     return JsonResponse({"ok": True, "session_id": s.id})
 
 
@@ -959,14 +937,11 @@ def live_chat_save_session_view(request: HttpRequest) -> JsonResponse:
 def live_chat_cleanup_view(request: HttpRequest) -> JsonResponse:
     """
     /ragadmin/live-chat/cleanup/
-    - {mode:"today"}: 오늘 생성된 세션 중 종료 안된 것들을 ended로 바꾸기
-    - {session_id:123}: 단일 세션 삭제(최근세션 리스트에서 삭제 버튼)
     """
     data = _json_body(request)
     fields = _model_fields(LiveChatSession)
     now = timezone.now()
 
-    # 1) 단일 삭제
     session_id = str(data.get("session_id") or "").strip()
     if session_id.isdigit():
         sid = int(session_id)
@@ -976,27 +951,20 @@ def live_chat_cleanup_view(request: HttpRequest) -> JsonResponse:
             log.warning("cleanup delete failed: %s", e)
             return JsonResponse({"ok": False, "error": "delete_failed"}, status=200)
 
-        _send_master(
-            {
-                "type": "session_deleted",
-                "session_id": sid,
-                "ts": int(now.timestamp() * 1000),
-            }
-        )
+        _send_master({"type": "session_deleted", "session_id": sid, "ts": int(now.timestamp() * 1000)})
         return JsonResponse({"ok": True})
 
-    # 2) 오늘 정리
     mode = str(data.get("mode") or "").strip()
     if mode == "today":
         qs = LiveChatSession.objects.all()
         today = timezone.localdate()
         if "created_at" in fields:
             qs = qs.filter(created_at__date=today)
-        # status가 있으면 ended/done/종료 제외
+
         if "status" in fields:
             exclude_statuses = ["ended", "done", "종료"]
             try:
-                Status = LiveChatSession.Status
+                Status = LiveChatSession.Status  # type: ignore[attr-defined]
                 for name in ("SAVED", "ENDED_NEED_SAVE"):
                     if hasattr(Status, name):
                         v = getattr(Status, name)
@@ -1028,11 +996,8 @@ def live_chat_cleanup_view(request: HttpRequest) -> JsonResponse:
 #  상담 전용 클라이언트 페이지 (/c/<room>/)
 # ─────────────────────────────────────
 @require_GET
+@ensure_csrf_cookie
 def livechat_client_room_view(request: HttpRequest, room: str) -> HttpResponse:
-    """
-    /c/<room>/  상담 전용 페이지
-    - LiveChatSession.room 기준으로 세션 하나 찾고 클라이언트 템플릿 렌더
-    """
     session = LiveChatSession.objects.filter(room=room).order_by("-id").first()
     if not session:
         raise Http404("유효하지 않은 상담 세션입니다.")
@@ -1043,34 +1008,31 @@ def livechat_client_room_view(request: HttpRequest, room: str) -> HttpResponse:
         "room_token": getattr(session, "room", room),
         "session_id": getattr(session, "id", None),
         "SERVICE_NAME": getattr(settings, "SERVICE_NAME", "김동건 포트폴리오"),
-        "LIVECHAT_END_URL": reverse("livechat:api_livechat_end"),
+        "LIVECHAT_END_URL": reverse("livechat:api_livechat_client_end", kwargs={"room": room}),
     }
     return render(request, "ragapp/livechat/client_room.html", ctx)
 
 
 # ─────────────────────────────────────
-#  채팅기록 확인
+#  채팅기록 확인 (✅ store.fetch로 “무조건 보이게”)
 # ─────────────────────────────────────
 @staff_member_required
 @require_GET
 def livechat_session_log_view(request: HttpRequest, session_id: int) -> HttpResponse:
-    """
-    /ragadmin/live-chat/session/<session_id>/
-    - 상담 한 건 전체 채팅 로그를 한 페이지에서 보여주는 뷰
-    """
-    MessageModel = _get_message_model()
-    if not MessageModel:
-        raise Http404("메시지 모델이 활성화되어 있지 않습니다.")
-
     session = LiveChatSession.objects.filter(id=session_id).first()
     if not session:
         raise Http404("해당 상담 세션을 찾을 수 없습니다.")
 
-    messages = MessageModel.objects.filter(session_id=session.id).order_by("created_at")
+    message_items = fetch_session_messages_for_log(session_id=session.id, limit=5000)
+
+    # ✅ 템플릿이 m.content를 봐도 무조건 보이게
+    for it in message_items:
+        if "content" not in it:
+            it["content"] = it.get("text", "")  # dict니까 템플릿에서 m.content 가능
 
     ctx = {
         "session": session,
-        "messages": messages,
+        "message_items": message_items,
         "SERVICE_NAME": getattr(settings, "SERVICE_NAME", "김동건 포트폴리오"),
     }
     return render(request, "ragadmin/live_chat_session_log.html", ctx)
@@ -1081,11 +1043,6 @@ def livechat_session_log_view(request: HttpRequest, session_id: int) -> HttpResp
 # ─────────────────────────────────────
 @require_GET
 def livechat_availability_api(request: HttpRequest) -> JsonResponse:
-    """
-    /api/livechat/availability/
-    - 예전 프론트에서 쓰던 단순 가용성 플래그
-    - 지금 구조에서는 항상 available=True 로 응답 (status API는 agent_api에서 별도 제공)
-    """
     return JsonResponse({"ok": True, "available": True})
 
 

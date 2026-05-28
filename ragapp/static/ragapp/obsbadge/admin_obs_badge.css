@@ -1,0 +1,754 @@
+/* ragapp/static/ragapp/obsbadge/admin_obs_badge.css */
+
+/* =========================================================
+   Admin OBS Badge (Product UI)
+   - Scope: #dgObsRoot only (충돌 방지)
+   ========================================================= */
+
+/* ✅ 핵심: hidden 속성은 어떤 경우에도 무조건 숨김 */
+#dgObsRoot [hidden] {
+    display: none !important;
+}
+
+#dgObsRoot {
+    /* Theme tokens */
+    --dg-bg: rgba(15, 23, 42, 0.92);
+    --dg-surface: rgba(2, 6, 23, 0.36);
+    --dg-surface2: rgba(255, 255, 255, 0.06);
+    --dg-surface3: rgba(255, 255, 255, 0.10);
+    --dg-line: rgba(148, 163, 184, 0.20);
+    --dg-line2: rgba(148, 163, 184, 0.14);
+
+    --dg-text: rgba(226, 232, 240, 0.96);
+    --dg-muted: rgba(226, 232, 240, 0.70);
+    --dg-muted2: rgba(226, 232, 240, 0.56);
+
+    --dg-primary: rgba(99, 102, 241, 0.22);
+    --dg-primary-line: rgba(99, 102, 241, 0.30);
+
+    --dg-danger: rgba(239, 68, 68, 0.16);
+    --dg-danger-line: rgba(239, 68, 68, 0.26);
+
+    --dg-ok: rgba(34, 197, 94, 0.16);
+    --dg-ok-line: rgba(34, 197, 94, 0.26);
+
+    --dg-warn: rgba(245, 158, 11, 0.18);
+    --dg-warn-line: rgba(245, 158, 11, 0.28);
+
+    --dg-radius: 16px;
+    --dg-radius2: 14px;
+    --dg-radius3: 12px;
+
+    --dg-shadow: 0 18px 56px rgba(2, 6, 23, 0.55);
+    --dg-shadow2: 0 10px 30px rgba(2, 6, 23, 0.35);
+
+    --dg-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+        "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+
+    /* Density tokens */
+    --dg-row-pad-y: 10px;
+    --dg-row-pad-x: 12px;
+    --dg-row-gap: 10px;
+    --dg-k-size: 12px;
+    --dg-v-size: 12.5px;
+
+    --dg-header-pad: 12px;
+    --dg-section-pad: 12px;
+
+    --dg-chip-h: 32px;
+    --dg-btn-h: 32px;
+}
+
+/* Compact 모드 */
+#dgObsRoot.dg-compact {
+    --dg-row-pad-y: 8px;
+    --dg-row-pad-x: 10px;
+    --dg-row-gap: 8px;
+    --dg-k-size: 11.5px;
+    --dg-v-size: 12px;
+
+    --dg-header-pad: 10px;
+    --dg-section-pad: 10px;
+
+    --dg-chip-h: 30px;
+    --dg-btn-h: 30px;
+}
+
+#dgObsRoot,
+#dgObsRoot * {
+    box-sizing: border-box;
+}
+
+#dgObsRoot {
+    position: fixed;
+    z-index: 2147483000;
+    font: 12.5px/1.35 var(--dg-font);
+    color: var(--dg-text);
+    letter-spacing: 0.1px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* position */
+#dgObsRoot.dg-pos-br {
+    right: 14px;
+    bottom: 14px;
+}
+
+#dgObsRoot.dg-pos-bl {
+    left: 14px;
+    bottom: 14px;
+}
+
+#dgObsRoot.dg-pos-tr {
+    right: 14px;
+    top: 14px;
+}
+
+#dgObsRoot.dg-pos-tl {
+    left: 14px;
+    top: 14px;
+}
+
+/* =========================================================
+   Launcher
+   ========================================================= */
+#dgObsLauncher {
+    all: unset;
+    cursor: pointer;
+    user-select: none;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    height: 40px;
+    padding: 0 14px;
+    min-width: 70px;
+
+    border-radius: 999px;
+    border: 1px solid var(--dg-line);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.86));
+    box-shadow: var(--dg-shadow);
+
+    color: var(--dg-text);
+    font-weight: 900;
+    letter-spacing: 0.35px;
+}
+
+#dgObsLauncher::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    margin-right: 10px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.85);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+
+#dgObsRoot.dg-error #dgObsLauncher::before {
+    background: rgba(239, 68, 68, 0.90);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
+}
+
+#dgObsLauncher:hover {
+    border-color: rgba(148, 163, 184, 0.30);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.90));
+}
+
+#dgObsLauncher:active {
+    transform: translateY(1px);
+}
+
+/* =========================================================
+   Panel shell
+   ========================================================= */
+#dgObsPanel {
+    margin-top: 10px;
+    width: 500px;
+    max-width: min(500px, calc(100vw - 24px));
+
+    border-radius: var(--dg-radius);
+    border: 1px solid var(--dg-line);
+    background: radial-gradient(1200px 520px at 80% -20%, rgba(99, 102, 241, 0.16), transparent 48%),
+        radial-gradient(900px 420px at 0% 0%, rgba(14, 165, 233, 0.10), transparent 50%),
+        rgba(15, 23, 42, 0.92);
+    box-shadow: var(--dg-shadow);
+
+    /* ✅ 설정/히스토리 열려도 화면 밖으로 안 잘리게 */
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+#dgObsRoot.dg-compact #dgObsPanel {
+    width: 440px;
+    max-width: min(440px, calc(100vw - 24px));
+}
+
+#dgObsRoot.dg-error #dgObsPanel {
+    border-color: rgba(239, 68, 68, 0.32);
+    box-shadow: 0 18px 70px rgba(239, 68, 68, 0.08), var(--dg-shadow);
+}
+
+/* header (sticky) */
+#dgObsPanel .dg-h {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: var(--dg-header-pad) var(--dg-header-pad);
+    gap: 12px;
+
+    border-bottom: 1px solid var(--dg-line2);
+    background: rgba(2, 6, 23, 0.30);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+#dgObsPanel .dg-title {
+    flex: 0 0 auto;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+
+    font-weight: 950;
+    font-size: 13px;
+    letter-spacing: 0.2px;
+}
+
+#dgObsPanel .dg-title::after {
+    content: "Admin";
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--dg-muted);
+}
+
+#dgObsPanel .dg-actions {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* =========================================================
+   Buttons
+   ========================================================= */
+#dgObsRoot .dg-btn {
+    all: unset;
+    cursor: pointer;
+    user-select: none;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    height: var(--dg-btn-h);
+    padding: 0 11px;
+    border-radius: 999px;
+
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--dg-text);
+
+    font-weight: 900;
+    letter-spacing: 0.15px;
+    transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+#dgObsRoot .dg-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+#dgObsRoot .dg-btn:active {
+    transform: translateY(1px);
+}
+
+#dgObsRoot .dg-primary {
+    background: var(--dg-primary);
+    border-color: var(--dg-primary-line);
+}
+
+#dgObsRoot .dg-danger {
+    background: var(--dg-danger);
+    border-color: var(--dg-danger-line);
+}
+
+/* =========================================================
+   Banner
+   ========================================================= */
+#dgObsRoot .dg-banner {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.22);
+    background: rgba(239, 68, 68, 0.10);
+    color: rgba(255, 255, 255, 0.92);
+    font-weight: 950;
+}
+
+/* =========================================================
+   Body rows
+   ========================================================= */
+#dgObsPanel .dg-b {
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#dgObsRoot .dg-row {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: var(--dg-row-gap);
+    align-items: center;
+
+    padding: var(--dg-row-pad-y) var(--dg-row-pad-x);
+    border-radius: var(--dg-radius2);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+#dgObsRoot.dg-compact .dg-row {
+    grid-template-columns: 120px 1fr;
+}
+
+#dgObsRoot .dg-k {
+    color: var(--dg-muted);
+    font-weight: 800;
+    font-size: var(--dg-k-size);
+    letter-spacing: 0.1px;
+}
+
+#dgObsRoot .dg-v {
+    color: rgba(255, 255, 255, 0.96);
+    font-weight: 950;
+    font-size: var(--dg-v-size);
+
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#dgObsRoot .dg-row[data-k="요청 ID"] .dg-v,
+#dgObsRoot .dg-row[data-k="요청 ID"] .dg-v.dg-copy {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: initial;
+    line-height: 1.35;
+}
+
+#dgObsRoot .dg-copy {
+    cursor: pointer;
+}
+
+#dgObsRoot .dg-copy:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    color: rgba(255, 255, 255, 1);
+}
+
+#dgObsRoot .dg-hint {
+    color: var(--dg-muted2);
+    font-size: 11px;
+    margin-top: 4px;
+    padding: 2px 2px 0;
+}
+
+/* =========================================================
+   Sections: History / Settings
+   ========================================================= */
+#dgObsRoot .dg-history,
+#dgObsRoot .dg-settings {
+    padding: var(--dg-section-pad);
+    border-top: 1px solid var(--dg-line2);
+    background: var(--dg-surface);
+}
+
+#dgObsRoot .dg-history-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#dgObsRoot .dg-history-title,
+#dgObsRoot .dg-settings-title {
+    font-weight: 950;
+    font-size: 12.5px;
+}
+
+#dgObsRoot .dg-mini-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    height: var(--dg-btn-h);
+    padding: 0 10px;
+    border-radius: 999px;
+
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--dg-text);
+    font-weight: 850;
+}
+
+#dgObsRoot .dg-mini-toggle input {
+    transform: translateY(0.5px);
+}
+
+#dgObsRoot .dg-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 240px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+#dgObsRoot .dg-history-list::-webkit-scrollbar {
+    width: 10px;
+}
+
+#dgObsRoot .dg-history-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.18);
+    border: 3px solid rgba(0, 0, 0, 0);
+    background-clip: padding-box;
+    border-radius: 999px;
+}
+
+#dgObsRoot .dg-history-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 999px;
+}
+
+#dgObsRoot .dg-item {
+    padding: 10px 12px;
+    border-radius: var(--dg-radius2);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.22);
+}
+
+#dgObsRoot .dg-item:hover {
+    border-color: rgba(148, 163, 184, 0.24);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#dgObsRoot .dg-item-top {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: start;
+    margin-bottom: 8px;
+}
+
+#dgObsRoot .dg-item-path {
+    color: rgba(226, 232, 240, 0.92);
+    font-weight: 950;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+#dgObsRoot .dg-item-meta {
+    color: rgba(226, 232, 240, 0.66);
+    font-size: 11px;
+}
+
+#dgObsRoot .dg-item-top>div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-start;
+}
+
+#dgObsRoot .dg-mini {
+    font-size: 10px;
+    font-weight: 950;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    margin-left: 0;
+    white-space: nowrap;
+}
+
+#dgObsRoot .dg-mini.ok {
+    background: var(--dg-ok);
+    border-color: var(--dg-ok-line);
+}
+
+#dgObsRoot .dg-mini.warn {
+    background: var(--dg-warn);
+    border-color: var(--dg-warn-line);
+}
+
+#dgObsRoot .dg-mini.err {
+    background: var(--dg-danger);
+    border-color: var(--dg-danger-line);
+}
+
+/* =========================================================
+   Settings grid
+   ========================================================= */
+#dgObsRoot .dg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 10px;
+}
+
+#dgObsRoot .dg-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 10px 12px;
+    border-radius: var(--dg-radius2);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+#dgObsRoot .dg-grid2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 10px;
+}
+
+#dgObsRoot .dg-chipset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#dgObsRoot .dg-chip {
+    all: unset;
+    cursor: pointer;
+    user-select: none;
+
+    height: var(--dg-chip-h);
+    padding: 0 11px;
+    border-radius: 999px;
+
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--dg-text);
+    font-weight: 900;
+}
+
+#dgObsRoot .dg-chip:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(148, 163, 184, 0.26);
+}
+
+#dgObsRoot .dg-chip.active {
+    background: var(--dg-primary);
+    border-color: var(--dg-primary-line);
+}
+
+#dgObsRoot .dg-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 160px;
+}
+
+#dgObsRoot .dg-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 10px 12px;
+    border-radius: var(--dg-radius2);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+#dgObsRoot .dg-toggle span {
+    font-weight: 850;
+    color: var(--dg-text);
+}
+
+#dgObsRoot .dg-toggle input[type="number"] {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(2, 6, 23, 0.28);
+    color: var(--dg-text);
+    border-radius: 10px;
+    padding: 6px 8px;
+    outline: none;
+}
+
+#dgObsRoot .dg-settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* =========================================================
+   Modal (Health)
+   ✅ 핵심: hidden일 땐 display:none, 열릴 때만 flex
+   ========================================================= */
+#dgObsRoot .dg-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.62);
+
+    /* ✅ 기본은 숨김(중요) */
+    display: none;
+
+    /* ✅ PC: 정중앙 */
+    align-items: center;
+    justify-content: center;
+
+    padding: 18px;
+
+    z-index: 2147483200;
+}
+
+/* ✅ 모바일: 바텀시트 느낌(원하면 유지) */
+@media (max-width: 560px) {
+    #dgObsRoot .dg-modal {
+        align-items: flex-end;
+        justify-content: center;
+        /* 모바일도 가로 중앙이 보통 자연스러움 */
+    }
+}
+
+#dgObsRoot .dg-modal:not([hidden]) {
+    display: flex;
+}
+
+/* ✅ 카드: 중앙 모달에서 스크롤/높이 안정화 */
+#dgObsRoot .dg-modal-card {
+    width: min(560px, 92vw);
+    border-radius: var(--dg-radius);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+
+    background: radial-gradient(900px 420px at 80% -20%, rgba(99, 102, 241, 0.16), transparent 55%),
+        rgba(15, 23, 42, 0.97);
+
+    box-shadow: var(--dg-shadow);
+
+    /* ✅ 중앙 배치 자연스러움 + 내용 넘치면 카드가 스크롤 */
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* (선택) 모바일은 폭/높이를 조금 더 활용 */
+@media (max-width: 560px) {
+    #dgObsRoot .dg-modal-card {
+        width: min(560px, 96vw);
+        max-height: calc(100vh - 24px);
+    }
+}
+
+#dgObsRoot .dg-modal-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--dg-line2);
+    background: rgba(2, 6, 23, 0.28);
+
+    /* ✅ 카드 스크롤 시 헤더는 고정이 더 자연스러움 */
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+#dgObsRoot .dg-modal-title {
+    font-weight: 950;
+    font-size: 13px;
+}
+
+/* ✅ pre는 카드가 스크롤 담당하므로 너무 낮게 잡지 않기 */
+#dgObsRoot .dg-modal-pre {
+    margin: 0;
+    padding: 12px 12px 14px;
+    color: rgba(226, 232, 240, 0.92);
+    font-size: 11px;
+    line-height: 1.45;
+
+    /* ✅ 카드 스크롤로 일원화: pre는 자연 높이 */
+    max-height: none;
+    overflow: visible;
+
+    background: rgba(2, 6, 23, 0.24);
+    border-top: 1px solid rgba(148, 163, 184, 0.10);
+}
+
+#dgObsRoot .dg-modal-card::-webkit-scrollbar {
+    width: 10px;
+}
+
+#dgObsRoot .dg-modal-card::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.18);
+    border: 3px solid rgba(0, 0, 0, 0);
+    background-clip: padding-box;
+    border-radius: 999px;
+}
+
+#dgObsRoot .dg-modal-card::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 999px;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+@media (max-width: 520px) {
+    #dgObsPanel {
+        width: calc(100vw - 24px);
+        max-width: calc(100vw - 24px);
+    }
+
+    #dgObsRoot .dg-row {
+        grid-template-columns: 110px 1fr;
+    }
+
+    #dgObsRoot .dg-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #dgObsRoot .dg-grid2 {
+        flex-direction: column;
+    }
+
+    #dgObsRoot .dg-stack {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+/* =========================================================
+   Reduced motion
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+
+    #dgObsLauncher,
+    #dgObsRoot .dg-btn {
+        transition: none !important;
+    }
+}

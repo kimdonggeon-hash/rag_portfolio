@@ -1,0 +1,78 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>정지/선처 관리</title>
+  <link rel="stylesheet" href="{% static 'ragapp/css/ragadmin_media_penalties.css' %}">
+</head>
+<body>
+  <header class="dg-topbar">
+    <div class="dg-left">
+      <div class="dg-title">정지/선처 관리</div>
+      <div class="dg-sub">actor_key 기준으로 활성 제재를 조회하고 선처(해제)합니다.</div>
+    </div>
+
+    <div class="dg-right">
+      <a class="dg-btn ghost" href="{{ pending_url }}">대기 이미지 검수</a>
+      <a class="dg-btn ghost" href="{{ admin_upload_url }}">어드민 업로드(즉시 반영)</a>
+    </div>
+  </header>
+
+  <main class="dg-wrap">
+    <div id="dgToast" class="dg-toast" hidden></div>
+
+    <section class="dg-card">
+      <div class="dg-form-row">
+        <label class="dg-label" for="dgActor">actor_key</label>
+        <input id="dgActor" class="dg-input" placeholder="예: iphash:xxxx / user:123 / ..." value="{{ actor_key|default:'' }}">
+        <button class="dg-btn" id="dgSearchBtn" type="button">조회</button>
+        <button class="dg-btn ghost" id="dgAllBtn" type="button">전체</button>
+        <button class="dg-btn ghost" id="dgRefreshBtn" type="button">새로고침</button>
+      </div>
+
+      <div class="dg-form-row">
+        <label class="dg-label" for="dgReason">선처 사유</label>
+        <input id="dgReason" class="dg-input" value="테스트 용도 없음">
+        <button class="dg-btn danger" id="dgLiftBtn" type="button">선처(제재 해제)</button>
+      </div>
+
+      <div class="dg-hint">
+        • “선처”는 actor_key의 활성 제재를 모두 해제합니다(모델 구현에 따라 count=-1 로 반환될 수 있음).<br/>
+        • 아래 목록에서 actor_key를 클릭하면 해당 actor_key로 조회됩니다.
+      </div>
+    </section>
+
+    <section class="dg-card">
+      <div class="dg-card-head">
+        <div class="dg-card-title">활성 제재 목록</div>
+        <div class="dg-card-sub"><span id="dgCount">0</span>건</div>
+      </div>
+
+      <div class="dg-table-wrap">
+        <table class="dg-table">
+          <thead>
+            <tr>
+              <th style="width: 28%;">actor_key</th>
+              <th style="width: 12%;">kind</th>
+              <th style="width: 18%;">until</th>
+              <th>reason</th>
+              <th style="width: 18%;">created</th>
+              <th style="width: 10%;">actions</th>
+            </tr>
+          </thead>
+          <tbody id="dgRows">
+            <tr class="dg-tr-empty"><td colspan="6">로딩 중…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <input type="hidden" id="dgListUrl" value="{{ list_url }}">
+    <input type="hidden" id="dgLiftUrl" value="{{ lift_url }}">
+  </main>
+
+  <script src="{% static 'ragapp/javascript/ragadmin_media_penalties.js' %}"></script>
+</body>
+</html>

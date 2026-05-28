@@ -1,0 +1,262 @@
+{% extends "ragapp/board/base.html" %}
+{% load static versioned_static %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/board_reports.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="reports-page">
+
+  
+  <meta name="report-action-base" content="{% url 'board:report_action' 0 %}">
+  <meta name="reports-bulk-url" content="{% url 'board:reports_bulk_action' %}">
+
+  <div class="reports-topbar">
+    <div class="reports-breadcrumb">
+      <a class="reports-link" href="{% url 'board:list' %}">게시판</a>
+      <span class="reports-sep">/</span>
+      <span class="reports-here">신고 관리</span>
+      <span class="reports-pill" aria-label="운영자 전용">
+        <span class="reports-pill-dot" aria-hidden="true"></span> 운영자 전용
+      </span>
+    </div>
+
+    <div class="reports-actions">
+      <a class="reports-btn reports-btn--ghost" href="{% url 'board:list' %}">목록으로</a>
+    </div>
+  </div>
+
+  <header class="reports-hero card">
+    <div class="reports-hero-left">
+      <h1 class="reports-title">신고 관리</h1>
+      <p class="reports-subtitle">원클릭 처리 + 메모 · 자동 신고는 <b>[AUTO]</b>로 표시</p>
+
+      <form class="reports-filters" method="get" action="">
+        <label class="sr-only" for="repStatus">상태</label>
+        <select id="repStatus" name="status" class="reports-select">
+          <option value="open" {% if status == "open" %}selected{% endif %}>open</option>
+          <option value="resolved" {% if status == "resolved" %}selected{% endif %}>resolved</option>
+          <option value="rejected" {% if status == "rejected" %}selected{% endif %}>rejected</option>
+          <option value="all" {% if status == "all" %}selected{% endif %}>all</option>
+        </select>
+
+        <div class="reports-searchbox">
+          <span class="reports-search-ico" aria-hidden="true">⌕</span>
+          <input
+            class="reports-input"
+            type="search"
+            name="q"
+            value="{{ q|default:'' }}"
+            placeholder="검색(메모/사유/내용/FP)"
+            autocomplete="off"
+          >
+        </div>
+
+        <label class="reports-check">
+          <input type="checkbox" name="auto" value="1" {% if auto_only %}checked{% endif %}>
+          <span>AUTO만 보기</span>
+        </label>
+
+        <button class="reports-btn reports-btn--primary" type="submit">필터</button>
+        <a class="reports-btn reports-btn--ghost" href="{% url 'board:reports' %}">초기화</a>
+      </form>
+    </div>
+
+    <div class="reports-hero-right">
+      <div class="reports-bulk">
+        {# ✅ staff_reports_bulk_action() 스펙에 맞게: action/qs/next/template #}
+        <form method="post"
+              action="{% url 'board:reports_bulk_action' %}"
+              class="reports-bulk-form js-bulk"
+              data-confirm="현재 필터에 해당하는 신고를 종결(RESOLVED)로 일괄 처리할까요?">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resolve">
+          <input type="hidden" name="qs" value="{{ qs_for_bulk|default:'' }}">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input type="hidden" name="template" value="">
+          <button class="reports-btn reports-btn--soft" type="submit">
+            ⚙ 현재 필터 일괄 RESOLVED
+          </button>
+        </form>
+
+        <form method="post"
+              action="{% url 'board:reports_bulk_action' %}"
+              class="reports-bulk-form js-bulk"
+              data-confirm="현재 필터에 해당하는 신고를 반려(REJECTED)로 일괄 처리할까요?">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reject">
+          <input type="hidden" name="qs" value="{{ qs_for_bulk|default:'' }}">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input type="hidden" name="template" value="">
+          <button class="reports-btn reports-btn--warn" type="submit">
+            🧹 현재 필터 일괄 REJECTED
+          </button>
+        </form>
+
+        <div class="reports-bulk-hint">
+          일괄 처리는 실수 방지를 위해 <b>최대 300건</b>만 한 번에 처리합니다.
+        </div>
+
+        {% if bulk_done is not None %}
+          <div class="reports-bulk-hint" aria-live="polite">
+            ✅ 일괄 처리 완료: {{ bulk_done }}건 ({{ bulk_action }})
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <div class="reports-card card">
+    <div class="reports-table-head">
+      <div class="reports-table-title">신고 목록</div>
+      <div class="reports-table-meta">
+        {% if reports %}표시 {{ reports|length }}{% else %}0{% endif %}
+      </div>
+    </div>
+
+    {% if reports %}
+      <div class="reports-table-wrap" role="region" aria-label="신고 목록 테이블">
+        <table class="reports-table">
+          <thead>
+            <tr>
+              <th>대상</th>
+              <th>사유</th>
+              <th>내용</th>
+              <th>신고자</th>
+              <th>상태</th>
+              <th class="reports-th-actions">처리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in reports %}
+              <tr class="reports-row">
+                <td class="reports-target">
+                  {% if r.comment_id %}
+                    {% if r.comment and r.comment.post_id %}
+                      <a class="reports-a" href="{% url 'board:detail' r.comment.post_id %}#c{{ r.comment_id }}">댓글</a>
+                      <div class="reports-sub">#{{ r.comment_id }} · 게시글 #{{ r.comment.post_id }}</div>
+                    {% else %}
+                      <span class="reports-a">댓글</span>
+                      <div class="reports-sub">#{{ r.comment_id }}</div>
+                    {% endif %}
+                  {% else %}
+                    {% if r.post_id %}
+                      <a class="reports-a" href="{% url 'board:detail' r.post_id %}">게시글</a>
+                      <div class="reports-sub">#{{ r.post_id }}</div>
+                    {% else %}
+                      <span class="reports-a">게시글</span>
+                      <div class="reports-sub">#-</div>
+                    {% endif %}
+                  {% endif %}
+                </td>
+
+                <td>
+                  <div class="reports-reason">
+                    {% if r.reason %}{{ r.reason }}{% else %}-{% endif %}
+                    {% if r.message and r.message|slice:":6" == "[AUTO]" %}
+                      <span class="reports-chip reports-chip--auto">AUTO</span>
+                    {% endif %}
+                  </div>
+                  {% if r.created_at %}
+                    <div class="reports-sub">{{ r.created_at|date:"Y-m-d H:i" }}</div>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <div class="reports-msg">
+                    {% if r.message %}{{ r.message }}{% else %}(내용 없음){% endif %}
+                  </div>
+                  {% if r.admin_note %}
+                    <div class="reports-note">메모: {{ r.admin_note }}</div>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if r.reporter %}
+                    <div class="reports-who">{{ r.reporter }}</div>
+                  {% else %}
+                    <div class="reports-who">FP•••{{ r.reporter_fp|slice:"-6:" }}</div>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if r.status == "resolved" %}
+                    <span class="reports-status is-resolved">RESOLVED</span>
+                  {% elif r.status == "rejected" %}
+                    <span class="reports-status is-rejected">REJECTED</span>
+                  {% else %}
+                    <span class="reports-status is-open">OPEN</span>
+                  {% endif %}
+                </td>
+
+                <td class="reports-actions-cell">
+                  <button
+                    type="button"
+                    class="reports-btn reports-btn--mini js-open-note"
+                    data-rid="{{ r.id }}"
+                    data-act="resolve"
+                    data-title="RESOLVED 처리"
+                    data-sub="메모를 남기고 종결할 수 있어요."
+                  >해결</button>
+
+                  <button
+                    type="button"
+                    class="reports-btn reports-btn--mini reports-btn--mini-warn js-open-note"
+                    data-rid="{{ r.id }}"
+                    data-act="reject"
+                    data-title="REJECTED 처리"
+                    data-sub="스팸/오탐 등으로 반려할 때 사용해요."
+                  >거절</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="reports-empty">
+        <div class="reports-empty-title">해당 조건의 신고가 없습니다.</div>
+        <div class="reports-empty-text">필터 조건을 바꾸거나, AUTO만 보기 체크를 해제해 보세요.</div>
+      </div>
+    {% endif %}
+  </div>
+
+  {# ✅ 이 페이지 전용 모달: 중복 없음(OK) #}
+  <dialog id="reportNoteDialog" class="board-modal reports-note-modal">
+    <form id="reportNoteForm" method="post" action="{% url 'board:report_action' 0 %}" class="board-modal-card">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="repAction" value="resolve">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <input type="hidden" name="use_template" value="1">
+      <input type="hidden" name="rid" id="repRid" value="">
+
+      <div class="board-modal-head">
+        <div>
+          <div id="repDlgTitle" class="board-modal-title">처리</div>
+          <div id="repDlgSub" class="board-modal-sub"></div>
+        </div>
+        <button type="button" class="board-btn is-ghost js-rep-close">닫기</button>
+      </div>
+
+      <div class="board-modal-body">
+        <div class="field">
+          <label class="board-label" for="repNote">메모(선택)</label>
+          <textarea id="repNote" name="admin_note" class="reports-note-input" rows="4" maxlength="800"
+            placeholder="예) 오탐으로 판단 / 욕설 포함 / 동일 FP 반복 신고 등"></textarea>
+          <div class="reports-note-help">최대 800자 · 운영자만 볼 수 있어요.</div>
+        </div>
+      </div>
+
+      <div class="board-modal-foot">
+        <button class="board-btn is-primary" type="submit">저장하고 처리</button>
+      </div>
+    </form>
+  </dialog>
+
+</section>
+{% endblock %}
+
+{% block page_js %}
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %} defer src="{% versioned_static 'ragapp/javascript/board_reports.js' %}"></script>
+{% endblock %}

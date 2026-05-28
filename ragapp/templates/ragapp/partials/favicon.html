@@ -1,0 +1,24 @@
+{% load static %}
+
+{% with FV=STATIC_VERSION|default:"3" %}
+<link rel="icon" href="{% static 'ragapp/favicon/favicon.ico' %}?v={{ FV }}">
+
+<link rel="icon" type="image/png" sizes="32x32"
+      href="{% static 'ragapp/favicon/favicon-light-32x32.png' %}?v={{ FV }}"
+      media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" sizes="16x16"
+      href="{% static 'ragapp/favicon/favicon-light-16x16.png' %}?v={{ FV }}"
+      media="(prefers-color-scheme: light)">
+
+<link rel="icon" type="image/png" sizes="32x32"
+      href="{% static 'ragapp/favicon/favicon-dark-32x32.png' %}?v={{ FV }}"
+      media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" sizes="16x16"
+      href="{% static 'ragapp/favicon/favicon-dark-16x16.png' %}?v={{ FV }}"
+      media="(prefers-color-scheme: dark)">
+
+<link rel="apple-touch-icon" sizes="180x180"
+      href="{% static 'ragapp/favicon/apple-touch-icon.png' %}?v={{ FV }}">
+
+<link rel="manifest" href="{% static 'ragapp/favicon/site.webmanifest' %}?v={{ FV }}">
+{% endwith %}

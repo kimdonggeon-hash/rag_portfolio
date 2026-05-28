@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import io
+import re
+import hashlib
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
@@ -11,17 +13,36 @@ from django.utils import timezone
 from django.conf import settings
 from django.contrib import messages
 from django.http import HttpRequest
-from ragapp.services.ragchunk_audit import save_ragchunks_safe
 
+from ragapp.services.ragchunk_audit import save_ragchunks_safe
 from ragapp.log_utils import log_success, log_error
 
 log = logging.getLogger(__name__)
 
+# ✅ RAG 필터링에 쓰는 "source"는 고정(업로드 문서 hit 보장)
+UPLOAD_SOURCE = "upload_doc"
+
+
+def _sha(s: str) -> str:
+    return hashlib.sha1((s or "").encode("utf-8", "ignore")).hexdigest()
+
+
+def _safe_label(s: str, *, max_len: int = 48) -> str:
+    """
+    표시용 라벨(source_name) 정리:
+    - 너무 길거나 이상한 문자는 제거
+    - 빈 값이면 "" 반환
+    """
+    t = (s or "").strip()
+    if not t:
+        return ""
+    # 한글/영문/숫자/공백/일부 기호만
+    t = re.sub(r"[^0-9A-Za-z가-힣 _\-\.\(\)\[\]]+", " ", t)
+    t = " ".join(t.split()).strip()
+    return t[:max_len]
+
 
 def _pdf_to_text(fp: io.BufferedIOBase) -> str:
-    """
-    PDF → 텍스트 추출 (pdfminer 우선, 실패 시 pypdf 폴백)
-    """
     try:
         from pdfminer.high_level import extract_text  # pdfminer.six
         return extract_text(fp) or ""
@@ -36,9 +57,6 @@ def _pdf_to_text(fp: io.BufferedIOBase) -> str:
 
 
 def _chunk(text: str, maxlen: int = 1600, overlap: int = 200) -> List[str]:
-    """
-    긴 텍스트를 maxlen/overlap 기준으로 청킹.
-    """
     t = (text or "").strip()
     if not t:
         return []
@@ -55,54 +73,40 @@ def _chunk(text: str, maxlen: int = 1600, overlap: int = 200) -> List[str]:
 
 
 def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
-    """
-    업로드/텍스트 추출/청킹/임베딩/업서트 전체 담당.
-    - 템플릿에서 바로 쓸 수 있는 dict를 반환한다.
+    # ─────────────────────────────────────────────
+    # 1) 입력 수집 (✅ 확정 키: common_title/source_label/docfiles/rawtext)
+    # ─────────────────────────────────────────────
+    common_title = (request.POST.get("common_title") or "").strip()
+    source_label_raw = (request.POST.get("source_label") or "").strip()
+    pasted_text = (request.POST.get("rawtext") or "").strip()
 
-    반환 예:
-      {
-        "error_msg": str | None,
-        "file_errors": [str, ...],
-        "result": {
-          "inserted": int,
-          "total_chunks": int,
-          "duplicated": int,
-          "failed": int,
-          "files": [...],
-          "file_rows": [
-             {
-               "file_name": "...",
-               "status": "ok|empty|error",
-               "chunk_count": 10,
-               "message": "...",
-               ...
-             },
-             ...
-          ],
-        } | None
-      }
-    """
-    # ── 1) 입력 수집 ────────────────────────────────────────
-    common_title = (request.POST.get("common_title") or request.POST.get("title") or "").strip()
-    source_label = (request.POST.get("source_label") or request.POST.get("source_name") or "").strip()
-    pasted_text = (
-        (request.POST.get("direct_text") or "")
-        or (request.POST.get("pasted_text") or "")
-        or (request.POST.get("rawtext") or "")
-    ).strip()
+    # (호환) 예전 키도 허용
+    if not common_title:
+        common_title = (request.POST.get("title") or "").strip()
+    if not source_label_raw:
+        source_label_raw = (request.POST.get("source_name") or "").strip()
+    if not pasted_text:
+        pasted_text = (
+            (request.POST.get("direct_text") or "")
+            or (request.POST.get("pasted_text") or "")
+        ).strip()
+
+    # ✅ 표시용(source_name)만 정리해서 사용 (필터링 키 source는 고정 upload_doc)
+    source_name = _safe_label(source_label_raw) or UPLOAD_SOURCE
 
     files: List[Any] = []
-    files += list(request.FILES.getlist("files"))
-    files += list(request.FILES.getlist("docfiles"))
-    if request.FILES.get("file"):
-        files.append(request.FILES["file"])
+    if hasattr(request, "FILES"):
+        files += list(request.FILES.getlist("docfiles"))  # ✅ 정식
+        files += list(request.FILES.getlist("files"))     # (호환)
+        if request.FILES.get("file"):
+            files.append(request.FILES["file"])
 
-    extracted: List[Tuple[str, str]] = []          # (name, text)
-    extracted_infos: List[Dict[str, Any]] = []     # 성공/부분성공 파일 정보
-    error_infos: List[Dict[str, Any]] = []         # 추출단계에서 실패한 파일 정보
-    file_errors: List[str] = []                    # 템플릿용 에러 메시지 리스트
+    extracted: List[Tuple[str, str]] = []
+    extracted_infos: List[Dict[str, Any]] = []
+    error_infos: List[Dict[str, Any]] = []
+    file_errors: List[str] = []
 
-    # 붙여넣기 텍스트를 가상 파일로 취급
+    # 붙여넣기 텍스트
     if pasted_text:
         name_key = "__pasted__.txt"
         extracted.append((name_key, pasted_text))
@@ -116,19 +120,27 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             }
         )
 
-    # 실제 업로드 파일 처리
+    # 업로드 파일 처리
     for f in files:
         name = getattr(f, "name", "uploaded")
         try:
-            ext = os.path.splitext(name.lower())[1]
+            ext = os.path.splitext(str(name).lower())[1]
+            if ext not in (".pdf", ".txt"):
+                msg = "지원하지 않는 확장자입니다(PDF/TXT만 가능)."
+                file_errors.append(f"{name}: {msg}")
+                error_infos.append({"file_name": name, "message": msg})
+                continue
+
             buf = io.BytesIO(f.read())
             if ext == ".pdf":
                 text = _pdf_to_text(buf)
             else:
+                raw = buf.getvalue()
                 try:
-                    text = buf.getvalue().decode("utf-8", errors="ignore")
+                    text = raw.decode("utf-8", errors="ignore")
                 except Exception:
-                    text = buf.getvalue().decode("cp949", errors="ignore")
+                    text = raw.decode("cp949", errors="ignore")
+
             text = (text or "").strip()
             if not text:
                 msg = "추출된 텍스트가 없습니다."
@@ -141,7 +153,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                         "name_key": name,
                         "file_name": name,
                         "is_pasted": False,
-                        "size_bytes": getattr(f, "size", 0),
+                        "size_bytes": getattr(f, "size", 0) or 0,
                         "text": text,
                     }
                 )
@@ -159,45 +171,49 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             query_text=common_title or "(upload_doc)",
             err_msg=msg,
             request=request,
-            extra={
-                "where": "upload_doc_view",
-                "stage": "no_text",
-                "file_count": len(files),
-            },
+            extra={"where": "upload_doc_view", "stage": "no_text", "file_count": len(files)},
         )
-        return {
-            "error_msg": msg,
-            "file_errors": file_errors,
-            "result": None,
-        }
+        return {"error_msg": msg, "file_errors": file_errors, "result": None}
 
-    # ── 2) 청킹 + 메타 생성 ─────────────────────────────────
+    # ─────────────────────────────────────────────
+    # 2) 청킹 + 메타 생성
+    # ─────────────────────────────────────────────
     size = int(getattr(settings, "EMBED_CHUNK_SIZE", 1600))
     overlap = int(getattr(settings, "EMBED_CHUNK_OVERLAP", 200))
-    now_iso = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_iso = timezone.now().isoformat()
 
     all_ids: List[str] = []
     all_docs: List[str] = []
     all_metas: List[Dict[str, Any]] = []
     per_file_cnt: defaultdict[str, int] = defaultdict(int)
 
-    from ragapp.services.vector_store import _sha as _sha_vs  # 안전 해시
-
     for name, text in extracted:
         chunks = _chunk(text, maxlen=size, overlap=overlap)
-        doc_id = _sha_vs(f"{name}::{now_iso}")[:20]
+
+        # ✅ doc_id를 "내용 기반"으로 안정화: 같은 내용 재업로드 → 같은 ids로 업서트
+        content_sig = _sha(text)[:24]
+        doc_id = _sha(f"{name}::{content_sig}")[:20]
+
         for i, ch in enumerate(chunks):
-            meta = {
+            ch_s = (ch or "").strip()
+            if not ch_s:
+                continue
+
+            # ✅ 핵심: RAG 필터용 source는 무조건 upload_doc
+            meta: Dict[str, Any] = {
+                "source": UPLOAD_SOURCE,         # ✅ 검색 필터에 걸리는 값(고정)
+                "source_name": source_name,      # ✅ 화면 표시용 라벨(사용자 입력 반영 가능)
                 "title": common_title or name,
                 "file_name": name,
-                "source": source_label or "upload",
+                "url": "",                       # 업로드 문서는 URL 없음
                 "doc_id": doc_id,
                 "chunk_index": i,
                 "ingested_at": now_iso,
             }
-            all_docs.append(ch)
+
+            all_docs.append(ch_s)
             all_metas.append(meta)
-            all_ids.append(_sha_vs(f"{doc_id}::{i}")[:64])
+            all_ids.append(_sha(f"{doc_id}::{i}")[:64])
             per_file_cnt[name] += 1
 
     if not all_docs:
@@ -208,22 +224,14 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             query_text=common_title or "(upload_doc)",
             err_msg=msg,
             request=request,
-            extra={
-                "where": "upload_doc_view",
-                "stage": "no_chunks",
-                "file_count": len(files),
-            },
+            extra={"where": "upload_doc_view", "stage": "no_chunks", "file_count": len(files)},
         )
-        return {
-            "error_msg": msg,
-            "file_errors": file_errors,
-            "result": None,
-        }
+        return {"error_msg": msg, "file_errors": file_errors, "result": None}
 
-    # ── 3) 전체 청크 수 제한 (.env) ─────────────────────────
-    max_chunks_env = os.getenv("UPLOAD_MAX_EMBED_CHUNKS", "") or os.getenv(
-        "RAG_UPLOAD_MAX_CHUNKS", ""
-    )
+    # ─────────────────────────────────────────────
+    # 3) 전체 청크 수 제한(.env)
+    # ─────────────────────────────────────────────
+    max_chunks_env = os.getenv("UPLOAD_MAX_EMBED_CHUNKS", "") or os.getenv("RAG_UPLOAD_MAX_CHUNKS", "")
     try:
         max_chunks = int(max_chunks_env) if (max_chunks_env or "").strip() else 0
     except Exception:
@@ -244,20 +252,20 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
 
         messages.warning(
             request,
-            f"문서가 매우 커서 앞쪽 {max_chunks}개 청크만 임베딩했습니다. "
-            f"(잘린 청크 수: {trimmed})",
+            f"문서가 커서 앞쪽 {max_chunks}개 청크만 임베딩했습니다. (잘린 청크 수: {trimmed})",
         )
 
-    # ── 4) 임베딩 + 업서트 ──────────────────────────────────
+    # ─────────────────────────────────────────────
+    # 4) 임베딩 + 업서트
+    # ─────────────────────────────────────────────
     try:
+        # 임베딩 함수
         try:
-            from ragapp.services.vertex_embed import embed_texts as _embed_texts  # Vertex 우선
+            from ragapp.services.vertex_embed import embed_texts as _embed_texts
         except Exception:
             from ragapp.services.news_services import _embed_texts  # 폴백
 
-        batch_env = os.getenv("UPLOAD_EMBED_BATCH_SIZE", "") or os.getenv(
-            "EMBED_BATCH_SIZE", ""
-        )
+        batch_env = os.getenv("UPLOAD_EMBED_BATCH_SIZE", "") or os.getenv("EMBED_BATCH_SIZE", "")
         try:
             batch_size = int(batch_env) if (batch_env or "").strip() else 0
         except Exception:
@@ -281,12 +289,28 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
 
         embs = _embed_in_batches(all_docs)
 
+        # ✅ vdb_store를 단일 SoT로 우선 (이름은 프로젝트마다 달라서 둘 다 시도)
+        _vup = None
         try:
-            from ragapp.services.vdb_store import vdb_upsert as _vup
+            from ragapp.services.vdb_store import vdb_upsert_docs as _vup  # type: ignore
         except Exception:
-            from ragapp.services.vector_store import vdb_upsert as _vup
+            try:
+                from ragapp.services.vdb_store import vdb_upsert as _vup  # type: ignore
+            except Exception:
+                _vup = None
+
+        if _vup is None:
+            # (구버전 폴백)
+            try:
+                from ragapp.services.vector_store import vdb_upsert as _vup  # type: ignore
+            except Exception as e:
+                raise RuntimeError(f"vdb_upsert 함수를 찾지 못했습니다: {e}")
+
         _vup(all_ids, all_docs, all_metas, embs)
 
+        # ─────────────────────────────────────────
+        # RagChunk 감사 저장(파일별)
+        # ─────────────────────────────────────────
         saved_total = 0
         by_file_docs: defaultdict[str, List[str]] = defaultdict(list)
         by_file_meta: dict[str, Dict[str, Any]] = {}
@@ -294,13 +318,12 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
         for d, m in zip(all_docs, all_metas):
             fname = (m.get("file_name") or "").strip() or "(unknown)"
             by_file_docs[fname].append(d)
-
-            # 파일별로 대표 메타 1개만 잡아두기
             if fname not in by_file_meta:
                 by_file_meta[fname] = {
-                    "kind": "upload",
+                    "kind": UPLOAD_SOURCE,
                     "file_name": fname,
                     "source": m.get("source"),
+                    "source_name": m.get("source_name"),
                     "doc_id": m.get("doc_id"),
                     "ingested_at": m.get("ingested_at"),
                     "title": m.get("title"),
@@ -309,19 +332,19 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
         for fname, docs in by_file_docs.items():
             saved_total += save_ragchunks_safe(
                 texts=docs,
-                title=(common_title or fname),   # ✅ original_filename 대신 이걸 사용
+                title=(common_title or fname),
                 url="",
-                source="upload-doc",
-                base_meta=by_file_meta.get(fname) or {"kind": "upload", "file_name": fname},
+                source=UPLOAD_SOURCE,  # ✅ 일관성
+                base_meta=by_file_meta.get(fname) or {"kind": UPLOAD_SOURCE, "file_name": fname},
             )
+        if saved_total:
             messages.info(request, f"RagChunk 저장(감사용): {saved_total} 청크")
 
-        # ──────────────────────────
-        # 5) 파일별 요약 정보 생성
-        # ──────────────────────────
+        # ─────────────────────────────────────────
+        # 5) 파일별 요약
+        # ─────────────────────────────────────────
         file_rows: List[Dict[str, Any]] = []
 
-        # 정상/부분정상
         for info in extracted_infos:
             name_key = info.get("name_key") or info.get("file_name") or "(unknown)"
             display_name = info.get("file_name") or name_key
@@ -334,6 +357,8 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 {
                     "file_name": display_name,
                     "title": common_title or display_name,
+                    "source": UPLOAD_SOURCE,
+                    "source_name": source_name,
                     "is_pasted": bool(info.get("is_pasted")),
                     "size_bytes": int(info.get("size_bytes") or 0),
                     "raw_chars": len(raw_text),
@@ -344,35 +369,24 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 }
             )
 
-        # 추출 단계에서 바로 실패한 파일들
         for einfo in error_infos:
             fname = (einfo.get("file_name") or "").strip() or "(알 수 없는 파일)"
             msg = einfo.get("message") or ""
-            target = None
-            for r in file_rows:
-                if r.get("file_name") == fname:
-                    target = r
-                    break
-            if target:
-                target["status"] = "error"
-                if target.get("message"):
-                    target["message"] = target["message"] + " / " + msg
-                else:
-                    target["message"] = msg
-            else:
-                file_rows.append(
-                    {
-                        "file_name": fname,
-                        "title": fname,
-                        "is_pasted": False,
-                        "size_bytes": 0,
-                        "raw_chars": 0,
-                        "chunk_count": 0,
-                        "inserted_chunks": 0,
-                        "status": "error",
-                        "message": msg,
-                    }
-                )
+            file_rows.append(
+                {
+                    "file_name": fname,
+                    "title": fname,
+                    "source": UPLOAD_SOURCE,
+                    "source_name": source_name,
+                    "is_pasted": False,
+                    "size_bytes": 0,
+                    "raw_chars": 0,
+                    "chunk_count": 0,
+                    "inserted_chunks": 0,
+                    "status": "error",
+                    "message": msg,
+                }
+            )
 
         total_chunks = len(all_ids)
         failed_files = len([r for r in file_rows if r.get("status") == "error"])
@@ -385,11 +399,12 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             "files": [r.get("file_name") for r in file_rows],
             "file_rows": file_rows,
             "ragchunk_saved": saved_total,
+            "source": UPLOAD_SOURCE,
+            "source_name": source_name,
         }
 
         messages.success(request, f"인덱싱 완료: 총 {total_chunks} 청크 업서트")
 
-        # AppLog에 한 줄 요약 찍기
         log_success(
             mode_label="upload_doc",
             query_text=common_title or "(upload_doc)",
@@ -401,22 +416,16 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 "result": "success",
                 "total_chunks": total_chunks,
                 "failed_files": failed_files,
+                "source": UPLOAD_SOURCE,
+                "source_name": source_name,
                 "file_summaries": [
-                    {
-                        "file_name": r["file_name"],
-                        "chunk_count": r["chunk_count"],
-                        "status": r["status"],
-                    }
+                    {"file_name": r["file_name"], "chunk_count": r["chunk_count"], "status": r["status"]}
                     for r in file_rows
                 ],
             },
         )
 
-        return {
-            "error_msg": None,
-            "file_errors": file_errors,
-            "result": result,
-        }
+        return {"error_msg": None, "file_errors": file_errors, "result": result}
 
     except Exception as e:
         log.exception("업서트 실패")
@@ -426,13 +435,6 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             query_text=common_title or "(upload_doc)",
             err_msg=str(e),
             request=request,
-            extra={
-                "where": "upload_doc_view",
-                "stage": "exception",
-            },
+            extra={"where": "upload_doc_view", "stage": "exception", "source": UPLOAD_SOURCE},
         )
-        return {
-            "error_msg": f"업서트 실패: {e}",
-            "file_errors": file_errors,
-            "result": None,
-        }
+        return {"error_msg": f"업서트 실패: {e}", "file_errors": file_errors, "result": None}

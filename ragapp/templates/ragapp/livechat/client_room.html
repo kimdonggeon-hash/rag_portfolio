@@ -6,7 +6,8 @@
   <title>실시간 상담 | {{ SERVICE_NAME|default:"김동건의 포트폴리오" }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+  {% include "ragapp/partials/favicon.html" %}
+  
   <link rel="stylesheet" href="{% static 'ragapp/css/livechat_client.css' %}?v=20251201-light1" />
 </head>
 <body>
@@ -20,7 +21,7 @@
           <div class="lc-title-block">
             <div class="lc-title">
               실시간 상담
-              <span class="lc-badge">베타</span>
+              <span class="lc-badge">Live Chat</span>
             </div>
             <div class="lc-sub">
               상담사가 접속하면 이 창에서 바로 대화할 수 있어요.

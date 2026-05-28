@@ -1,10 +1,17 @@
 {# ragapp/templates/ragapp/partials/card_pdf.html #}
-<section class="card" aria-labelledby="pdf-card-title">
+{% load static %}
+
+<section id="cardPdf"
+         class="card card-main card-main--pdf"
+         data-card-kind="pdf"
+         data-sanitize-links="1"
+         aria-labelledby="pdf-card-title">
+
   <div class="card-header">
     <div class="card-title-row">
       <div class="card-title-left">
         <h2 id="pdf-card-title" class="card-title">
-          📄  PDF 요약 · 표로 정리
+          📄 PDF 요약 · 표로 정리
           <span class="model-pill">
             {{ model_name_pdf|default:"vertex-gemini" }}
           </span>
@@ -12,18 +19,19 @@
       </div>
     </div>
 
-    {# ✅ pdf_tab.js와 맞춘 폼 #}
     <form id="pdf-form"
           method="post"
           enctype="multipart/form-data"
-          class="form-row"
+          class="form-row form-row--pdf"
           data-api-url="{% url 'api_pdf_analyze' %}"
+          data-require-consent="1"
+          onsubmit="return (window.ensureConsentGate ? window.ensureConsentGate(this) : true) && (window.setLoading ? window.setLoading(this) : true);"
           autocomplete="off">
       {% csrf_token %}
 
-      <!-- 1. PDF 파일 (name='pdf') -->
       <div class="input-wrap">
         <input class="input-box"
+               id="pdf_file"
                type="file"
                name="pdf"
                accept="application/pdf"
@@ -31,9 +39,9 @@
                aria-label="요약하거나 표로 정리할 PDF 파일을 골라 주세요" />
       </div>
 
-      <!-- 2. 질문 (name='question') -->
       <div class="input-wrap">
         <input class="input-box"
+               id="pdf_question"
                type="text"
                name="question"
                placeholder="{{ PDF_QUERY_PLACEHOLDER|default:'예: 이 문서 핵심을 5줄로 요약해줘 / 과목별 점수를 표로 정리해줘' }}"
@@ -45,7 +53,6 @@
                aria-label="PDF 내용에 대해 물어보고 싶은 내용을 입력하세요" />
       </div>
 
-      <!-- 3. 출력 형식 (name='mode') -->
       <div class="opt-consent-block pdf-output-block"
            role="group"
            aria-labelledby="opt-consent-title-pdf">
@@ -62,18 +69,14 @@
                    name="mode"
                    value="summary"
                    checked />
-            <span>
-              {{ PDF_MODE_SUMMARY_LABEL|default:"일반 요약" }}
-            </span>
+            <span>{{ PDF_MODE_SUMMARY_LABEL|default:"일반 요약" }}</span>
           </label>
 
           <label class="pdf-output-pill">
             <input type="radio"
                    name="mode"
                    value="table" />
-            <span>
-              {{ PDF_MODE_TABLE_LABEL|default:"표로 정리" }}
-            </span>
+            <span>{{ PDF_MODE_TABLE_LABEL|default:"표로 정리" }}</span>
           </label>
 
           <span class="pdf-output-note">
@@ -82,54 +85,59 @@
         </div>
       </div>
 
-      <!-- 4. 실행 버튼 (위치는 항상 고정) -->
       <div class="btn-row pdf-btn-row">
         <button class="btn info" type="button" id="pdf-run-btn">
           {{ PDF_BTN_RUN_LABEL|default:"📄 PDF 분석하기 (Vertex)" }}
         </button>
       </div>
 
-      <!-- 5. 사용 설명서: 버튼 줄 아래에서 카드 가로 전체를 차지 -->
       <details class="pdf-manual">
-        <summary>
-          📘 PDF 분석 사용 설명서
-        </summary>
+        <summary>📘 PDF 분석 사용 설명서</summary>
         <div class="pdf-manual-body">
           <p>
             이 기능은 PDF 파일 안의 내용을 AI에게 맡겨
             <strong>요약</strong>하거나 <strong>표 형식</strong>으로 정리해 주는 기능이에요.
           </p>
           <ol>
-            <li><strong>PDF 파일 선택</strong>에서 리포트·과제·계약서 등 분석할 파일을 고릅니다.</li>
-            <li>
-              <strong>질문 입력</strong> 칸에
-              “핵심만 5줄로 요약해줘”, “과목별 점수만 표로 정리해줘”처럼
-              원하는 지시를 적어 주세요.
-            </li>
-            <li>
-              <strong>출력 형식</strong>에서
-              <em>일반 요약</em> 또는 <em>표로 정리</em>를 고른 뒤
-              <strong>PDF 분석하기</strong> 버튼을 누르면 결과가 아래 박스에 표시됩니다.
-            </li>
-            <li>
-              다시 분석하고 싶으면 질문이나 출력 형식을 바꾼 뒤,
-              같은 버튼을 한 번 더 눌러 주면 됩니다.
-            </li>
+            <li><strong>PDF 파일 선택</strong>에서 분석할 파일을 고릅니다.</li>
+            <li><strong>질문 입력</strong>에 원하는 지시를 적어 주세요.</li>
+            <li><strong>출력 형식</strong>을 고른 뒤 <strong>PDF 분석하기</strong>를 누릅니다.</li>
           </ol>
-          <p class="help-note">
-            실제 PDF 파일 자체는 서버에 오래 보관하지 않고,
-            결과·로그 처리 방식은 화면 아래 <strong>개인정보처리방침</strong>을 참고해 주세요.
-          </p>
         </div>
       </details>
     </form>
   </div>
 
-  <div class="card-body">
-    {# ✅ 결과 박스: pdf_tab.js가 여기 채움 #}
-    <div id="pdf-result-box" class="answer-block">
-      <!-- ✅ 여기로 HTML 결과(표 포함)가 들어감 -->
-      <div id="pdf-result-text" class="pdf-result-text"></div>
+  <div class="card-body card-body--pdf">
+    <div class="msg-row" id="pdf-msg-block"></div>
+
+    {# ✅ Step 1: “스레드형 UI mount”만 추가 (Step 2에서 JS가 여기로 렌더) #}
+    <div class="chat-mount" id="pdfChatMount" hidden>
+      <div class="chat-thread">
+        <div class="chat-stream"
+             id="pdfChatStream"
+             aria-live="polite"
+             aria-label="PDF 대화 스레드"></div>
+      </div>
+    </div>
+
+    {# ✅ 기존 결과 박스는 그대로 유지 (Step 2 적용 전까지 기존 방식 동작) #}
+    <div id="pdf-result-box" class="answer-block answer-prose">
+      <details class="answer-details" id="pdfResultDetails" hidden>
+        <summary class="answer-summary">
+          <span class="sum-title">{{ PDF_RESULT_TITLE|default:"분석 결과" }}</span>
+          <span class="sum-meta">{{ PDF_RESULT_TOGGLE|default:"펼치기/접기" }}</span>
+        </summary>
+
+        <div class="answer-body">
+          <div id="pdf-result-text" class="pdf-result-text"></div>
+        </div>
+      </details>
+
+      <div class="answer-empty" id="pdfResultEmpty">
+        {{ PDF_RESULT_EMPTY|default:"아직 결과가 없습니다. 위에서 PDF를 선택하고 분석을 실행해 주세요." }}
+      </div>
     </div>
   </div>
 </section>
+

@@ -1,6 +1,16 @@
 {% load static versioned_static %}
 {% url 'legal_guide' as legal_guide_url %}
 {% url 'legal_privacy' as legal_privacy_url %}
+{% url 'ragadmin_usage' as ragadmin_usage_url %}
+
+{# ✅ 이미지 검수/차단자(선처) 관리 URL #}
+{% url 'ragadmin_media_pending' as ragadmin_media_pending_url %}
+{% url 'ragadmin_media_penalties' as ragadmin_media_penalties_url %}
+
+{# ✅ (복구) 표 업로드/검색 URL #}
+{% url 'ragadmin_table_index' as ragadmin_table_index_url %}
+{% url 'ragadmin_table_search' as ragadmin_table_search_url %}
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -8,268 +18,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RAG Admin 대시보드</title>
 
-  <link rel="icon" href="{% static 'ragapp/favicon.ico' %}">
-  <!-- ✅ 캐시 자동 버전 CSS -->
+  {% include "ragapp/partials/favicon.html" %}
+
   <link rel="stylesheet" href="{% versioned_static 'ragapp/css/admin-dashboard.css' %}">
-
-  <style>
-    :root{
-      --bg:#050816;
-      --bg2:#020617;
-      --card:#0b1120;
-      --card-soft:#020617;
-      --border:rgba(148,163,184,.28);
-      --text:#e5e7eb;
-      --dim:#9ca3af;
-      --accent:#60a5fa;
-      --accent2:#a855f7;
-      --pill:#1f2937;
-      --radius:18px;
-    }
-    html,body{
-      margin:0;
-      padding:0;
-      background:radial-gradient(circle at top,#1d2648 0,#020617 55%,#000 100%);
-      color:var(--text);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","Noto Sans KR",sans-serif;
-      -webkit-font-smoothing:antialiased;
-    }
-    .wrap{
-      max-width:1120px;
-      margin:32px auto 40px;
-      padding:0 20px;
-    }
-
-    /* ── HERO ─────────────────────────── */
-    .hero{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:18px;
-      margin-bottom:24px;
-    }
-    .hero-main{
-      padding:18px 20px 20px;
-      border-radius:24px;
-      border:1px solid rgba(148,163,184,.35);
-      background:
-        radial-gradient(circle at 0 0,rgba(96,165,250,.22),transparent 55%),
-        radial-gradient(circle at 100% 0,rgba(168,85,247,.22),transparent 60%),
-        linear-gradient(135deg,#020617,#020617);
-      box-shadow:0 24px 80px rgba(15,23,42,.9);
-      overflow:hidden;
-      flex:1 1 auto;
-    }
-    .hero-head{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      margin-bottom:8px;
-    }
-    .chip-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
-      font-size:11px;
-    }
-    .chip{
-      padding:2px 8px;
-      border-radius:999px;
-      border:1px solid rgba(148,163,184,.5);
-      background:rgba(15,23,42,.8);
-      color:#cbd5f5;
-    }
-    .hero-title{
-      font-size:24px;
-      font-weight:800;
-      letter-spacing:-0.02em;
-      margin-bottom:4px;
-    }
-    .hero-sub{
-      font-size:13px;
-      color:var(--dim);
-    }
-    .hero-badge{
-      padding:6px 10px;
-      border-radius:999px;
-      background:rgba(15,23,42,.9);
-      border:1px solid rgba(148,163,184,.45);
-      font-size:11px;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      color:#e5e7eb;
-      white-space:nowrap;
-    }
-    .dot{
-      width:6px;
-      height:6px;
-      border-radius:999px;
-      background:radial-gradient(circle,#22c55e 0,#22c55e 40%,transparent 60%);
-      box-shadow:0 0 12px rgba(34,197,94,.7);
-    }
-    .hero-side{
-      min-width:200px;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      font-size:12px;
-      color:var(--dim);
-    }
-    .hero-side-card{
-      border-radius:18px;
-      background:rgba(15,23,42,.85);
-      border:1px solid rgba(148,163,184,.35);
-      padding:10px 12px;
-    }
-    .hero-side-title{
-      font-size:12px;
-      font-weight:700;
-      margin-bottom:4px;
-      color:var(--text);
-    }
-    .hero-side-row{
-      display:flex;
-      justify-content:space-between;
-      gap:6px;
-    }
-    .hero-side-label{
-      color:var(--dim);
-    }
-    .hero-side-value{
-      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-      font-size:11px;
-      color:#e5e7eb;
-      text-overflow:ellipsis;
-      overflow:hidden;
-      white-space:nowrap;
-      max-width:160px;
-      text-align:right;
-    }
-
-    /* ── GRID & CARDS ─────────────────── */
-    .grid{
-      display:grid;
-      grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-      gap:16px;
-      margin-bottom:20px;
-    }
-    .card{
-      background:linear-gradient(145deg,rgba(15,23,42,.98),rgba(15,23,42,.92));
-      border-radius:var(--radius);
-      border:1px solid var(--border);
-      padding:16px 16px 14px;
-      box-shadow:0 16px 50px rgba(0,0,0,.6);
-      position:relative;
-      overflow:hidden;
-    }
-    .card::before{
-      content:"";
-      position:absolute;
-      inset:auto -40px -70px;
-      height:120px;
-      background:radial-gradient(circle at 50% 0,rgba(96,165,250,.22),transparent 60%);
-      opacity:.35;
-      pointer-events:none;
-    }
-    .card h3{
-      margin:0 0 6px;
-      font-size:16px;
-      font-weight:600;
-    }
-    .card p{
-      margin:0 0 12px;
-      font-size:13px;
-      color:var(--dim);
-    }
-    .btn-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-      position:relative;
-      z-index:1;
-    }
-    .btn{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      height:32px;
-      padding:0 12px;
-      border-radius:999px;
-      border:1px solid rgba(148,163,184,.45);
-      background:rgba(15,23,42,.9);
-      color:#e5e7eb;
-      text-decoration:none;
-      font-size:12px;
-      font-weight:600;
-    }
-    .btn-accent{
-      border-color:rgba(96,165,250,.7);
-      background:linear-gradient(90deg,#60a5fa,#a855f7);
-      color:#0b1120;
-      box-shadow:0 10px 30px rgba(37,99,235,.6);
-    }
-    .btn-ghost{
-      background:transparent;
-    }
-    .pill{
-      display:inline-block;
-      margin-left:4px;
-      padding:2px 8px;
-      border-radius:999px;
-      border:1px solid rgba(148,163,184,.45);
-      background:rgba(15,23,42,.9);
-      color:#cbd5f5;
-      font-size:11px;
-    }
-    .rows{
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
-      margin-top:8px;
-      position:relative;
-      z-index:1;
-    }
-    .foot{
-      margin-top:10px;
-      font-size:11px;
-      color:var(--dim);
-    }
-    code{
-      background:#020617;
-      border-radius:8px;
-      border:1px solid rgba(148,163,184,.35);
-      padding:2px 6px;
-      font-size:11px;
-      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    }
-
-    @media (max-width:900px){
-      .hero{
-        flex-direction:column;
-      }
-      .hero-side-value{
-        max-width:120px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/admin_dashboard_obs.css' %}">
 </head>
+
 <body>
 <div class="wrap">
+
+  <!-- ✅ CSRF 쿠키 확실히 세팅되게(POST 버튼 동작 안정화) -->
+  <form style="display:none">{% csrf_token %}</form>
+
   <!-- HERO -->
   <header class="hero">
     <section class="hero-main">
       <div class="hero-head">
         <div class="chip-row">
-          <span class="chip">Admin · RAG 통합 검색 콘솔</span>
-          <span class="chip">벡터 스토어</span>
-          <span class="chip">FAQ · Live Chat</span>
-          <span class="chip">표 데이터(엑셀·CSV)</span> <!-- ✅ 표 기능 칩 추가 -->
+          <span class="chip">김동건의 관리창</span>
+          <span class="chip">일일 사용량 제한</span>
+          <span class="chip">이미지 검수</span>
+          <span class="chip">차단자·선처 관리</span>
+          
         </div>
+
         <div class="hero-badge">
           <span class="dot"></span>
           <span>오늘 세션 관리 중</span>
+        </div>
+
+        <!-- ✅ 리뉴얼한 AI 어시스턴트 + 운영 OBS 컨트롤(4버튼) -->
+        <div id="dgDashObsRoot" class="dg-dash-obs">
+          <div class="hero-actions">
+            <a class="hero-action primary" href="{% url 'assistant_view' %}">
+              🤖 사내 AI 어시스턴트
+            </a>
+
+            <span class="obs-state obs-off" id="obsStateChip" title="운영 OBS 상태">
+              <span class="obs-dot"></span>
+              <span id="obsStateText">OBS</span>
+            </span>
+
+            <button type="button" class="hero-action ghost" id="adminOpsBtn">🛠 OPS 컨트롤</button>
+
+            <button type="button" class="hero-action ghost" id="adminObsBtn">📊 운영 OBS 토글</button>
+            <button type="button" class="hero-action ghost" id="adminObsHealthBtn">🩺 상태 보기</button>
+            <button type="button" class="hero-action ghost" id="adminObsClearBtn">🧹 기록 초기화</button>
+            <button type="button" class="hero-action ghost" id="adminObsCfgOpenBtn">⚙️ OBS 설정</button>
+          </div>
+
+          <div id="dgDashObsMount"></div>
         </div>
       </div>
 
@@ -291,137 +89,256 @@
           <span class="hero-side-value">{{ CHROMA_COLLECTION|default:"-" }}</span>
         </div>
       </div>
+
       <div class="hero-side-card">
         <div class="hero-side-title">법적 문서</div>
         <div class="hero-side-row">
           <span class="hero-side-label">개인정보</span>
           <span class="hero-side-value">
-            <a href="{{ legal_privacy_url }}" target="_blank" rel="noopener" style="color:#bfdbfe;text-decoration:none;">미리보기</a>
+            <a class="link" href="{{ legal_privacy_url }}" target="_blank" rel="noopener">미리보기</a>
           </span>
         </div>
         <div class="hero-side-row">
           <span class="hero-side-label">이용 가이드</span>
           <span class="hero-side-value">
-            <a href="{{ legal_guide_url }}" target="_blank" rel="noopener" style="color:#bfdbfe;text-decoration:none;">/guide</a>
+            <a class="link" href="{{ legal_guide_url }}" target="_blank" rel="noopener">/guide</a>
           </span>
         </div>
       </div>
     </aside>
   </header>
 
-  <!-- GRID CARDS -->
-  <main class="grid" aria-label="관리 메뉴">
-    <section class="card">
-      <h3>뉴스 크롤링 &amp; 인덱싱 <span class="pill">AUTO_INGEST={{ AUTO_INGEST_AFTER_GEMINI|default:"OFF" }}</span></h3>
-      <p>키워드·RSS·URL을 기준으로 기사 본문을 모으고, 검색용 벡터 DB에 정리합니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'ragadmin:crawl_news' %}">열기</a>
-      </div>
-    </section>
+  <!-- ✅ 메인(2열 카드 그리드) + 오른쪽 게시판 패널(스티키) -->
+  <div class="dash">
+    <main class="dash-main" aria-label="관리 메뉴">
 
-    <section class="card">
-      <h3>문서 업로드</h3>
-      <p>PDF / TXT 문서를 여러 개 올려서 한 번에 텍스트 추출 → 청크 나누기 → 임베딩까지 처리합니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'ragadmin:upload_doc' %}">열기</a>
-      </div>
-    </section>
+      <section class="grid">
+        <section class="card">
+          <h3>뉴스 크롤링 &amp; 인덱싱 <span class="pill">AUTO_INGEST={{ AUTO_INGEST_AFTER_GEMINI|default:"OFF" }}</span></h3>
+          <p>키워드·RSS·URL을 기준으로 기사 본문을 모으고, 검색용 벡터 DB에 정리합니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:crawl_news' %}">열기</a>
+          </div>
+        </section>
 
-    <!-- ✅ 표 기능 카드 + 규칙 관리 버튼 -->
-    <section class="card">
-      <h3>표 데이터 올려두기 (엑셀·CSV)</h3>
-      <p>엑셀에서 내보낸 CSV나 간단한 표 파일을 올려두면, 나중에 자연어 질문으로 다시 찾아볼 수 있습니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'table_index' %}">표 파일 저장하기</a>
-        <a class="btn btn-ghost" href="{% url 'table_search' %}">표에서 검색하기</a>
-        <!-- 🔽 하드코딩 대신 운영자가 조절하는 검색 규칙 화면 -->
-        <a class="btn btn-ghost" href="/admin/ragapp/tablesearchrule/">검색 규칙 관리</a>
-      </div>
-      <div class="rows">
-        <span class="pill">매출·정산표</span>
-        <span class="pill">지표·통계</span>
-        <span class="pill">로그 요약</span>
-      </div>
-    </section>
+        <section class="card">
+          <h3>문서 업로드</h3>
+          <p>PDF / TXT 문서를 여러 개 올려서 한 번에 텍스트 추출 → 청크 나누기 → 임베딩까지 처리합니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:upload_doc' %}">열기</a>
+          </div>
+        </section>
 
-    <section class="card">
-      <h3>FAQ 추천 &amp; 승격</h3>
-      <p>대화 로그를 바탕으로 자주 묻는 질문을 추천받고, 클릭 한 번으로 공식 FAQ로 올릴 수 있습니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'ragadmin:faq_suggest' %}">추천 보기</a>
-        <a class="btn btn-ghost" href="{% url 'ragadmin:faq_promote' %}">승격 관리</a>
-      </div>
-    </section>
+        <!-- ✅ 이미지 업로드 검수(승인/거절) -->
+        <section class="card">
+          <h3>이미지 업로드 검수</h3>
+          <p>업로드된 이미지를 대기 상태로 쌓아두고, 운영자가 승인/거절(사유 기록) 처리합니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{{ ragadmin_media_pending_url }}">검수 열기</a>
+            <a class="btn btn-ghost" href="{{ ragadmin_media_penalties_url }}">차단자 관리</a>
+          </div>
+          <div class="rows">
+            <span class="pill">승인/거절</span>
+            <span class="pill">사유 기록</span>
+            <span class="pill">파일 삭제 옵션</span>
+            <span class="pill">actor_key 기준</span>
+            <span class="pill">대기 {{ media_pending_count|default:"-" }}건</span>
+          </div>
+        </section>
 
-    <section class="card">
-      <h3>실시간 상담 콘솔</h3>
-      <p>QARAG에서 “상담사 연결”을 누른 요청을 보고, 운영자가 실시간으로 답변을 보낼 수 있는 화면입니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'ragadmin:live_chat' %}">실시간 상담 열기</a>
-      </div>
-    </section>
+        <!-- ✅ 차단자(제재) 관리 + 선처(정지 해제) -->
+        <section class="card">
+          <h3>차단자 · 제재 관리 (선처)</h3>
+          <p>거절 처리로 걸린 제재(사용량 제한/정지)를 actor_key 기준으로 확인하고, 선처 시 즉시 해제합니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{{ ragadmin_media_penalties_url }}">관리 열기</a>
+            <a class="btn btn-ghost" href="{{ ragadmin_media_pending_url }}">검수로 이동</a>
+          </div>
+          <div class="rows">
+            <span class="pill">제재 목록</span>
+            <span class="pill">기간/영구</span>
+            <span class="pill">해제(선처)</span>
+            <span class="pill">기록 보관</span>
+            <span class="pill">활성 {{ media_penalty_count|default:"-" }}명</span>
+          </div>
+        </section>
 
-    <!-- ✅ 피드백 보드 카드 추가 -->
-    <section class="card">
-      <h3>피드백 보드</h3>
-      <p>웹 검색 · RAG · 질문 챗봇에서 남긴 “별로였어요” 피드백을 모아서 보고, 처리 현황을 기록하는 화면입니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'ragadmin:feedback_board' %}">보드 열기</a>
-      </div>
-      <div class="rows">
-        <span class="pill">별로였어요 모아보기</span>
-        <span class="pill">조치 기록</span>
-      </div>
-    </section>
+        <!-- ✅ 표 업로드/표 검색 -->
+        <section class="card">
+          <h3>표 데이터 올려두기 (엑셀·CSV · 스태프 전용)</h3>
+          <p>운영/분석용 표 파일을 업로드해두고, 규칙 기반 검색으로 빠르게 찾습니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{{ ragadmin_table_index_url }}">표 파일 저장하기</a>
+            <a class="btn btn-ghost" href="{{ ragadmin_table_search_url }}">표에서 검색하기</a>
+            <a class="btn btn-ghost" href="/admin/ragapp/tablesearchrule/">검색 규칙 관리</a>
+          </div>
+          <div class="rows">
+            <span class="pill">스태프 전용</span>
+            <span class="pill">업로드 → 파싱</span>
+            <span class="pill">규칙 검색</span>
+          </div>
+        </section>
 
-    <section class="card">
-      <h3>법적 설정</h3>
-      <p>개인정보처리방침, 국외이전 고지, 이용 약관, 서비스 이용 가이드를 한 곳에서 관리합니다.</p>
-      <div class="btn-row">
-        <a class="btn btn-accent" href="{% url 'ragadmin:legal_entry' %}">설정 열기</a>
-        <a class="btn btn-ghost" href="{{ legal_privacy_url }}" target="_blank" rel="noopener">개인정보 미리보기</a>
-      </div>
-    </section>
+        <!-- ✅ 실시간 런타임 모니터링 카드 -->
+        <section class="card">
+          <h3>실시간 런타임 모니터링</h3>
+          <p>현재 접속자 수·오늘 요청 수·429/오류 비율·업로드/로그 정리 상태를 실시간에 가깝게 확인합니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'runtime_dashboard' %}">실시간 상태 보기</a>
+          </div>
 
-    <section class="card">
-      <h3>데이터 목록 (Admin)</h3>
-      <p>벡터 청크·로그·FAQ·표 스키마를 기본 Admin 리스트에서 바로 확인합니다.</p>
-      <div class="rows">
-        <!-- 고정 URL 사용 (역이름 실패 방지) -->
-        <a class="btn" href="/admin/ragapp/ragchunk/">RagChunk</a>
-        <a class="btn" href="/admin/ragapp/chatquerylog/">ChatQueryLog</a>
-        <a class="btn" href="/admin/ragapp/mylog/">MyLog</a>
-        <a class="btn" href="/admin/ragapp/applog/">AppLog</a>
-        <a class="btn" href="/admin/ragapp/faqentry/">FaqEntry</a>
-        <a class="btn" href="/admin/ragapp/tableschema/">TableSchema</a>
-        <a class="btn" href="/admin/ragapp/qaragfeedback/">QaragFeedback</a>
-        <!-- ✅ 새로 추가한 3개 -->
-        <a class="btn" href="/admin/ragapp/livechatmessage/">LiveChatMessage</a>
-        <a class="btn" href="/admin/ragapp/chatevidence/">ChatEvidence</a>
-        <a class="btn" href="/admin/ragapp/livechatabusekeyword/">상담 욕설/금지어 목록</a>
-      </div>
-    </section>
+          {% if runtime_snapshot %}
+            <div class="rows">
+              <span class="pill">온라인 {{ runtime_snapshot.active_sessions|default:"0" }}명</span>
+              <span class="pill">오늘 {{ runtime_snapshot.today_total|default:"0" }}건</span>
+              <span class="pill">429 {{ runtime_snapshot.today_429|default:"0" }}건</span>
+              <span class="pill">삭제 대기 업로드 {{ runtime_snapshot.soft_deleted_uploads|default:"0" }}개</span>
+            </div>
+          {% endif %}
+        </section>
 
-  </main>
+        <section class="card">
+          <h3>사용량 대시보드 (일일/IP 해시)</h3>
+          <p>DailyUsage 기준으로 오늘(Asia/Seoul) 사용량을 집계해서 확인합니다. 429(Too Many Requests) 발생 여부도 여기서 추적해요.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{{ ragadmin_usage_url|default:'/ragadmin/usage/' }}">사용량 보기</a>
+          </div>
+          <div class="rows">
+            <span class="pill">WEB {{ USAGE_LIMIT_WEB|default:"-" }}</span>
+            <span class="pill">RAG {{ USAGE_LIMIT_RAG|default:"-" }}</span>
+            <span class="pill">PDF {{ USAGE_LIMIT_PDF|default:"-" }}</span>
+            <span class="pill">IMG {{ USAGE_LIMIT_IMAGE|default:"-" }}</span>
+          </div>
+        </section>
 
-  <!-- GUIDE CARD (하단 한 줄) -->
-  <section class="card" style="margin-top:4px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1;">
-      <div>
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">이용 가이드</div>
-        <div style="font-size:13px;color:var(--dim);">테스터 안내·주의사항·빠른 시작 절차를 한 페이지로 정리한 설명서입니다.</div>
-      </div>
-      <div class="btn-row">
-        <a class="btn" href="{% url 'ragadmin:guide' %}">관리자 래퍼로 열기</a>
-        <a class="btn btn-ghost" href="{{ legal_guide_url }}" target="_blank" rel="noopener">/guide 새 탭</a>
-      </div>
-    </div>
-  </section>
+        <section class="card">
+          <h3>FAQ 추천 &amp; 승격</h3>
+          <p>대화 로그를 바탕으로 자주 묻는 질문을 추천받고, 클릭 한 번으로 공식 FAQ로 올릴 수 있습니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:faq_suggest' %}">추천 보기</a>
+            <a class="btn btn-ghost" href="{% url 'ragadmin:faq_promote' %}">승격 관리</a>
+          </div>
+        </section>
 
-  <footer class="foot">
-    VECTOR_DB_PATH: <code>{{ VECTOR_DB_PATH|default:"(미설정)" }}</code>
-    · CHROMA_COLLECTION: <code>{{ CHROMA_COLLECTION|default:"-" }}</code>
-  </footer>
+        <section class="card">
+          <h3>실시간 상담 콘솔</h3>
+          <p>QARAG에서 “상담사 연결”을 누른 요청을 보고, 운영자가 실시간으로 답변을 보낼 수 있는 화면입니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:live_chat' %}">실시간 상담 열기</a>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>피드백 보드</h3>
+          <p>웹 검색 · RAG · 질문 챗봇에서 남긴 “별로였어요” 피드백을 모아서 보고, 처리 현황을 기록하는 화면입니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:feedback_board' %}">보드 열기</a>
+          </div>
+          <div class="rows">
+            <span class="pill">별로였어요 모아보기</span>
+            <span class="pill">조치 기록</span>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>법적 설정</h3>
+          <p>개인정보처리방침, 국외이전 고지, 이용 약관, 서비스 이용 가이드를 한 곳에서 관리합니다.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:legal_entry' %}">설정 열기</a>
+            <a class="btn btn-ghost" href="{{ legal_privacy_url }}" target="_blank" rel="noopener">개인정보 미리보기</a>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>데이터 목록 (Admin)</h3>
+          <p>벡터 청크·로그·FAQ·표 스키마를 기본 Admin 리스트에서 바로 확인합니다.</p>
+          <div class="rows">
+            <a class="btn" href="/admin/ragapp/ragchunk/">RagChunk</a>
+            <a class="btn" href="/admin/ragapp/chatquerylog/">ChatQueryLog</a>
+            <a class="btn" href="/admin/ragapp/mylog/">MyLog</a>
+            <a class="btn" href="/admin/ragapp/applog/">AppLog</a>
+            <a class="btn" href="/admin/ragapp/faqentry/">FaqEntry</a>
+
+            <!-- ✅ (복구) 표 관련 Admin -->
+            <a class="btn" href="/admin/ragapp/tableschema/">TableSchema</a>
+            <a class="btn" href="/admin/ragapp/tablesearchrule/">TableSearchRule</a>
+
+            <a class="btn" href="/admin/ragapp/qaragfeedback/">QaragFeedback</a>
+            <a class="btn" href="/admin/ragapp/livechatmessage/">LiveChatMessage</a>
+            <a class="btn" href="/admin/ragapp/chatevidence/">ChatEvidence</a>
+            <a class="btn" href="/admin/ragapp/livechatabusekeyword/">상담 욕설/금지어 목록</a>
+          </div>
+        </section>
+      </section>
+
+      <section class="card guide-card">
+        <div class="guide-row">
+          <div>
+            <div class="guide-title">이용 가이드</div>
+            <div class="guide-sub">테스터 안내·주의사항·빠른 시작 절차를 한 페이지로 정리한 설명서입니다.</div>
+          </div>
+          <div class="btn-row">
+            <a class="btn" href="{% url 'ragadmin:guide' %}">관리자 래퍼로 열기</a>
+            <a class="btn btn-ghost" href="{{ legal_guide_url }}" target="_blank" rel="noopener">/guide 새 탭</a>
+          </div>
+        </div>
+      </section>
+
+      <footer class="foot">
+        VECTOR_DB_PATH: <code>{{ VECTOR_DB_PATH|default:"(미설정)" }}</code>
+        · CHROMA_COLLECTION: <code>{{ CHROMA_COLLECTION|default:"-" }}</code>
+      </footer>
+    </main>
+
+    <!-- ✅ RIGHT: 게시판 운영 패널 -->
+    <aside class="board-panel" aria-label="게시판 운영">
+      <section class="card board-card">
+        <div class="board-head">
+          <h3>📌 게시판 운영</h3>
+          <span class="board-badge">board</span>
+        </div>
+
+        <div class="board-scroll">
+          <p class="board-desc">
+            신고/제재/운영 로그는 운영툴로, 데이터는 기본 Admin으로 접근합니다.
+          </p>
+
+          <div class="board-group">
+            <div class="board-label">운영툴(모더레이션)</div>
+            <div class="board-list">
+              <a class="btn btn-accent" href="{% url 'board:reports' %}">신고 관리</a>
+              <a class="btn" href="{% url 'board:bans' %}">Ban · 링크 제한</a>
+              <a class="btn" href="{% url 'board:admin_logs' %}">운영 로그</a>
+              <a class="btn btn-ghost" href="/board/" target="_blank" rel="noopener">게시판(사용자 화면)</a>
+            </div>
+            <div class="rows">
+              <span class="pill">일괄 처리</span>
+              <span class="pill">AUTO 신고</span>
+              <span class="pill">승격 Ban</span>
+            </div>
+          </div>
+
+          <div class="board-group">
+            <div class="board-label">기본 Admin 데이터</div>
+            <div class="board-list">
+              <a class="btn" href="/admin/board/boardcategory/">BoardCategory</a>
+              <a class="btn" href="/admin/board/boardpost/">BoardPost</a>
+              <a class="btn" href="/admin/board/boardcomment/">BoardComment</a>
+              <a class="btn" href="/admin/board/boardreport/">BoardReport</a>
+              <a class="btn" href="/admin/board/boardabusekeyword/">BoardAbuseKeyword</a>
+              <a class="btn" href="/admin/board/boardadminactionlog/">BoardAdminActionLog</a>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </aside>
+  </div>
+
 </div>
+
+<!-- ✅ 새 JS 파일 포함 -->
+<script src="{% versioned_static 'ragapp/javascript/admin_dashboard_obs.js' %}"></script>
+<script src="{% versioned_static 'ragapp/javascript/admin_obsbadge_controls.js' %}"></script>
 </body>
 </html>

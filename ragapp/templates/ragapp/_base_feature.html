@@ -4,33 +4,440 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
 <title>{% block title %}RAG 도구 모음{% endblock %}</title>
+
 <link rel="stylesheet" href="{% static 'ragapp/css/feature.css' %}?v={{ STATIC_VERSION }}" />
-<link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+
+{# ✅ Guide cards modal CSS #}
+<link rel="stylesheet" href="{% static 'ragapp/css/signal_guide_cards_modal.css' %}?v={{ STATIC_VERSION }}" />
+
+{# ✅ 파비콘 세트 #}
+{% include "ragapp/partials/favicon.html" %}
+
+<style>
+  body.gd-open{ overflow:hidden; touch-action:none; }
+
+  :root{
+    --fx-bg: #020617;
+    --fx-ink: #e5e7eb;
+    --fx-dim: rgba(148,163,184,.92);
+    --fx-line: rgba(148,163,184,.22);
+
+    --fx-glass: rgba(2,6,23,.58);
+    --fx-glass-2: rgba(15,23,42,.64);
+
+    --fx-accentA: rgba(99,102,241,.96);
+    --fx-accentB: rgba(79,70,229,.96);
+
+    --fx-blueA: #0a84ff;
+    --fx-blueB: #36c3ff;
+
+    --fx-radius: 18px;
+    --fx-pill: 999px;
+
+    --fx-shadow: 0 16px 48px rgba(0,0,0,.28);
+    --fx-shadow2: 0 10px 28px rgba(0,0,0,.18);
+  }
+
+ 
+  .fx-skip{
+    position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;
+  }
+  .fx-skip:focus{
+    left: 12px; top: 12px; width:auto; height:auto;
+    padding:10px 12px;
+    border-radius: 12px;
+    background: rgba(2,6,23,.92);
+    border: 1px solid rgba(99,102,241,.55);
+    color: var(--fx-ink);
+    z-index: 9999;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.22), var(--fx-shadow2);
+  }
+
+  .fx-header{
+    position: sticky;
+    top: 0;
+    z-index: 50;
+
+    background:
+      linear-gradient(to bottom, rgba(15,23,42,.86), rgba(2,6,23,.70));
+    border-bottom: 1px solid rgba(148,163,184,.18);
+
+    backdrop-filter: blur(14px) saturate(170%);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
+  }
+
+  .fx-header .fx-wrap.fx-row.fx-center{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .fx-brand{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:9px 12px;border-radius: var(--fx-pill);
+    border:1px solid rgba(148,163,184,.18);
+    background: rgba(2,6,23,.35);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    box-shadow: var(--fx-shadow2);
+    text-decoration:none;line-height:1;
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease, background .14s ease;
+    white-space:nowrap;
+  }
+  .fx-brand:hover{
+    transform: translateY(-1px);
+    border-color: rgba(99,102,241,.32);
+    background: rgba(2,6,23,.46);
+    box-shadow: 0 18px 52px rgba(0,0,0,.22);
+  }
+  .fx-brand:focus{ outline:none; }
+  .fx-brand:focus-visible{
+    box-shadow: 0 0 0 3px rgba(99,102,241,.22), 0 18px 52px rgba(0,0,0,.22);
+  }
+  .fx-brand .fx-orb{
+    width:10px;height:10px;border-radius:999px;
+    background: linear-gradient(180deg, #60a5fa, #6366f1);
+    box-shadow: 0 0 0 4px rgba(99,102,241,.14);
+    flex:0 0 auto;
+  }
+  .fx-brand .fx-brand-text{
+    font-weight:900;letter-spacing:-.2px;font-size:13.5px;
+    background: linear-gradient(90deg, rgba(226,232,240,.98), rgba(165,180,252,.98));
+    -webkit-background-clip: text;background-clip: text;color: transparent;
+  }
+
+  .fx-modebar{
+    flex: 1 1 auto;
+    display:flex;
+    justify-content:center;
+    min-width: 280px;
+  }
+
+  .fx-seg{
+    --seg-gap: 6px;
+    --seg-pad: 6px;
+    --seg-h: 44px;
+
+    position: relative;
+    display:flex;
+    align-items:center;
+    gap: var(--seg-gap);
+    padding: var(--seg-pad);
+    height: var(--seg-h);
+    border-radius: var(--fx-pill);
+
+    background: rgba(15,23,42,.58);
+    border: 1px solid rgba(148,163,184,.22);
+
+    backdrop-filter: blur(14px) saturate(170%);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
+
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 14px 40px rgba(0,0,0,.22);
+
+    width: min(620px, 100%);
+  }
+
+  .fx-seg::after{
+    content:"";
+    position:absolute; inset:0;
+    border-radius: var(--fx-pill);
+    pointer-events:none;
+    background: linear-gradient(to bottom, rgba(255,255,255,.06), transparent 40%);
+    opacity:.9;
+  }
+
+  .fx-seg-thumb{
+    position:absolute;
+    top: var(--seg-pad);
+    bottom: var(--seg-pad);
+    left: var(--seg-pad);
+
+    width: calc((100% - (var(--seg-pad) * 2) - var(--seg-gap)) / 2);
+    border-radius: var(--fx-pill);
+
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255,255,255,0.22), transparent 55%),
+      linear-gradient(120deg, var(--fx-blueA), var(--fx-blueB));
+
+    box-shadow:
+      0 12px 24px rgba(15,118,255,.26),
+      inset 0 1px 0 rgba(255,255,255,.18);
+
+    transform: translateX(0);
+    transition: transform .18s ease;
+    will-change: transform;
+  }
+  .fx-seg.is-right .fx-seg-thumb{
+    transform: translateX(calc(100% + var(--seg-gap)));
+  }
+
+  .fx-seg-item{
+    position: relative;
+    z-index: 2;
+
+    flex: 1 1 0;
+    height: calc(var(--seg-h) - (var(--seg-pad) * 2));
+    border-radius: var(--fx-pill);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 8px;
+
+    padding: 0 14px;
+    color: rgba(229,231,235,.86);
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+
+    text-decoration:none;
+    transition: transform .12s ease, opacity .12s ease, color .12s ease;
+    user-select:none;
+  }
+  .fx-seg-item:hover{
+    transform: translateY(-0.5px);
+    color: #ffffff;
+  }
+
+  .fx-seg-item.is-active{
+    color: #020617; 
+  }
+
+  .fx-seg-ico{
+    width: 18px; height: 18px;
+    display:inline-flex;
+    align-items:center; justify-content:center;
+    border-radius: 6px;
+    background: rgba(2,6,23,.25);
+    border: 1px solid rgba(2,6,23,.12);
+    font-size: 12px;
+    line-height: 1;
+  }
+  .fx-seg-item.is-active .fx-seg-ico{
+    background: rgba(2,6,23,.16);
+    border-color: rgba(2,6,23,.10);
+  }
+
+  .fx-seg-item:focus{ outline:none; }
+  .fx-seg-item:focus-visible{
+    box-shadow: 0 0 0 3px rgba(99,102,241,.22), 0 0 0 1px rgba(99,102,241,.55) inset;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .fx-seg-thumb, .fx-seg-item, .fx-brand, .fx-guide-btn{ transition: none !important; }
+  }
+
+  .fx-usage{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+  .fx-usage::before{
+    content:"오늘 남은";
+    font-size: 11px;
+    color: rgba(148,163,184,.88);
+    white-space: nowrap;
+  }
+  .fx-usage-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 6px 10px;
+    border-radius: var(--fx-pill);
+    font-size: 11.5px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--fx-ink);
+
+    background: rgba(2,6,23,.46);
+    border: 1px solid rgba(148,163,184,.26);
+
+    box-shadow: none;
+    transition: background .12s ease, border-color .12s ease, transform .12s ease;
+  }
+  .fx-usage-pill b{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 800;
+  }
+  .fx-usage-pill:hover{
+    background: rgba(15,23,42,.58);
+    border-color: rgba(148,163,184,.36);
+    transform: translateY(-0.5px);
+  }
+  .fx-usage-pill.fx-usage-zero{
+    border-color: rgba(239,68,68,.55);
+    background: rgba(239,68,68,.08);
+    color: #fecaca;
+  }
+
+  .fx-header-actions{
+    display:flex;align-items:center;gap:10px;margin-left: 0;
+    flex:0 0 auto;
+  }
+  .fx-guide-btn{
+    appearance:none;
+    border:1px solid rgba(148,163,184,.22);
+    background: rgba(2,6,23,.60);
+    color:#e5e7eb;
+    border-radius: var(--fx-pill);
+    height:44px;
+    padding:0 16px;
+    font-size:12.8px;
+    font-weight:900;
+    letter-spacing:-.2px;
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    cursor:pointer;user-select:none;
+
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    box-shadow: var(--fx-shadow2);
+
+    transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+    white-space:nowrap;
+  }
+  .fx-guide-btn.primary{
+    border-color:transparent;
+    background: linear-gradient(90deg, var(--fx-accentA), var(--fx-accentB));
+    box-shadow: 0 16px 44px rgba(79,70,229,.18), var(--fx-shadow2);
+  }
+  .fx-guide-btn:hover{
+    transform: translateY(-1px);
+    border-color: rgba(99,102,241,.35);
+    box-shadow: 0 18px 52px rgba(0,0,0,.24);
+  }
+  .fx-guide-btn:focus{ outline:none; }
+  .fx-guide-btn:focus-visible{
+    box-shadow: 0 0 0 3px rgba(99,102,241,.22), 0 18px 52px rgba(0,0,0,.26);
+  }
+
+  .fx-footer .fx-footer-row{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;flex-wrap:wrap;padding:14px 0;
+  }
+  .fx-footer .fx-footer-left{ display:flex;flex-direction:column;gap:4px; }
+  .fx-footer-hint{ font-size:12px;color: rgba(148,163,184,.92);line-height:1.35; }
+  .fx-footer-hint b{ color:#e5e7eb; }
+  .fx-footer .fx-footer-actions{ display:flex;align-items:center;gap:10px;flex-wrap:wrap; }
+
+  @media (max-width: 980px){
+    .fx-header .fx-wrap.fx-row.fx-center{
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+    .fx-brand{ order: 1; }
+    .fx-usage{ order: 2; margin-left: auto; }
+    .fx-header-actions{ order: 3; }
+    .fx-modebar{ order: 4; width: 100%; justify-content: center; }
+    .fx-seg{ max-width: 560px; }
+  }
+
+  @media (max-width: 520px){
+    .fx-usage::before{ content:""; } /* 더 좁으면 라벨 숨김 */
+    .fx-guide-btn{ height:46px; padding:0 16px; font-size:13px; }
+    .fx-seg-item{ font-size: 12.6px; padding: 0 10px; }
+  }
+</style>
+
 </head>
 <body>
+<a class="fx-skip" href="#mainContent">본문 바로가기</a>
+
 <header class="fx-header">
   <div class="fx-wrap fx-row fx-center">
-    <a class="fx-brand" href="/">김동건의 포토폴리오</a>
-    <nav class="fx-nav" aria-label="기능 선택">
-      <!-- 이미지 관련 -->
-      <a href="{% url 'media_index' %}">이미지 올려두기</a>
-      <a href="{% url 'media_search' %}">이미지에서 찾아보기</a>
-      <!-- 표(테이블) 관련 -->
-      <a href="{% url 'table_index' %}">표 파일 저장하기</a>
-      <a href="{% url 'table_search' %}">표에서 검색하기</a>
-    </nav>
+    <a class="fx-brand" href="/" aria-label="홈으로 이동" title="홈으로 이동">
+      <span class="fx-orb" aria-hidden="true"></span>
+      <span class="fx-brand-text">HOME</span>
+    </a>
+
+    {% with cur=request.resolver_match.url_name %}
+      <div class="fx-modebar" aria-label="기능 선택">
+        <nav class="fx-seg {% if cur == 'media_search' %}is-right{% else %}is-left{% endif %}" aria-label="이미지 모드 선택">
+          <span class="fx-seg-thumb" aria-hidden="true"></span>
+
+          <a href="{% url 'media_index' %}"
+             class="fx-seg-item {% if cur == 'media_index' %}is-active{% endif %}"
+             {% if cur == 'media_index' %}aria-current="page"{% endif %}>
+            <span class="fx-seg-ico" aria-hidden="true">⬆️</span>
+            <span>이미지 올려두기</span>
+          </a>
+
+          <a href="{% url 'media_search' %}"
+             class="fx-seg-item {% if cur == 'media_search' %}is-active{% endif %}"
+             {% if cur == 'media_search' %}aria-current="page"{% endif %}>
+            <span class="fx-seg-ico" aria-hidden="true">🔎</span>
+            <span>이미지에서 찾아보기</span>
+          </a>
+        </nav>
+      </div>
+    {% endwith %}
+
+    {% if USAGE_WIDGET_ENABLED %}
+    <div class="fx-usage" id="usageWidget" aria-label="오늘 사용량">
+      <span class="fx-usage-pill" data-kind="image">
+        이미지 <b>{{ USAGE_REMAIN_IMAGE_TXT|default:"-" }}</b>
+      </span>
+    </div>
+    {% endif %}
+
+    <div class="fx-header-actions">
+      <button
+        type="button"
+        class="fx-guide-btn primary"
+        data-guide-open="1"
+        aria-haspopup="dialog"
+        aria-label="사용 방법 보기(가이드 열기)">
+        📌 사용 방법
+      </button>
+    </div>
   </div>
 </header>
 
-<main class="fx-wrap">
+<main class="fx-wrap" id="mainContent">
   {% block content %}{% endblock %}
 </main>
 
 <footer class="fx-footer">
   <div class="fx-wrap">
-    <div class="muted">© {{ now|default:"" }} RAG · 실험용 검색 도구</div>
+    <div class="fx-footer-row">
+      <div class="fx-footer-left">
+        <div class="muted">© {% now "Y" %} 김동건의 검색사이트에 오신걸 환영합니다.</div>
+        <div class="fx-footer-hint">기능 사용법은 “사용 방법”에서 한 번에 볼 수 있어요.</div>
+        <div class="fx-footer-hint">
+          부적절한 이미지(음란물·혐오/폭력·불법 콘텐츠·타인의 개인정보 노출 등) 업로드 시
+          게시물 삭제 및 <b>모든 기능이 이용 제한</b>이 될 수 있습니다.
+        </div>
+      </div>
+
+      <div class="fx-footer-actions">
+        <button
+          type="button"
+          class="fx-guide-btn"
+          data-guide-open="1"
+          aria-haspopup="dialog"
+          aria-label="사용 방법 보기(가이드 열기)">
+          📌 사용 방법 보기
+        </button>
+      </div>
+    </div>
   </div>
 </footer>
+
+<script defer src="{% static 'ragapp/javascript/usage_widget.js' %}?v={{ STATIC_VERSION }}"></script>
+
+{% include "ragapp/partials/signal_guide_cards_modal.html" %}
+<script defer src="{% static 'ragapp/javascript/signal_guide_cards_modal.js' %}?v={{ STATIC_VERSION }}"></script>
+
 </body>
 </html>

@@ -1,0 +1,71 @@
+{# ragapp/templates/ragapp/obsbadge/panel.html #}
+
+<div id="dgObsPanel" class="dg-panel" hidden>
+  <div class="dg-h">
+    <div class="dg-title">관리자 OBS</div>
+    <div class="dg-actions">
+      <button type="button" class="dg-btn" id="dgObsHealth">상태</button>
+      <button type="button" class="dg-btn" id="dgObsHistoryBtn">기록</button>
+      <button type="button" class="dg-btn" id="dgObsCopy">복사</button>
+      <button type="button" class="dg-btn" id="dgObsSettings">설정</button>
+      <button type="button" class="dg-btn dg-danger" id="dgObsOff">OFF</button>
+    </div>
+  </div>
+
+  {# ✅ banner / rows는 이제 JS가 dgObsBoot로 렌더합니다. #}
+  <div class="dg-b"></div>
+
+  <div class="dg-history" id="dgObsHistory" hidden>
+    <div class="dg-history-h">
+      <div class="dg-history-title">최근 요청</div>
+      <div class="dg-history-actions">
+        <label class="dg-mini-toggle">
+          <input type="checkbox" id="dgObsOnlyErrors" />
+          <span>오류만</span>
+        </label>
+        <button type="button" class="dg-btn" id="dgObsClearHistory">초기화</button>
+      </div>
+    </div>
+    <div class="dg-history-list" id="dgObsHistoryList"></div>
+  </div>
+
+  <div class="dg-settings" id="dgObsSettingsPanel" hidden>
+    <div class="dg-settings-title">표시 항목</div>
+    <div class="dg-grid" id="dgObsGrid"></div>
+
+    <div class="dg-settings-title" style="margin-top:10px;">배치</div>
+    <div class="dg-grid2">
+      <div class="dg-chipset">
+        <button type="button" class="dg-chip" data-pos="br">우하단</button>
+        <button type="button" class="dg-chip" data-pos="bl">좌하단</button>
+        <button type="button" class="dg-chip" data-pos="tr">우상단</button>
+        <button type="button" class="dg-chip" data-pos="tl">좌상단</button>
+      </div>
+      <div class="dg-stack">
+        <label class="dg-toggle">
+          <input type="checkbox" id="dgObsCompact" />
+          <span>컴팩트</span>
+        </label>
+        <label class="dg-toggle">
+          <input type="number" min="3" max="30" step="1" id="dgObsHistoryMax" style="width:90px;" />
+          <span>기록 개수</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="dg-settings-actions">
+      <button type="button" class="dg-btn" id="dgObsCancel">취소</button>
+      <button type="button" class="dg-btn dg-primary" id="dgObsSave">저장</button>
+    </div>
+  </div>
+
+  <div class="dg-modal" id="dgObsHealthModal" hidden>
+    <div class="dg-modal-card" role="dialog" aria-modal="true" aria-label="상태 정보">
+      <div class="dg-modal-h">
+        <div class="dg-modal-title">상태</div>
+        <button type="button" class="dg-btn" id="dgObsHealthModalClose">닫기</button>
+      </div>
+      <pre class="dg-modal-pre" id="dgObsModalPre"></pre>
+    </div>
+  </div>
+</div>

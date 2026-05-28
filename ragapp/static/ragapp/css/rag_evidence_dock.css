@@ -1,0 +1,412 @@
+/* ragapp/static/ragapp/css/rag_evidence_dock.css */
+
+/* =========================
+   Theme tokens (light/dark)
+   ========================= */
+#dgRagEvidenceDock {
+    --dg-ev-pill-line: rgba(148, 163, 184, .22);
+    --dg-ev-pill-bg: rgba(2, 6, 23, .28);
+    --dg-ev-pill-bg2: rgba(2, 6, 23, .34);
+    --dg-ev-pill-text: rgba(226, 232, 240, .94);
+    --dg-ev-pill-muted: rgba(226, 232, 240, .76);
+
+    --dg-ev-focus: rgba(96, 165, 250, .55);
+
+    --dg-ev-panel-line: rgba(148, 163, 184, .18);
+    --dg-ev-panel-bg: rgba(2, 6, 23, .22);
+
+    --dg-ev-item-line: rgba(148, 163, 184, .14);
+    --dg-ev-item-bg: rgba(2, 6, 23, .18);
+
+    --dg-ev-link: rgba(147, 197, 253, .98);
+    --dg-ev-shadow: 0 12px 28px rgba(0, 0, 0, .35);
+}
+
+:root[data-theme="light"] #dgRagEvidenceDock,
+html[data-theme="light"] #dgRagEvidenceDock,
+body[data-theme="light"] #dgRagEvidenceDock {
+    --dg-ev-pill-line: rgba(15, 23, 42, .14);
+    --dg-ev-pill-bg: rgba(15, 23, 42, .06);
+    --dg-ev-pill-bg2: rgba(15, 23, 42, .08);
+    --dg-ev-pill-text: rgba(15, 23, 42, .92);
+    --dg-ev-pill-muted: rgba(15, 23, 42, .68);
+
+    --dg-ev-panel-line: rgba(15, 23, 42, .10);
+    --dg-ev-panel-bg: rgba(255, 255, 255, .86);
+
+    --dg-ev-item-line: rgba(15, 23, 42, .10);
+    --dg-ev-item-bg: rgba(255, 255, 255, .75);
+
+    --dg-ev-link: rgba(37, 99, 235, .98);
+    --dg-ev-shadow: 0 12px 28px rgba(15, 23, 42, .10);
+}
+
+/* =========================
+   Legacy/optional bubble btn
+   ========================= */
+.dg-ev-line {
+    margin-top: 10px;
+}
+
+.dg-ev-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+
+    border: 1px solid var(--dg-ev-pill-line);
+    background: var(--dg-ev-pill-bg);
+    color: var(--dg-ev-pill-text);
+
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.dg-ev-btn:hover {
+    border-color: color-mix(in srgb, var(--dg-ev-pill-line) 70%, rgba(255, 255, 255, .25));
+    background: var(--dg-ev-pill-bg2);
+}
+
+.dg-ev-btn:active {
+    transform: translateY(.5px);
+}
+
+.dg-ev-btn.is-disabled,
+.dg-ev-btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.dg-ev-ico {
+    font-size: 14px;
+}
+
+.dg-ev-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 12px;
+
+    border: 1px solid color-mix(in srgb, var(--dg-ev-pill-line) 80%, rgba(255, 255, 255, .06));
+    background: color-mix(in srgb, var(--dg-ev-pill-bg) 60%, rgba(255, 255, 255, .08));
+    color: var(--dg-ev-pill-text);
+}
+
+/* =========================
+   Dock wrapper (default location)
+   - 페이지 하단에 두더라도, JS가 버블로 이동시킴
+   ========================= */
+.page-wrap:not([data-mode="rag"]) #dgRagEvidenceDock {
+    display: none !important;
+}
+
+#dgRagEvidenceDock {
+    width: 100%;
+    max-width: 980px;
+    margin: 10px auto 0;
+    padding: 0 14px;
+}
+
+/* details 카드 느낌 최소화 */
+#dgRagEvidenceDock .mz-evidence {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* =========================
+   ✅ NEW: 버블 하단 메타 행 (시간 왼쪽 / 근거보기 오른쪽 고정)
+   ========================= */
+.dg-ev-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    width: 100%;
+    min-width: 0;
+    margin-top: 10px;
+}
+
+.dg-ev-left,
+.dg-ev-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.dg-ev-timehost {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--dg-ev-pill-muted);
+}
+
+/* =========================
+   Pill (summary)
+   ========================= */
+#dgRagEvidenceDock .mz-evidence summary,
+#dgRagEvidenceDock .mz-evidence .mz-evidence-summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    line-height: 1;
+
+    cursor: pointer;
+    user-select: none;
+
+    border: 1px solid var(--dg-ev-pill-line);
+    background:
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--dg-ev-pill-bg) 80%, rgba(255, 255, 255, .06)),
+            var(--dg-ev-pill-bg));
+    color: var(--dg-ev-pill-text);
+
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+#dgRagEvidenceDock .mz-evidence summary:hover,
+#dgRagEvidenceDock .mz-evidence .mz-evidence-summary:hover {
+    background:
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--dg-ev-pill-bg2) 80%, rgba(255, 255, 255, .08)),
+            var(--dg-ev-pill-bg2));
+}
+
+#dgRagEvidenceDock .mz-evidence summary:active,
+#dgRagEvidenceDock .mz-evidence .mz-evidence-summary:active {
+    transform: translateY(.5px);
+}
+
+#dgRagEvidenceDock .mz-evidence summary:focus-visible,
+#dgRagEvidenceDock .mz-evidence .mz-evidence-summary:focus-visible {
+    outline: 2px solid var(--dg-ev-focus);
+    outline-offset: 2px;
+}
+
+#dgRagEvidenceDock .mz-evidence summary::-webkit-details-marker {
+    display: none;
+}
+
+/* caret 회전: JS가 data-dg-open="1"로 상태를 들고 있음 */
+#dgRagEvidenceWrap[data-dg-open="1"] .mz-evidence-caret {
+    transform: rotate(180deg);
+}
+
+/* 말풍선 안으로 이동됐을 때 */
+#dgRagEvidenceDock.dg-ev-in-bubble {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+}
+
+#dgRagEvidenceDock.dg-ev-in-bubble .mz-evidence {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* 레거시 body는 숨김 (패널 방식만 사용) */
+#dgRagEvidenceDock.dg-ev-in-bubble .mz-evidence .mz-evidence-body,
+#dgRagEvidenceDock.dg-ev-in-bubble .mz-evidence .mz-evidence-list {
+    display: none !important;
+}
+
+/* =========================
+   ✅ 클릭 막힘 방지 (최소 범위 강제)
+   ========================= */
+.dg-ev-row,
+.dg-ev-left,
+.dg-ev-right,
+.dg-ev-timehost,
+.dg-ev-host,
+#dgRagEvidenceDock {
+    pointer-events: auto !important;
+}
+
+#dgRagEvidenceDock,
+#dgRagEvidenceDock * {
+    pointer-events: auto !important;
+}
+
+#dgRagEvidenceDock .mz-evidence summary,
+#dgRagEvidenceDock .mz-evidence .mz-evidence-summary {
+    pointer-events: auto !important;
+    cursor: pointer;
+}
+
+/* =========================
+   Evidence Panel (bubble width)
+   ========================= */
+.dg-ev-panel[hidden] {
+    display: none !important;
+}
+
+.dg-ev-panel {
+    width: 100%;
+    flex: 0 0 100%;
+    min-width: 0;
+    box-sizing: border-box;
+
+    margin-top: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--dg-ev-panel-line);
+    background: var(--dg-ev-panel-bg);
+    padding: 10px;
+
+    max-height: 240px;
+    overflow: auto;
+
+    box-shadow: var(--dg-ev-shadow);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.dg-ev-panel:not([hidden]) {
+    animation: dgEvDrop .14s ease-out;
+}
+
+@keyframes dgEvDrop {
+    from {
+        opacity: 0;
+        transform: translateY(-3px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 패널 헤더 */
+.dg-ev-panel .sources-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 8px 0;
+}
+
+.dg-ev-panel .sources-title {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: -.1px;
+    color: var(--dg-ev-pill-text);
+}
+
+.dg-ev-panel .sources-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 34px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+
+    font-size: 12px;
+    line-height: 1;
+
+    border: 1px solid color-mix(in srgb, var(--dg-ev-panel-line) 80%, rgba(255, 255, 255, .10));
+    background: color-mix(in srgb, var(--dg-ev-panel-bg) 75%, rgba(255, 255, 255, .08));
+    color: var(--dg-ev-pill-text);
+}
+
+/* 리스트 */
+.dg-ev-panel .sources-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dg-ev-panel .src-item {
+    padding: 9px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--dg-ev-item-line);
+    background: var(--dg-ev-item-bg);
+}
+
+.dg-ev-panel .src-title {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--dg-ev-link);
+    text-decoration: none;
+
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.dg-ev-panel .src-title:hover {
+    text-decoration: underline;
+}
+
+.dg-ev-panel .src-snippet {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: color-mix(in srgb, var(--dg-ev-pill-text) 75%, rgba(255, 255, 255, .0));
+}
+
+.dg-ev-panel .src-meta {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--dg-ev-pill-muted);
+}
+
+.dg-ev-panel .muted {
+    margin: 8px 0 0 0;
+    color: var(--dg-ev-pill-muted);
+    font-size: 12px;
+}
+
+/* 패널 스크롤바 */
+.dg-ev-panel::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.dg-ev-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dg-ev-panel::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, .28);
+    border-radius: 999px;
+}
+
+.dg-ev-panel::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, .38);
+}

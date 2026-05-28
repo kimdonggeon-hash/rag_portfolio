@@ -1,0 +1,803 @@
+/* ragadmin_media_pending.css */
+/* 제품형: 깔끔/선명/덜-장식, 2컬럼(프리뷰/큐) */
+
+:root {
+    color-scheme: light dark;
+
+    --bg: #0b1020;
+    --panel: rgba(255, 255, 255, .06);
+    --panel2: rgba(255, 255, 255, .08);
+    --border: rgba(255, 255, 255, .10);
+    --text: rgba(255, 255, 255, .90);
+    --muted: rgba(255, 255, 255, .62);
+    --muted2: rgba(255, 255, 255, .45);
+
+    --ok: #22c55e;
+    --danger: #ef4444;
+    --accent: #60a5fa;
+
+    --r: 14px;
+    --shadow: 0 18px 50px rgba(0, 0, 0, .35);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #f5f7fb;
+        --panel: rgba(0, 0, 0, .04);
+        --panel2: rgba(0, 0, 0, .06);
+        --border: rgba(0, 0, 0, .10);
+        --text: rgba(0, 0, 0, .88);
+        --muted: rgba(0, 0, 0, .60);
+        --muted2: rgba(0, 0, 0, .45);
+        --shadow: 0 14px 40px rgba(12, 20, 40, .12);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body.dg-app {
+    margin: 0;
+    font-family: var(--sans);
+    background: radial-gradient(1200px 900px at 20% 10%, rgba(96, 165, 250, .18), transparent 60%),
+        radial-gradient(1200px 900px at 80% 20%, rgba(34, 197, 94, .12), transparent 60%),
+        var(--bg);
+    color: var(--text);
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.dg-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in oklab, var(--bg) 80%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+}
+
+.dg-topbar-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.dg-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+
+.dg-sub {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dg-dot {
+    opacity: .5;
+}
+
+.dg-count {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.dg-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.dg-limit {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.dg-lbl {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-inp,
+.dg-select,
+.dg-textarea {
+    background: color-mix(in oklab, var(--panel) 80%, transparent);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    outline: none;
+}
+
+.dg-inp,
+.dg-select {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 13px;
+}
+
+.dg-select {
+    color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-select {
+        color-scheme: light;
+    }
+}
+
+.dg-select option,
+.dg-select optgroup {
+    background: var(--bg);
+    color: var(--text);
+}
+
+.dg-textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 13px;
+    resize: none;
+    /* ✅ 늘리고/줄이기(리사이즈) 금지 */
+}
+
+.dg-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-switch input {
+    transform: translateY(1px);
+}
+
+.dg-btn {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--panel2) 80%, transparent);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dg-btn:hover {
+    filter: brightness(1.05);
+}
+
+.dg-btn:active {
+    transform: translateY(1px);
+}
+
+.dg-btn.primary {
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+    background: color-mix(in oklab, var(--accent) 28%, var(--panel2));
+}
+
+.dg-btn.ok {
+    border-color: color-mix(in oklab, var(--ok) 55%, var(--border));
+    background: color-mix(in oklab, var(--ok) 22%, var(--panel2));
+}
+
+.dg-btn.danger {
+    border-color: color-mix(in oklab, var(--danger) 55%, var(--border));
+    background: color-mix(in oklab, var(--danger) 18%, var(--panel2));
+}
+
+.dg-btn.ghost {
+    background: transparent;
+}
+
+.dg-iconbtn {
+    height: 34px;
+    min-width: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.dg-iconbtn:hover {
+    background: color-mix(in oklab, var(--panel2) 55%, transparent);
+}
+
+.dg-shell {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.dg-layout {
+    display: grid;
+    grid-template-columns: 520px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.dg-preview,
+.dg-queue {
+    background: color-mix(in oklab, var(--panel) 70%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.dg-queue {
+    max-height: calc(100vh - 90px);
+    /* topbar+여백 보정 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ===== Preview ===== */
+.dg-preview {
+    position: sticky;
+    top: 74px;
+}
+
+.dg-preview-head {
+    padding: 14px 14px 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dg-preview-title {
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.dg-preview-hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-preview-tools {
+    display: flex;
+    gap: 8px;
+}
+
+.dg-preview-ctrl {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dg-chipbtn {
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.dg-chipbtn:hover {
+    background: color-mix(in oklab, var(--panel2) 55%, transparent);
+}
+
+.dg-zoom {
+    flex: 1;
+}
+
+.dg-zoom-label {
+    width: 58px;
+    text-align: right;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-preview-stage {
+    position: relative;
+    height: 420px;
+    overflow: auto;
+    border-bottom: 1px solid var(--border);
+    background: #111827;
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-preview-stage {
+        background: #eef2ff;
+    }
+}
+
+.dg-preview-stage[data-bg="checker"] {
+    background-image:
+        linear-gradient(45deg, rgba(255, 255, 255, .08) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255, 255, 255, .08) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, .08) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, .08) 75%);
+    background-size: 24px 24px;
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+}
+
+@media (prefers-color-scheme: light) {
+    .dg-preview-stage[data-bg="checker"] {
+        background-image:
+            linear-gradient(45deg, rgba(0, 0, 0, .06) 25%, transparent 25%),
+            linear-gradient(-45deg, rgba(0, 0, 0, .06) 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, .06) 75%),
+            linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, .06) 75%);
+    }
+}
+
+#dgPreviewImg {
+    display: block;
+    max-width: none;
+    transform-origin: 0 0;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.dg-preview-empty {
+    padding: 14px;
+    color: var(--muted);
+}
+
+.dg-preview-tip {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    font-size: 12px;
+    color: var(--muted2);
+    background: color-mix(in oklab, var(--bg) 55%, transparent);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+}
+
+.mono {
+    font-family: var(--mono);
+}
+
+.small {
+    font-size: 12px;
+}
+
+.dg-preview-actions {
+    padding: 12px 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+}
+
+.dg-preview-foot {
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.dg-muted {
+    color: var(--muted);
+}
+
+.dg-toast {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 50;
+    background: color-mix(in oklab, var(--bg) 70%, transparent);
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font-size: 13px;
+}
+
+/* ===== Queue ===== */
+.dg-queue-head {
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dg-queue-title {
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.dg-queue-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.dg-grid {
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+
+    overflow: auto;
+    /* 목록만 스크롤 */
+    flex: 1;
+    /* 남는 높이 전부 사용 */
+    min-height: 0;
+    /* ✅ 추가: flex+overflow 조합에서 펼침/스크롤 안정화 */
+}
+
+.dg-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: color-mix(in oklab, var(--panel2) 65%, transparent);
+
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    overflow: hidden;
+
+    position: relative;
+}
+
+/* ✅ 열림 상태에서 잘림(클립) 방지 — 네가 임시 강제 스타일로 확인한 포인트 */
+.dg-card.is-open,
+.dg-card[open] {
+    overflow: visible;
+}
+
+.dg-card[open] {
+    outline: 2px solid color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+.dg-card.is-selected {
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+}
+
+.dg-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.dg-summary::-webkit-details-marker {
+    display: none;
+}
+
+.dg-thumb {
+    width: 74px;
+    height: 74px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex: 0 0 auto;
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--bg) 45%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dg-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.dg-thumb-fallback {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 8px;
+    text-align: center;
+}
+
+.dg-s-main {
+    min-width: 0;
+    flex: 1;
+}
+
+.dg-s-title {
+    font-weight: 750;
+    font-size: 13px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.dg-s-name {
+    color: var(--muted);
+    font-weight: 650;
+    max-width: 520px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dg-s-sub {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.dg-s-sub .mono.small {
+    flex: 1;
+    min-width: 0;
+
+    /* ✅ 표준 속성 (우선) */
+    line-clamp: 2;
+
+    /* ✅ WebKit 호환 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+
+    line-height: 1.35;
+    max-height: calc(1.35em * 2);
+}
+
+.dg-s-tags {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.dg-badge.ai {
+    color: color-mix(in oklab, var(--accent) 65%, var(--text));
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+}
+
+.dg-s-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex: 0 0 240px;
+    min-width: 0;
+}
+
+.dg-s-at {
+    font-size: 12px;
+    color: var(--muted2);
+}
+
+.dg-pillbtn {
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 999px;
+    padding: 6px 10px;
+    cursor: pointer;
+    color: var(--text);
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    max-width: 240px;
+}
+
+/* ✅ 추가: summary 밖으로 뺀 actor 버튼을 카드 헤더 우측에 고정 */
+.dg-actorbtn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+}
+
+.dg-pillbtn .mono.small {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dg-pillbtn:hover {
+    background: color-mix(in oklab, var(--panel2) 55%, transparent);
+}
+
+/* ✅ details의 open 상태로만 본문 표시 */
+.dg-card>.dg-body {
+    display: none;
+}
+
+.dg-card[open]>.dg-body {
+    display: block;
+}
+
+.dg-body {
+    border-top: 1px solid var(--border);
+    padding: 12px;
+    width: 100%;
+    /* ✅ 선택: flex 레이아웃에서 폭 꼬임 방지 */
+}
+
+.dg-body-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 14px;
+}
+
+.dg-panel {
+    min-width: 0;
+}
+
+.dg-panel .dg-inp,
+.dg-panel .dg-select,
+.dg-panel .dg-textarea {
+    width: 100%;
+}
+
+.dg-panel-title {
+    font-weight: 800;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    letter-spacing: .2px;
+}
+
+.dg-meta {
+    display: grid;
+    gap: 8px;
+}
+
+/* ✅ 메타(본문) Key 같은 긴 값이 다른 글씨 덮지 않게: 2줄 + … */
+.dg-meta .mono {
+    min-width: 0;
+
+    /* 표준(가능한 브라우저에서) */
+    line-clamp: 2;
+    max-block-size: calc(1.35em * 2);
+
+    /* WebKit 호환 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.dg-label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 10px 0 6px;
+}
+
+.dg-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 0;
+}
+
+.dg-mini-actions,
+.dg-actions-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.dg-reason-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.dg-reject-modes {
+    margin-top: 10px;
+    display: grid;
+    gap: 10px;
+}
+
+.dg-radio,
+.dg-check {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-restrict-box {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: transparent;
+}
+
+.dg-status {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dg-empty {
+    padding: 22px;
+    color: var(--muted);
+}
+
+/* 반응형: 너는 PC 운영이라도 안전장치 */
+@media (max-width: 1100px) {
+    .dg-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .dg-preview {
+        position: static;
+    }
+
+    .dg-preview-stage {
+        height: 360px;
+    }
+
+    .dg-body-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,313 +1,246 @@
+{# ragapp/templates/ragapp/media_search.html #}
 {% extends "ragapp/_base_feature.html" %}
 {% load static %}
 {% block title %}글로 이미지 찾기{% endblock %}
 {% block content %}
 
-<style>
-  /* ====== minimal, pretty, accessible ====== */
-  .ms-wrap{max-width:1100px;margin:0 auto;display:grid;gap:16px}
-  .ms-card{background:var(--card-bg, #0f172a);border:1px solid var(--line, rgba(148,163,184,.18));
-           border-radius:16px;padding:18px}
-  .ms-title{font-size:20px;margin:0 0 12px}
-  .ms-muted{color:#94a3b8}
-  .ms-err{padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.08);
-          border:1px solid rgba(239,68,68,.35);color:#fecaca}
+<link rel="stylesheet" href="{% static 'ragapp/css/media_search.css' %}">
 
-  .ms-form{display:grid;gap:12px}
-  .ms-row{display:grid;gap:10px;grid-template-columns:1fr;align-items:end}
-  .ms-input,.ms-num{
-    width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line, rgba(148,163,184,.18));
-    background:var(--card-sub,#0b1326);color:var(--ink,#e5e7eb);outline:none
-  }
-  .ms-input:focus,.ms-num:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+{% with mode_q=request.GET.mode|default:'' debug_q=request.GET.debug|default:'' min_sim_q=request.GET.min_sim|default:'' %}
+<div id="mediaSearchRoot"
+     class="ms-wrap"
+     data-usage-kind="image"
+     data-usage-api="{% url 'api_usage_status' %}">
 
-  .ms-btnbar{display:flex;gap:8px;flex-wrap:wrap}
-  .ms-btn{
-    padding:10px 14px;border-radius:10px;border:1px solid var(--line, rgba(148,163,184,.18));
-    background:#111b34;color:#e5e7eb;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer
-  }
-  .ms-btn.primary{background:linear-gradient(90deg,#6366f1,#4f46e5);border-color:transparent}
-  .ms-btn.ghost{background:#0b1326}
-
-  .ms-topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
-  .ms-chip{font-size:12px;color:#94a3b8;border:1px solid var(--line, rgba(148,163,184,.18));
-           padding:4px 8px;border-radius:999px}
-
-  .ms-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill, minmax(180px,1fr))}
-  .ms-item{border:1px solid var(--line, rgba(148,163,184,.18));border-radius:14px;overflow:hidden;background:#0b1326}
-  .ms-thumb{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#0b152a}
-  .ms-meta{padding:10px}
-  .ms-cap{font-size:14px;line-height:1.4}
-  .ms-dim{font-size:12px;color:#94a3b8;margin-top:4px;word-break:break-all}
-
-  .ms-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px}
-  .ms-pill{padding:6px 10px;border-radius:999px;border:1px solid var(--line, rgba(148,163,184,.18))}
-  .ms-pill.disabled{opacity:.5;pointer-events:none}
-
-  @media (min-width:720px){
-    .ms-row{grid-template-columns:1fr 120px 120px 140px}
-  }
-
-  /* ====== 사용 설명서 카드 ====== */
-  .ms-help-card{
-    background:
-      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 55%),
-      radial-gradient(circle at bottom right, rgba(129,140,248,.18), transparent 55%),
-      #020617;
-    border-radius:18px;
-    border:1px solid rgba(148,163,184,.45);
-    padding:18px 20px;
-    box-shadow:0 18px 45px rgba(15,23,42,.75);
-    color:#e5e7eb;
-  }
-  .ms-help-header{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
-  .ms-help-title{display:flex;align-items:center;gap:8px}
-  .ms-help-title h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;color:#f9fafb}
-  .ms-help-pill{
-    display:inline-flex;align-items:center;justify-content:center;
-    padding:2px 8px;border-radius:999px;
-    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
-    background:linear-gradient(90deg,#38bdf8,#6366f1);
-    color:#020617;
-  }
-  .ms-help-sub{margin:0;font-size:12px;color:#9ca3af}
-
-  .ms-help-body{
-    display:grid;
-    grid-template-columns:minmax(0,2.1fr) minmax(0,1.3fr);
-    gap:18px;
-    margin-top:6px;
-  }
-  @media (max-width:900px){
-    .ms-help-body{grid-template-columns:minmax(0,1fr)}
-  }
-
-  .ms-help-steps{
-    margin:0;
-    padding-left:18px;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    font-size:13px;
-    color:#d1d5db;
-  }
-  .ms-help-steps li strong{color:#e5e7eb}
-  .ms-help-steps li em{font-style:normal;color:#a5b4fc}
-
-  .ms-help-notes{
-    padding:12px 13px 10px;
-    border-radius:14px;
-    background:rgba(15,23,42,.96);
-    border:1px dashed rgba(148,163,184,.7);
-  }
-  .ms-help-notes h3{
-    margin:0 0 6px;
-    font-size:13px;font-weight:600;color:#e5e7eb;
-  }
-  .ms-help-notes ul{
-    margin:0;
-    padding-left:16px;
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-    font-size:12px;
-    color:#9ca3af;
-  }
-</style>
-
-<div class="ms-wrap">
-  <!-- 검색 패널 -->
   <section class="ms-card" aria-labelledby="search-title">
-    <h1 id="search-title" class="ms-title">글로 이미지 찾기</h1>
+    <div class="ms-head">
+      <h1 id="search-title" class="ms-title">글로 이미지 찾기</h1>
+    </div>
+
     {% if error %}<div class="ms-err" role="alert">❌ {{ error }}</div>{% endif %}
 
-    <form class="ms-form" method="get" action="{% url 'media_search' %}">
-      <div class="ms-row">
-        <div>
-          <label class="ms-muted" for="q">찾고 싶은 내용</label>
-          <input id="q" class="ms-input" type="text" name="q"
-                 value="{{ q|default:'' }}" placeholder="예: 노을 진 바다 풍경, 카페에서 공부하는 사람" required />
+    <form id="mediaSearchForm" class="ms-form" method="get" action="{% url 'media_search' %}">
+      <input type="hidden" name="size" value="5" />
+      <input id="page" type="hidden" name="page" value="1" />
+
+      <div class="ms-bar" aria-label="검색 바">
+        <label class="ms-sr" for="q">찾고 싶은 내용</label>
+        <div class="ms-q">
+          <input id="q" class="ms-input ms-input-q" type="text" name="q"
+                 value="{{ q|default:'' }}"
+                 placeholder="검색 키워드를 입력 해 주세요."
+                 required />
         </div>
-        <div>
-          <label class="ms-muted" for="size">한 번에 볼 개수</label>
-          <input id="size" class="ms-num" type="number" name="size" min="1" max="48" value="{{ size|default:12 }}"/>
+
+        <div class="ms-stepper ms-stepper--k" title="검색 범위" aria-label="검색 범위">
+          <button type="button" class="ms-step" data-step-target="k" data-step="-10" aria-label="검색 범위 감소">−</button>
+          <input id="k" class="ms-num ms-num--k" type="number" name="k"
+                 min="1" max="600" value="{{ k|default:120 }}" inputmode="numeric"
+                 aria-label="검색 범위 값"
+                 aria-describedby="msKHelp" />
+          <button type="button" class="ms-step" data-step-target="k" data-step="10" aria-label="검색 범위 증가">+</button>
         </div>
-        <div>
-          <label class="ms-muted" for="page">페이지 번호</label>
-          <input id="page" class="ms-num" type="number" name="page" min="1" value="{{ page|default:1 }}"/>
+
+        <button id="msSubmit"
+                class="ms-btn primary ms-btn--go"
+                type="submit"
+                aria-label="검색 실행"
+                data-busy-text="검색 중…">🔎 검색</button>
+
+        <a class="ms-btn ghost ms-btn--stash" href="{% url 'media_index' %}">← 모아두기</a>
+
+        {% if request.user.is_staff %}
+        <div class="ms-gear-wrap">
+          <button id="msGearBtn"
+                  type="button"
+                  class="ms-gear"
+                  aria-label="고급 옵션"
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="msAdvPop">⚙︎</button>
+
+          <div id="msAdvPop" class="ms-pop" hidden role="dialog" aria-label="고급 옵션 패널">
+
+            <div class="ms-pop-sec">
+              <div class="ms-pop-title">검색 범위</div>
+              <div class="ms-pop-row">
+                <input id="kRange" class="ms-range" type="range"
+                       min="1" max="600" step="5"
+                       value="{{ k|default:120 }}"
+                       aria-label="검색 범위 슬라이더" />
+                <div class="ms-pop-val" aria-label="현재 검색 범위">
+                  <span id="kValue">{{ k|default:120 }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ms-pop-sep"></div>
+
+            <div class="ms-pop-sec">
+              <div class="ms-pop-title">관리자</div>
+
+              <label class="ms-pop-check">
+                <input type="checkbox" name="debug" value="1" {% if debug_q == "1" %}checked{% endif %}>
+                <span>debug</span>
+              </label>
+
+              <div class="ms-pop-grid">
+                <label class="ms-pop-label" for="mode">mode</label>
+                <select id="mode" name="mode" class="ms-select ms-pop-input" aria-label="mode">
+                  <option value="" {% if not mode_q %}selected{% endif %}>hybrid</option>
+                  <option value="vec" {% if mode_q == "vec" %}selected{% endif %}>vec</option>
+                  <option value="exact" {% if mode_q == "exact" %}selected{% endif %}>exact</option>
+                </select>
+
+                <label class="ms-pop-label" for="min_sim">min_sim</label>
+                <input id="min_sim" class="ms-num ms-pop-input" type="number"
+                       step="0.01" min="0" max="0.95"
+                       name="min_sim"
+                       value="{{ min_sim_q }}"
+                       placeholder="0.22"
+                       aria-label="min_sim" />
+              </div>
+            </div>
+
+          </div>
         </div>
-        <div>
-          <label class="ms-muted" for="k">검색 범위(고급 설정)</label>
-          <input id="k" class="ms-num" type="number" name="k" min="1" max="600" value="{{ k|default:120 }}"/>
-        </div>
-      </div>
-      <div class="ms-btnbar">
-        <button class="ms-btn primary" type="submit" aria-label="검색 실행">🔎 검색하기</button>
-        <a class="ms-btn ghost" href="{% url 'media_index' %}">← 이미지 모아두기</a>
-        {% if q %}
-          <a class="ms-btn" href="{% url 'media_search' %}">입력 지우고 새로 검색</a>
         {% endif %}
+      </div>
+
+      <div id="msKHelp" class="ms-muted" style="margin-top:10px;">
+        검색 범위(k)는 먼저 훑어볼 후보 개수예요. 값이 커질수록 결과가 좋아질 수 있지만 속도/비용이 늘 수 있어요.
+      </div>
+
+      <div id="msBusy" class="ms-muted ms-busy" hidden>
+        ⏳ 검색 중입니다… 잠시만 기다려 주세요.
       </div>
     </form>
   </section>
 
-  <!-- ✅ 사용 설명서 카드 (일반인용 설명) -->
-  <section class="ms-help-card" aria-label="글로 이미지 찾기 사용 안내">
-    <div class="ms-help-header">
-      <div class="ms-help-title">
-        <span class="ms-help-pill">Guide</span>
-        <h2>찾고 싶은 그림을 글로 말해 주세요</h2>
-      </div>
-      <p class="ms-help-sub">
-        이 화면은 <b>문장이나 키워드로 사진을 찾는 검색창</b>이에요.  
-        “어떤 장면인지”를 글로 적으면, 그와 비슷한 느낌의 사진들을 보여줍니다.
-      </p>
-    </div>
-
-    <div class="ms-help-body">
-      <ol class="ms-help-steps">
-        <li>
-          <strong>보고 싶은 장면을 문장으로 쓰기</strong><br />
-          예를 들어 <em>“노을 진 바다를 멀리서 바라본 사진”</em>,  
-          <em>“카페에서 노트북으로 일을 하는 사람”</em>처럼  
-          머릿속에 떠오르는 장면을 자연스럽게 글로 적어 주세요.
-        </li>
-        <li>
-          <strong>한 번에 볼 개수 · 페이지 번호</strong><br />
-          한 화면에서 보고 싶은 사진 개수는 <em>“한 번에 볼 개수”</em>에서 정할 수 있어요.  
-          더 많은 결과를 보고 싶으면 <em>“페이지 번호”</em>를 2, 3처럼 바꿔가며 넘겨보면 됩니다.
-        </li>
-        <li>
-          <strong>검색 범위(고급 설정) 이해하기</strong><br />
-          아래 <em>“검색 범위(고급 설정)”</em> 숫자는  
-          안에서 미리 살펴보는 사진 개수를 정하는 옵션이에요.  
-          숫자가 클수록 더 많은 후보를 확인하지만, 결과가 나오는 속도가 조금 느려질 수 있습니다.  
-          잘 모르시겠다면 <b>그대로 두셔도 충분해요.</b>
-        </li>
-        <li>
-          <strong>검색 실행 & 사진 더 올리기</strong><br />
-          <em>“검색하기”</em> 버튼을 눌러 결과를 확인해 보세요.  
-          원하는 사진이 보이지 않으면 <em>“이미지 모아두기”</em> 화면으로 돌아가  
-          새 사진을 올린 뒤, 다시 검색해 볼 수 있습니다.
-        </li>
-      </ol>
-
-      <div class="ms-help-notes">
-        <h3>주의 & 작은 팁</h3>
-        <ul>
-          <li>검색이 잘 안 될 때는 문장을 조금 더 길게 쓰거나, 핵심 단어만 남기고 다시 검색해 보세요.</li>
-          <li>방금 올린 사진은 사진 저장 작업이 끝난 뒤에야 검색 결과에 나타납니다.</li>
-          <li>결과 카드에 보이는 <b>“저장 위치”</b>와 <b>“사진 번호”</b>는  
-              문제가 생겼을 때 운영자나 개발자에게 알려줄 수 있는 참고 정보예요.</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  {% if page_obj or hits %}
-  <!-- 결과 패널 -->
+  {% if hits %}
   <section class="ms-card" aria-labelledby="result-title">
     <div class="ms-topline">
       <h2 id="result-title" class="ms-title" style="margin:0">검색 결과</h2>
-      {% if page_obj %}
-        <div class="ms-muted">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 페이지</div>
-      {% endif %}
     </div>
 
-    {% if page_obj %}
-      <div style="margin-bottom:8px">
-        <span class="ms-chip">총 {{ page_obj.paginator.count }}개</span>
-        {% if q %}<span class="ms-chip">“{{ q }}”</span>{% endif %}
-      </div>
+    <div class="ms-chips">
+      {% if q %}<span class="ms-chip">“{{ q }}”</span>{% endif %}
+      <span class="ms-chip">총 {{ hits|length }}개</span>
+      {% if request.user.is_staff and mode_q %}<span class="ms-chip">mode={{ mode_q }}</span>{% endif %}
+      {% if request.user.is_staff and debug_q == "1" %}<span class="ms-chip">debug=1</span>{% endif %}
+      {% if request.user.is_staff and min_sim_q %}<span class="ms-chip">min_sim={{ min_sim_q }}</span>{% endif %}
+    </div>
 
-      <div class="ms-grid">
-        {% for h in page_obj.object_list %}
-          <div class="ms-item">
-            {% if h.thumbnail or h.url %}
-              <img class="ms-thumb"
-                   src="{{ h.thumbnail|default:h.url }}"
-                   alt="{{ h.caption|default:'사진' }}"
-                   loading="lazy"
-                   onerror="this.onerror=null; this.src='{% static 'ragapp/img/placeholder.png' %}'">
+    <div class="ms-grid">
+      {% for h in hits %}
+        <div class="ms-item">
+          <div class="ms-thumb-wrap">
+            {% if request.user.is_staff %}
+              {% if h.signed_url or h.url %}
+                <img class="ms-thumb ms-lazy"
+                     data-src="{{ h.signed_url|default:h.url }}"
+                     alt="{{ h.caption|default:'사진' }}"
+                     loading="lazy"
+                     decoding="async">
+                <noscript>
+                  <img class="ms-thumb"
+                       src="{{ h.signed_url|default:h.url }}"
+                       alt="{{ h.caption|default:'사진' }}"
+                       loading="lazy">
+                </noscript>
+              {% else %}
+                <div class="ms-thumb ms-thumb--empty" aria-label="이미지가 없거나 아직 승인전입니다.">
+                  이미지가 없거나 아직 승인전입니다.
+                </div>
+              {% endif %}
             {% else %}
-              <img class="ms-thumb" src="{% static 'ragapp/img/placeholder.png' %}" alt="사진 없음" loading="lazy">
+              {% if h.signed_url %}
+                <img class="ms-thumb ms-lazy"
+                     data-src="{{ h.signed_url }}"
+                     alt="{{ h.caption|default:'사진' }}"
+                     loading="lazy"
+                     decoding="async">
+                <noscript>
+                  <img class="ms-thumb"
+                       src="{{ h.signed_url }}"
+                       alt="{{ h.caption|default:'사진' }}"
+                       loading="lazy">
+                </noscript>
+              {% else %}
+                <div class="ms-thumb ms-thumb--empty" aria-label="이미지가 없거나 아직 승인전입니다.">
+                  이미지가 없거나 아직 승인전입니다.
+                </div>
+              {% endif %}
             {% endif %}
-            <div class="ms-meta">
-              <div class="ms-cap">{{ h.caption|default:"(설명 없음)" }}</div>
-              <div class="ms-dim">저장 위치: {{ h.path }}</div>
-              <div class="ms-dim">사진 번호: {{ h.pid }}</div>
-            </div>
-          </div>
-        {% empty %}
-          <div class="ms-muted">조건에 맞는 사진이 없습니다.</div>
-        {% endfor %}
-      </div>
 
-      <nav class="ms-pager" aria-label="페이지 이동">
-        {% if page_obj.has_previous %}
-          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page_obj.previous_page_number }}">← 앞 페이지</a>
-        {% else %}
-          <span class="ms-pill disabled">← 앞 페이지</span>
-        {% endif %}
-        <span class="ms-muted">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}
-          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page_obj.next_page_number }}">다음 페이지 →</a>
-        {% else %}
-          <span class="ms-pill disabled">다음 페이지 →</span>
-        {% endif %}
-      </nav>
-
-    {% else %}
-      <div style="margin-bottom:8px">
-        {% if q %}<span class="ms-chip">“{{ q }}”</span>{% endif %}
-        <span class="ms-chip">총 {{ hits|length }}개</span>
-      </div>
-
-      <div class="ms-grid">
-        {% for h in hits %}
-          <div class="ms-item">
-            {% if h.thumbnail or h.url %}
-              <img class="ms-thumb"
-                   src="{{ h.thumbnail|default:h.url }}"
-                   alt="{{ h.caption|default:'사진' }}"
-                   loading="lazy"
-                   onerror="this.onerror=null; this.src='{% static 'ragapp/img/placeholder.png' %}'">
-            {% else %}
-              <img class="ms-thumb" src="{% static 'ragapp/img/placeholder.png' %}" alt="사진 없음" loading="lazy">
+            {% if request.user.is_staff and h.pid %}
+              <a class="ms-del-btn"
+                 href="?q={{ q|urlencode }}&size=5&k={{ k }}&mode={{ mode_q|urlencode }}&debug={{ debug_q|urlencode }}&min_sim={{ min_sim_q|urlencode }}&page={{ page }}&delete={{ h.pid }}"
+                 onclick="return confirm('이 이미지를 정말 삭제할까요?');">
+                삭제
+              </a>
             {% endif %}
-            <div class="ms-meta">
-              <div class="ms-cap">{{ h.caption|default:"(설명 없음)" }}</div>
-              <div class="ms-dim">저장 위치: {{ h.path }}</div>
-              <div class="ms-dim">사진 번호: {{ h.pid }}</div>
-            </div>
           </div>
-        {% empty %}
-          <div class="ms-muted">조건에 맞는 사진이 없습니다.</div>
-        {% endfor %}
-      </div>
 
-      <nav class="ms-pager" aria-label="페이지 이동">
-        {% if has_prev %}
-          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page|add:-1 }}">← 앞 페이지</a>
-        {% else %}
-          <span class="ms-pill disabled">← 앞 페이지</span>
-        {% endif %}
-        <span class="ms-muted">page {{ page }}</span>
-        {% if has_next %}
-          <a class="ms-pill" href="?q={{ q|urlencode }}&size={{ size }}&k={{ k }}&page={{ page|add:1 }}">다음 페이지 →</a>
-        {% else %}
-          <span class="ms-pill disabled">다음 페이지 →</span>
-        {% endif %}
-      </nav>
-    {% endif %}
+          <div class="ms-meta">
+            <div class="ms-cap">{{ h.caption|default:"(설명 없음)" }}</div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="ms-muted">결과가 없어요.</div>
+      {% endfor %}
+    </div>
+
+    <nav class="ms-pager" aria-label="페이지 이동">
+      {% if has_prev %}
+        <a class="ms-pill"
+           href="?q={{ q|urlencode }}&size=5&k={{ k }}&mode={{ mode_q|urlencode }}&debug={{ debug_q|urlencode }}&min_sim={{ min_sim_q|urlencode }}&page={{ page|add:-1 }}">← 앞</a>
+      {% else %}
+        <span class="ms-pill disabled">← 앞</span>
+      {% endif %}
+
+      <span class="ms-muted">page {{ page }}</span>
+
+      {% if has_next %}
+        <a class="ms-pill"
+           href="?q={{ q|urlencode }}&size=5&k={{ k }}&mode={{ mode_q|urlencode }}&debug={{ debug_q|urlencode }}&min_sim={{ min_sim_q|urlencode }}&page={{ page|add:1 }}">다음 →</a>
+      {% else %}
+        <span class="ms-pill disabled">다음 →</span>
+      {% endif %}
+    </nav>
   </section>
 
   {% elif q and not error %}
   <section class="ms-card">
-    <div class="ms-muted">
-      검색 결과가 없습니다. 글을 조금 바꾸거나, 숫자 설정을 줄여서 다시 검색해 보세요.
-    </div>
+    <div class="ms-muted">결과가 없어요.</div>
   </section>
   {% endif %}
+
+  {% if request.user.is_staff and debug_json %}
+  <section class="ms-card" aria-label="디버그 정보">
+    <div class="ms-topline">
+      <h2 class="ms-title" style="margin:0">DEBUG</h2>
+      <div class="ms-chip">staff only</div>
+    </div>
+
+    <details open style="margin-top:8px;">
+      <summary class="ms-muted" style="cursor:pointer;">디버그 JSON 펼치기/접기</summary>
+      <pre style="white-space:pre-wrap; word-break:break-word; margin-top:10px; padding:12px; border-radius:12px; border:1px solid rgba(148,163,184,.18); background:rgba(2,6,23,.65); color:#e5e7eb; font-size:12px; line-height:1.35;">{{ debug_json }}</pre>
+    </details>
+  </section>
+  {% endif %}
+
+  <div id="quotaToast" class="quota-toast" role="status" aria-live="polite">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="msg" id="quotaToastMsg"></span>
+    <button class="x" type="button" id="quotaToastClose" aria-label="닫기">✕</button>
+  </div>
+
 </div>
+{% endwith %}
+
+<script defer src="{% static 'ragapp/javascript/media_search_controls.js' %}"></script>
+<script defer src="{% static 'ragapp/javascript/media_search_img_loader.js' %}"></script>
+<script defer src="{% static 'ragapp/javascript/media_search_quota_toast.js' %}"></script>
+
 {% endblock %}

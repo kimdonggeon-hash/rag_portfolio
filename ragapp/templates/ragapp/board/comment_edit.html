@@ -1,0 +1,26 @@
+{% extends "ragapp/board/base.html" %}
+{% block content %}
+  <section class="board-card">
+    <div class="board-card-head">
+      <div class="board-card-title">댓글 수정</div>
+      <div class="board-card-meta">{{ comment.created_at|date:"Y-m-d H:i" }}</div>
+    </div>
+
+    {% if error %}
+      <div class="board-alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" class="board-form">
+      {% csrf_token %}
+      <label class="board-label">
+        <div class="board-label-title">내용</div>
+        <textarea class="board-input" name="body" rows="6" placeholder="댓글 내용">{{ comment.body }}</textarea>
+      </label>
+
+      <div class="board-actions">
+        <a class="board-btn subtle" href="{% url 'board:detail' comment.post_id %}">취소</a>
+        <button class="board-btn" type="submit">저장</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

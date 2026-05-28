@@ -1,0 +1,51 @@
+{% extends "ragapp/board/base.html" %}
+{% load board_extras %}
+{% block content %}
+
+<div class="board-tabs">
+  <a class="board-tab" href="{% url 'board:list' %}">전체</a>
+  <a class="board-tab" href="{% url 'board:mine_posts' %}">내 글</a>
+  <a class="board-tab is-active" href="{% url 'board:mine_comments' %}">내 댓글</a>
+  {% if user.is_authenticated and user.is_staff %}
+    <a class="board-tab" href="{% url 'board:reports' %}">신고 관리</a>
+  {% endif %}
+</div>
+
+<section class="board-card">
+  <div class="board-card-head">
+    <div class="board-card-title">내가 쓴 댓글</div>
+    <div class="board-card-meta">로그인 사용자 전용</div>
+  </div>
+
+  <div class="comment-list">
+    {% for c in comments %}
+      <div class="comment-item">
+        <div class="comment-meta">
+          <span class="comment-author">내 댓글</span>
+          <span class="dot">·</span>
+          <span>{{ c.created_at|date:"Y-m-d H:i" }}</span>
+          <span class="dot">·</span>
+          <a class="comment-link" href="{% url 'board:detail' c.post_id %}#c-{{ c.pk }}">원문으로</a>
+
+          {% if c.is_hidden %}<span class="dot">·</span><span class="board-pill">숨김</span>{% endif %}
+          {% if c.is_deleted %}<span class="dot">·</span><span class="board-pill">삭제</span>{% endif %}
+        </div>
+
+        <div class="comment-body">
+          {{ c.body|board_render }}
+        </div>
+
+        <div class="comment-meta" style="margin-top:8px;">
+          <span class="board-pill">
+            글: {{ c.post.title|default:"(제목 없음)" }}
+          </span>
+          {% if c.post.category %}<span class="board-pill">{{ c.post.category.name }}</span>{% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="board-empty">아직 작성한 댓글이 없어요.</div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

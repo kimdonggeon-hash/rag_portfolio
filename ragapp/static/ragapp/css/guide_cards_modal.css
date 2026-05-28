@@ -1,0 +1,380 @@
+/* ragapp/static/ragapp/css/guide_cards_modal.css */
+
+:root {
+    --ig-backdrop: rgba(2, 6, 23, .72);
+    --ig-panel: rgba(255, 255, 255, .86);
+    --ig-panel-line: rgba(148, 163, 184, .30);
+    --ig-ink: #0f172a;
+    --ig-muted: rgba(15, 23, 42, .72);
+
+    --ig-radius: 20px;
+    --ig-shadow: 0 18px 48px rgba(2, 6, 23, .18);
+
+    --ig-btn: rgba(255, 255, 255, .55);
+    --ig-btn-line: rgba(148, 163, 184, .35);
+
+    --ig-focus: rgba(37, 99, 235, .45);
+}
+
+html[data-theme="dark"] {
+    --ig-backdrop: rgba(0, 0, 0, .75);
+    --ig-panel: rgba(15, 23, 42, .82);
+    --ig-panel-line: rgba(148, 163, 184, .22);
+    --ig-ink: #e5e7eb;
+    --ig-muted: rgba(229, 231, 235, .72);
+    --ig-shadow: 0 18px 60px rgba(0, 0, 0, .45);
+
+    --ig-btn: rgba(0, 0, 0, .20);
+    --ig-btn-line: rgba(148, 163, 184, .22);
+}
+
+/* ✅ JS에서 html에 붙이는 스크롤 잠금 */
+html.ig-noscroll,
+html.ig-noscroll body {
+    overflow: hidden !important;
+}
+
+/* modal shell (애니메이션 가능 구조) */
+.igmodal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+
+    display: grid;
+    place-items: center;
+    padding: 14px;
+
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    transition: opacity .18s ease, visibility 0s linear .18s;
+}
+
+.igmodal[aria-hidden="false"] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+
+    transition: opacity .18s ease;
+}
+
+/* backdrop */
+.igmodal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--ig-backdrop);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    opacity: 0;
+    transition: opacity .18s ease;
+}
+
+.igmodal[aria-hidden="false"] .igmodal-backdrop {
+    opacity: 1;
+}
+
+/* panel */
+.igmodal-panel {
+    position: relative;
+    width: min(760px, 92vw);
+
+    /* iOS 주소창 대응(지원 브라우저는 dvh 적용) */
+    height: min(720px, 86vh);
+    height: min(720px, 86dvh);
+
+    background: var(--ig-panel);
+    border: 1px solid var(--ig-panel-line);
+    border-radius: var(--ig-radius);
+    box-shadow: var(--ig-shadow);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    transform: translateY(10px) scale(.985);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+    will-change: transform, opacity;
+}
+
+.igmodal[aria-hidden="false"] .igmodal-panel {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+/* topbar */
+.igmodal-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--ig-panel-line);
+}
+
+.igmodal-title {
+    font-weight: 900;
+    color: var(--ig-ink);
+    letter-spacing: -.01em;
+}
+
+.igx {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+
+    border: 1px solid var(--ig-btn-line);
+    background: var(--ig-btn);
+    color: var(--ig-ink);
+
+    cursor: pointer;
+}
+
+.igx:hover {
+    filter: brightness(1.03);
+}
+
+.igx:focus-visible {
+    outline: 2px solid var(--ig-focus);
+    outline-offset: 2px;
+}
+
+/* deck */
+.igdeck {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+.igdeck-viewport {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+
+    /* 모달 밖으로 “튐” 방지 */
+    overscroll-behavior: contain;
+
+    outline: none;
+}
+
+.igdeck-viewport::-webkit-scrollbar {
+    height: 0;
+}
+
+.igdeck-card {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    padding: 14px;
+    box-sizing: border-box;
+}
+
+/* slide */
+.igdeck-slide {
+    height: 100%;
+    border-radius: 18px;
+    border: 1px solid var(--ig-panel-line);
+    padding: 14px 14px 12px;
+    color: var(--ig-ink);
+    overflow: auto;
+    scrollbar-gutter: stable;
+}
+
+.igdeck-slide::-webkit-scrollbar {
+    width: 10px;
+}
+
+.igdeck-slide::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, .35);
+    border-radius: 999px;
+}
+
+.igdeck-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.igdeck-label {
+    font-weight: 900;
+    font-size: 12px;
+    letter-spacing: .12em;
+    opacity: .85;
+}
+
+.igdeck-page {
+    font-weight: 900;
+    font-size: 12px;
+    opacity: .75;
+}
+
+.igdeck-title {
+    margin: 8px 0 10px;
+    font-size: 18px;
+    letter-spacing: -.01em;
+}
+
+.igdeck-body,
+.igdeck-warn {
+    margin: 0;
+    padding-left: 18px;
+    line-height: 1.7;
+}
+
+.igdeck-body {
+    color: var(--ig-muted);
+}
+
+.igdeck-warn {
+    margin-top: 10px;
+    color: var(--ig-ink);
+    opacity: .92;
+}
+
+.igdeck-warn li {
+    margin: 4px 0;
+}
+
+/* themes */
+.igdeck-theme-sky {
+    background:
+        radial-gradient(800px 420px at 20% 10%, rgba(56, 189, 248, .22), transparent 60%),
+        radial-gradient(700px 420px at 80% 15%, rgba(129, 140, 248, .20), transparent 62%),
+        rgba(255, 255, 255, .55);
+}
+
+html[data-theme="dark"] .igdeck-theme-sky {
+    background:
+        radial-gradient(800px 420px at 20% 10%, rgba(56, 189, 248, .16), transparent 60%),
+        radial-gradient(700px 420px at 80% 15%, rgba(129, 140, 248, .14), transparent 62%),
+        rgba(15, 23, 42, .55);
+}
+
+.igdeck-theme-violet {
+    background:
+        radial-gradient(820px 440px at 18% 12%, rgba(139, 92, 246, .20), transparent 62%),
+        radial-gradient(700px 420px at 85% 18%, rgba(99, 102, 241, .18), transparent 62%),
+        rgba(255, 255, 255, .55);
+}
+
+html[data-theme="dark"] .igdeck-theme-violet {
+    background:
+        radial-gradient(820px 440px at 18% 12%, rgba(139, 92, 246, .14), transparent 62%),
+        radial-gradient(700px 420px at 85% 18%, rgba(99, 102, 241, .12), transparent 62%),
+        rgba(15, 23, 42, .55);
+}
+
+.igdeck-theme-mint {
+    background:
+        radial-gradient(820px 440px at 18% 12%, rgba(34, 211, 238, .18), transparent 62%),
+        radial-gradient(700px 420px at 85% 18%, rgba(16, 185, 129, .14), transparent 62%),
+        rgba(255, 255, 255, .55);
+}
+
+html[data-theme="dark"] .igdeck-theme-mint {
+    background:
+        radial-gradient(820px 440px at 18% 12%, rgba(34, 211, 238, .12), transparent 62%),
+        radial-gradient(700px 420px at 85% 18%, rgba(16, 185, 129, .10), transparent 62%),
+        rgba(15, 23, 42, .55);
+}
+
+/* bottom UI */
+.igdeck-ui {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--ig-panel-line);
+}
+
+.igdeck-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+
+    border: 1px solid var(--ig-btn-line);
+    background: var(--ig-btn);
+    color: var(--ig-ink);
+
+    cursor: pointer;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.igdeck-btn:hover {
+    filter: brightness(1.03);
+}
+
+.igdeck-btn:disabled {
+    opacity: .45;
+    cursor: default;
+    filter: none;
+}
+
+.igdeck-btn:focus-visible {
+    outline: 2px solid var(--ig-focus);
+    outline-offset: 2px;
+}
+
+.igdeck-dots {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.igdeck-dots button {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+
+    border: 1px solid var(--ig-btn-line);
+    background: rgba(148, 163, 184, .25);
+    cursor: pointer;
+    padding: 0;
+}
+
+.igdeck-dots button:hover {
+    filter: brightness(1.05);
+}
+
+.igdeck-dots button[aria-current="true"],
+.igdeck-dots button.is-active {
+    background: rgba(37, 99, 235, .45);
+    border-color: rgba(37, 99, 235, .35);
+}
+
+.igdeck-dots button:focus-visible {
+    outline: 2px solid var(--ig-focus);
+    outline-offset: 2px;
+}
+
+/* reduce motion */
+@media (prefers-reduced-motion: reduce) {
+
+    .igmodal,
+    .igmodal-backdrop,
+    .igmodal-panel {
+        transition: none !important;
+    }
+
+    .igdeck-viewport {
+        scroll-behavior: auto !important;
+    }
+}

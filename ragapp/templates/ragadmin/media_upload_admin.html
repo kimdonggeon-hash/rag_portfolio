@@ -1,0 +1,184 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>어드민 이미지 업로드(즉시 반영)</title>
+  <link rel="stylesheet" href="{% static 'ragapp/css/ragadmin_media_upload.css' %}">
+</head>
+<body>
+  <header class="dg-topbar">
+    <div class="dg-left">
+      <div class="dg-title">어드민 이미지 업로드 (즉시 반영)</div>
+      <div class="dg-sub">
+        업로드 즉시 승인 영역에 저장 + 임베딩 + Chroma 인덱싱까지 한 번에 처리합니다.
+      </div>
+    </div>
+
+    <div class="dg-right">
+      <a class="dg-btn ghost" href="{% url 'ragadmin_media_pending' %}">대기 이미지 검수</a>
+      <a class="dg-btn ghost" href="{% url 'ragadmin_media_penalties' %}">정지/선처 관리</a>
+      <a class="dg-btn ghost" href="{% url 'media_search' %}">이미지 검색</a>
+    </div>
+  </header>
+
+  <main class="dg-wrap">
+    <div id="dgToast" class="dg-toast" hidden></div>
+
+    <!-- 왼쪽: 업로드 폼 -->
+    <section class="dg-panel dg-upload">
+      <div class="dg-panel-head">
+        <div class="dg-panel-title">업로드</div>
+        <div class="dg-panel-sub">
+          <span class="dg-chip">max_files={{ max_files }}</span>
+          <span class="dg-chip">max_file_mb={{ max_file_mb }}</span>
+          <span class="dg-chip">ai_on_upload={{ ai_on_upload }}</span>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="dg-alert err">{{ error }}</div>
+      {% endif %}
+
+      <form id="dgUploadForm" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="dg-form-row">
+          <label class="dg-label">이미지</label>
+          <input class="dg-input" type="file" name="images" id="dgFiles" accept="image/*" multiple />
+          <div class="dg-hint">최대 {{ max_files }}개 · 파일당 {{ max_file_mb }}MB</div>
+        </div>
+
+        <div class="dg-previews" id="dgLocalPreviews" hidden>
+          <div class="dg-previews-title">선택한 파일 미리보기</div>
+          <div class="dg-previews-grid" id="dgLocalGrid"></div>
+        </div>
+
+        <div class="dg-form-row">
+          <label class="dg-label">캡션</label>
+          <input class="dg-input" type="text" name="caption" placeholder="공통 캡션(옵션)" />
+          <label class="dg-check">
+            <input type="checkbox" name="caption_from_name" value="1">
+            <span>파일명에서 캡션</span>
+          </label>
+        </div>
+
+        <div class="dg-form-row">
+          <label class="dg-label">태그</label>
+          <input class="dg-input" type="text" name="tags" placeholder="콤마/공백 자유(옵션)" />
+        </div>
+
+        <div class="dg-actions">
+          <button class="dg-btn ok" type="submit" id="dgSubmitBtn">업로드 &amp; 인덱싱</button>
+          <button class="dg-btn ghost" type="button" id="dgClearBtn">선택 초기화</button>
+        </div>
+
+        <div class="dg-status" id="dgFormStatus" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <!-- 오른쪽: 결과 -->
+    <section class="dg-panel dg-results">
+      <div class="dg-panel-head">
+        <div class="dg-panel-title">결과</div>
+        <div class="dg-panel-sub">
+          <span class="dg-chip">OK <b id="dgOkCount">{{ ok|default:0 }}</b></span>
+          <span class="dg-chip">FAIL <b id="dgFailCount">{{ fail|default:0 }}</b></span>
+          <span class="dg-chip">TOTAL <b id="dgTotalCount">{{ cards|length|default:0 }}</b></span>
+        </div>
+      </div>
+
+      <div class="dg-results-tools">
+        <label class="dg-check">
+          <input type="checkbox" id="dgOnlyFail">
+          <span>실패만 보기</span>
+        </label>
+        <label class="dg-check">
+          <input type="checkbox" id="dgOnlyOk">
+          <span>성공만 보기</span>
+        </label>
+      </div>
+
+      <div id="dgResultsEmpty" class="dg-empty" {% if cards and cards|length > 0 %}hidden{% endif %}>
+        업로드 결과가 여기 표시됩니다.
+      </div>
+
+      <div id="dgResultsList" class="dg-list">
+        {% for c in cards %}
+          <details class="dg-item {% if c.status == 'FAIL' %}is-fail{% endif %}" open>
+            <summary class="dg-item-sum">
+              <div class="dg-thumb">
+                {% if c.url %}
+                  <img src="{{ c.url }}" alt="thumb" loading="lazy" />
+                {% else %}
+                  <div class="dg-thumb-fallback">no img</div>
+                {% endif %}
+              </div>
+
+              <div class="dg-sum-main">
+                <div class="dg-sum-top">
+                  <span class="dg-badge {% if c.status == 'FAIL' %}bad{% else %}good{% endif %}">
+                    {{ c.status }}
+                  </span>
+                  <span class="dg-sum-title">
+                    {{ c.caption|default:"(캡션 없음)" }}
+                  </span>
+                </div>
+              </div>
+            </summary>
+
+            <div class="dg-item-body">
+              {% if c.msg %}
+                <div class="dg-alert {% if c.status == 'FAIL' %}err{% else %}ok{% endif %}">
+                  {{ c.msg }}
+                </div>
+              {% endif %}
+
+              <div class="dg-meta">
+                <div class="dg-meta-row"><div class="dg-pill">Key</div><div class="dg-mono small">{{ c.storage_key }}</div></div>
+                <div class="dg-meta-row"><div class="dg-pill">PID</div><div class="dg-mono">{{ c.pid }}</div></div>
+                <div class="dg-meta-row"><div class="dg-pill">SHA</div><div class="dg-mono">{{ c.sha16 }}</div></div>
+                <div class="dg-meta-row"><div class="dg-pill">MIME</div><div class="dg-text">{{ c.mime }}</div></div>
+                <div class="dg-meta-row"><div class="dg-pill">Size</div><div class="dg-text">{{ c.size }}</div></div>
+
+                {% if c.ai_used %}
+                <div class="dg-meta-row">
+                  <div class="dg-pill ai">AI</div>
+                  <div class="dg-text">model={{ c.ai_model }}{% if c.ai_error %} · err={{ c.ai_error }}{% endif %}</div>
+                </div>
+                {% endif %}
+              </div>
+
+              <div class="dg-item-actions">
+                {% if c.url %}
+                  <a class="dg-btn ghost" href="{{ c.url }}" target="_blank" rel="noreferrer">새 탭</a>
+                {% endif %}
+                <button class="dg-btn ghost" type="button" data-copy="storage_key" data-value="{{ c.storage_key }}">key 복사</button>
+                {% if c.pid %}
+                  <button class="dg-btn ghost" type="button" data-copy="pid" data-value="{{ c.pid }}">pid 복사</button>
+                {% endif %}
+                {% if c.url %}
+                  <button class="dg-btn ghost" type="button" data-copy="url" data-value="{{ c.url }}">url 복사</button>
+                {% endif %}
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- 라이트박스 -->
+    <div id="dgLightbox" class="dg-lightbox" hidden>
+      <div class="dg-lb-backdrop" data-lb-close="1"></div>
+      <div class="dg-lb-panel">
+        <button class="dg-btn ghost dg-lb-close" type="button" data-lb-close="1">닫기</button>
+        <img id="dgLbImg" alt="preview" />
+        <div class="dg-lb-meta" id="dgLbMeta"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="{% static 'ragapp/javascript/ragadmin_media_upload.js' %}"></script>
+</body>
+</html>

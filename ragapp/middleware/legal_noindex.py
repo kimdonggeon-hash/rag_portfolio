@@ -63,6 +63,15 @@ class LegalSecurityHeadersMiddleware:
             settings, "NOINDEX_ROBOTS_BODY", "User-agent: *\nDisallow: /"
         )
 
+        # ✅ /admin 전용: unload 경고를 막기 위해 Permissions-Policy를 별도로 적용
+        #    - settings.ADMIN_PERMISSIONS_POLICY가 있으면 그걸 쓰고,
+        #    - 없으면 안전한 기본(카메라/마이크/위치 차단만) 사용
+        self.admin_permissions_policy: str = getattr(
+            settings,
+            "ADMIN_PERMISSIONS_POLICY",
+            "camera=(), microphone=(), geolocation=()",
+        )
+
     # Django 호출형 미들웨어
     def __call__(self, request: HttpRequest) -> HttpResponse:
         # noindex가 활성화된 경우 robots.txt 직접 응답
@@ -74,6 +83,18 @@ class LegalSecurityHeadersMiddleware:
     # 응답 후 헤더 주입
     def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
         path = request.path or "/"
+
+        # ─────────────────────────────────────────────────────────────
+        # ✅ admin 예외: Permissions-Policy를 "admin 전용 값"으로만 넣고,
+        #              기존 PERMISSIONS_POLICY는 적용하지 않음
+        #              (Django admin JS의 unload 경고 제거 목적)
+        # ─────────────────────────────────────────────────────────────
+        if path.startswith("/admin/"):
+            _set_if_absent(response, "Referrer-Policy", self.referrer_policy)
+            _set_if_absent(response, "X-Content-Type-Options", "nosniff")
+            _set_if_absent(response, "X-Frame-Options", self.frame_options_default)
+            _set_if_absent(response, "Permissions-Policy", self.admin_permissions_policy)
+            return response
 
         # --- 1) noindex 적용 여부 계산
         apply_noindex = False

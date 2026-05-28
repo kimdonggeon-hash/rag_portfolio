@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
+from django.views.decorators.csrf import csrf_protect
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -177,36 +178,31 @@ def healthz(_request: HttpRequest):
 # ─────────────────────────────────────────────────────────────
 # 동의 증빙 수집 (프런트 JS가 /legal/consent/confirm 로 POST)
 # ─────────────────────────────────────────────────────────────
+@csrf_protect
 @require_http_methods(["POST"])
-def consent_confirm(request: HttpRequest):
-    """
-    요청 JSON 예시:
-      {
-        "version":"v1","action":"accept","ts":"2025-11-02T12:34:56.789Z",
-        "path":"/","ref":"https://example.com","tz":"Asia/Seoul","locale":"ko-KR",
-        "ua":"...", "screen_w":1920,"screen_h":1080,
-        "checkbox_checked":true
-      }
-    """
+def consent_confirm(request: HttpRequest) -> JsonResponse:
+    # 1) payload 정의 (JSON 우선)
     try:
         raw = request.body.decode("utf-8") if request.body else "{}"
-        payload = json.loads(raw or "{}")
+        payload: Dict[str, Any] = json.loads(raw or "{}")
     except Exception:
         return _json_fail("invalid json", status=400)
 
-    action = str(payload.get("action") or "").lower()
+    # 2) action 검증
+    action = str(payload.get("action") or "").lower().strip()
     if action not in ("accept", "agree", "ok", "yes"):
         return _json_fail("action must be 'accept'", status=400)
 
-    version = str(payload.get("version") or (getattr(settings, "CONSENT_VERSION", "v1")))
-    client_ip = _client_ip(request)
+    # 3) version 정의 (여기가 빠져서 NameError 났던 것)
+    version = str(payload.get("version") or getattr(settings, "CONSENT_VERSION", "v1")).strip()
 
+    # (기존 로직 유지) IP 처리
+    client_ip = _client_ip(request)
     anonymize = getattr(settings, "ANONYMIZE_IP", True)
     hash_only = getattr(settings, "LOG_IP_HASHED", False)
 
     ip_plain: Optional[str] = None
     ip_hashed: Optional[str] = None
-
     if client_ip:
         if hash_only or anonymize:
             ip_hashed = _hash_ip(client_ip)
@@ -214,10 +210,13 @@ def consent_confirm(request: HttpRequest):
             ip_plain = client_ip
 
     evidence_id: Optional[int] = None
-    stored_to = "fallback"
+    stored_to = "none"
+    stored_ok = False
 
+    # 4) 증빙 저장(성공해야만 세션 확정)
     try:
         from ragapp.models import ConsentEvidence  # type: ignore
+
         ce = ConsentEvidence.objects.create(
             version=version,
             consent_action=action,
@@ -236,9 +235,12 @@ def consent_confirm(request: HttpRequest):
         )
         evidence_id = ce.id
         stored_to = "ConsentEvidence"
+        stored_ok = True
+
     except Exception:
         try:
             from ragapp.models import MyLog  # type: ignore
+
             MyLog.objects.create(
                 mode_text="consent",
                 query=f"{version}:{action}",
@@ -247,14 +249,31 @@ def consent_confirm(request: HttpRequest):
                 extra_json={"fallback": True, "payload": payload},
             )
             stored_to = "MyLog"
+            stored_ok = True
         except Exception:
             stored_to = "none"
+            stored_ok = False
 
-    return _json_ok({
-        "id": evidence_id,
-        "stored_to": stored_to,
-        "server_ts": datetime.utcnow().isoformat() + "Z",
-    })
+    # ✅ 저장 실패면 게이트 열지 않음
+    if not stored_ok:
+        return _json_fail("동의 증빙 저장 실패(서버). 다시 시도해 주세요.", status=503)
+
+    # ✅ 저장 성공했을 때만 세션 확정
+    request.session["consent_ok"] = True
+    request.session["consent_stored_to"] = stored_to
+    request.session["consent_evidence_id"] = evidence_id  # MyLog면 None 가능
+    request.session["consent_version"] = version
+    request.session["consent_ts"] = str(payload.get("ts") or (datetime.utcnow().isoformat() + "Z"))
+    request.session.modified = True
+
+    return _json_ok(
+        {
+            "id": evidence_id,
+            "stored_to": stored_to,
+            "server_ts": datetime.utcnow().isoformat() + "Z",
+        }
+    )
+
 
 # 기존 urls.py 호환을 위해 별칭 유지
 consent_record = consent_confirm

@@ -1,0 +1,249 @@
+{# ragapp/templates/ragapp/board/ban_list.html #}
+{% extends "ragapp/board/board_base.html" %}
+
+{% block content %}
+<section class="mod-page" aria-label="Ban 관리">
+
+  <div class="mod-wrap">
+    <div class="mod-head">
+      <div>
+        <h2 class="mod-title">Ban 관리</h2>
+        <p class="mod-sub">스팸/도배/악성 링크 대응을 위한 운영자 콘솔입니다.</p>
+      </div>
+
+      <div class="mod-badges" aria-label="운영 정보">
+        <span class="chip chip-ok">운영자 모드</span>
+        <span class="chip chip-cat">board/mod</span>
+      </div>
+    </div>
+
+    <div class="mod-help card-like">
+      <div class="mod-help-title">운영 안내</div>
+      <ul class="mod-help-list">
+        <li><b>FP(지문)</b>는 로그인 여부와 무관하게 동일 사용자를 구분하기 위한 식별자(12자리 hex)입니다.</li>
+        <li><b>수동 Ban</b>은 글/댓글/신고 등 일부 기능을 제한합니다. (정책은 미들웨어/뷰에서 적용)</li>
+        <li><b>외부URL 제한</b>은 “링크 포함 글/댓글”만 막고, 일반 작성은 허용하는 완화 정책입니다.</li>
+        <li>운영 액션은 <b>항상 POST</b>로 처리하고, 버튼 클릭 시 확인창이 뜨도록 했습니다.</li>
+      </ul>
+    </div>
+
+    <div class="mod-grid">
+      <div class="mod-col mod-left">
+        <section class="mod-card">
+          <div class="mod-card-head">
+            <div>
+              <div class="mod-card-title">수동 Ban</div>
+              <div class="mod-card-sub">선택한 기간 동안 차단 · 해제 가능</div>
+            </div>
+          </div>
+
+          <form class="mod-form" method="post" action="{% url 'board:manual_ban' %}">
+            {% csrf_token %}
+            <div class="form-grid">
+              <div class="field">
+                <label class="board-label">FP(12자리 hex)</label>
+                <input class="board-input" name="fp" inputmode="text" autocomplete="off"
+                       placeholder="예: a1b2c3d4e5f6" />
+                <div class="field-help">개인정보가 아니라 “클라이언트 지문”입니다. 그래도 외부 공유는 비추천.</div>
+              </div>
+
+              <div class="field">
+                <label class="board-label">기간 프리셋</label>
+                <select class="board-select js-preset" name="preset" data-minutes-target="#banMinutes">
+                  <option value="">선택</option>
+                  <option value="60">1시간</option>
+                  <option value="360">6시간</option>
+                  <option value="1440">24시간</option>
+                  <option value="10080">7일</option>
+                </select>
+                <div class="field-help">프리셋 선택 시 “직접(분)”이 자동 입력됩니다.</div>
+              </div>
+
+              <div class="field">
+                <label class="board-label">직접(분)</label>
+                <input id="banMinutes" class="board-input" name="minutes" inputmode="numeric"
+                       placeholder="예: 120" />
+                <div class="field-help">프리셋보다 우선 적용되도록 뷰에서 처리하면 좋아요.</div>
+              </div>
+
+              <div class="field field-wide">
+                <label class="board-label">메모(선택)</label>
+                <input class="board-input" name="memo" autocomplete="off"
+                       placeholder="예: 도배/욕설 반복" />
+              </div>
+            </div>
+
+            <div class="row-end">
+              <button class="board-btn is-primary" type="submit" data-confirm="해당 FP를 Ban 처리할까요?">
+                수동 Ban 적용
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="mod-card">
+          <div class="mod-card-head">
+            <div>
+              <div class="mod-card-title">외부URL 제한(레벨링)</div>
+              <div class="mod-card-sub">링크 포함 글/댓글만 제한 · 수동 적용/해제</div>
+            </div>
+          </div>
+
+          <form class="mod-form" method="post" action="{% url 'board:manual_linkblock' %}">
+            {% csrf_token %}
+            <div class="form-grid">
+              <div class="field">
+                <label class="board-label">FP(12자리 hex)</label>
+                <input class="board-input" name="fp" inputmode="text" autocomplete="off"
+                       placeholder="예: a1b2c3d4e5f6" />
+              </div>
+
+              <div class="field">
+                <label class="board-label">기간 프리셋</label>
+                <select class="board-select js-preset" name="preset" data-minutes-target="#lbMinutes">
+                  <option value="">선택</option>
+                  <option value="1440">1일</option>
+                  <option value="4320">3일</option>
+                  <option value="10080">7일</option>
+                  <option value="43200">30일</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="board-label">직접(분)</label>
+                <input id="lbMinutes" class="board-input" name="minutes" inputmode="numeric"
+                       placeholder="예: 180" />
+              </div>
+
+              <div class="field field-wide">
+                <label class="board-label">메모(선택)</label>
+                <input class="board-input" name="memo" autocomplete="off"
+                       placeholder="예: 외부 링크 스팸" />
+              </div>
+            </div>
+
+            <div class="row-end">
+              <button class="board-btn is-primary" type="submit" data-confirm="해당 FP에 링크 제한을 부여할까요?">
+                링크 제한 부여
+              </button>
+            </div>
+          </form>
+
+          <div class="mod-note">
+            <b>추천 운영 흐름</b> : 신고(인정) 2회 이상 → 자동 링크 제한 → 반복 시 수동 Ban으로 승격
+          </div>
+        </section>
+      </div>
+
+      <div class="mod-col mod-right">
+        <section class="mod-card">
+          <div class="mod-card-head">
+            <div>
+              <div class="mod-card-title">상태 조회</div>
+              <div class="mod-card-sub">FP로 현재 상태를 빠르게 확인</div>
+            </div>
+          </div>
+
+          <form class="mod-form mod-form-inline" method="get" action="{% url 'board:bans' %}">
+            <input class="board-input" name="q" value="{{ request.GET.q|default:'' }}"
+                   placeholder="fp 검색(12 hex)" autocomplete="off"/>
+            <button class="board-btn" type="submit">검색</button>
+            {% if request.GET.q %}
+              <a class="qa-launch-btn is-ghost" href="{% url 'board:bans' %}">초기화</a>
+            {% endif %}
+          </form>
+
+          <div class="mod-mini-help">
+            검색 결과가 없으면 “현재 상태 없음”으로 표시됩니다.
+          </div>
+        </section>
+
+        <section class="mod-card">
+          <div class="mod-card-head">
+            <div>
+              <div class="mod-card-title">현재 Ban 목록</div>
+              <div class="mod-card-sub">해제 예정/남은 시간 표시</div>
+            </div>
+          </div>
+
+          {% if bans %}
+            <div class="mod-table">
+              <div class="mod-tr mod-th">
+                <div>FP</div>
+                <div>상태</div>
+                <div>메모</div>
+                <div class="right">액션</div>
+              </div>
+
+              {% for b in bans %}
+                <div class="mod-tr">
+                  <div class="mono">{{ b.fp|default:"-" }}</div>
+                  <div class="muted">
+                    {% if b.left %}남은 {{ b.left }}{% endif %}
+                    {% if b.until %}<span class="sep">·</span>해제 {{ b.until|date:"Y-m-d H:i" }}{% endif %}
+                  </div>
+                  <div class="muted">{{ b.memo|default:"" }}</div>
+                  <div class="right">
+                    <form method="post" action="{% url 'board:unban' b.fp %}" class="inline">
+                      {% csrf_token %}
+                      <button class="qa-launch-btn is-ghost" type="submit" data-confirm="Ban을 해제할까요?">해제</button>
+                    </form>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="mod-empty">
+              <div class="mod-empty-title">현재 ban 상태가 없습니다.</div>
+              <div class="mod-empty-sub">필요 시 좌측에서 수동 Ban을 적용해 보세요.</div>
+            </div>
+          {% endif %}
+        </section>
+
+        <section class="mod-card">
+          <div class="mod-card-head">
+            <div>
+              <div class="mod-card-title">외부URL 제한 목록</div>
+              <div class="mod-card-sub">링크 포함 작성만 제한</div>
+            </div>
+          </div>
+
+          {% if linkblocks %}
+            <div class="mod-table">
+              <div class="mod-tr mod-th">
+                <div>FP</div>
+                <div>상태</div>
+                <div>메모</div>
+                <div class="right">액션</div>
+              </div>
+
+              {% for x in linkblocks %}
+                <div class="mod-tr">
+                  <div class="mono">{{ x.fp|default:"-" }}</div>
+                  <div class="muted">
+                    {% if x.left %}남은 {{ x.left }}{% endif %}
+                    {% if x.until %}<span class="sep">·</span>해제 {{ x.until|date:"Y-m-d H:i" }}{% endif %}
+                  </div>
+                  <div class="muted">{{ x.memo|default:"" }}</div>
+                  <div class="right">
+                    <form method="post" action="{% url 'board:clear_linkblock' x.fp %}" class="inline">
+                      {% csrf_token %}
+                      <button class="qa-launch-btn is-ghost" type="submit" data-confirm="링크 제한을 해제할까요?">해제</button>
+                    </form>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="mod-empty">
+              <div class="mod-empty-title">현재 외부URL 제한이 없습니다.</div>
+              <div class="mod-empty-sub">반복 링크 스팸은 링크 제한부터 적용하는 걸 추천합니다.</div>
+            </div>
+          {% endif %}
+        </section>
+      </div>
+    </div>
+  </div>
+
+</section>
+{% endblock %}

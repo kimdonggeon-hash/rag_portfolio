@@ -1,90 +1,240 @@
-<!-- ragapp/templates/legal/overseas.html -->
-<!doctype html>
+{# templates/legal/overseas.html #}
+{% load static %}
+{% load tz %}{% timezone "Asia/Seoul" %}
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>개인정보의 국외 이전</title>
+  <title>개인정보 국외이전 안내</title>
+
+  {% include "ragapp/partials/favicon.html" %}
+  
+  <meta name="robots" content="noindex, nofollow" />
+
+  {# 공통 legal 테이블 스타일 #}
+  <link rel="stylesheet" href="{% static 'ragapp/css/legal_tables.css' %}" />
+
   <style>
     :root{
-      --bg:#f7f8fb; --card:#fff; --text:#0f172a; --dim:#64748b; --line:#e5e7eb; --radius:16px;
-      --accent:#38bdf8; --accent-strong:#0ea5e9;
+      --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --dim:#64748b;
+      --line:#e5e7eb; --radius:14px; --shadow:0 10px 24px rgba(15,23,42,.08);
+      --chip:#eef2ff;
+      --chip-ink:#1e3a8a;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);
-      font-family:ui-sans-serif,system-ui,Segoe UI,Malgun Gothic,Apple SD Gothic Neo,Apple Color Emoji}
-    .wrap{max-width:920px;margin:48px auto;padding:0 20px}
-    .doc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-      box-shadow:0 10px 28px rgba(15,23,42,.06);padding:24px}
-    h1{margin:0 0 8px;font-size:28px;font-weight:800;letter-spacing:.2px}
-    .desc{margin:0 0 18px;color:var(--dim)}
-    h2{margin:22px 0 10px;font-size:18px}
-    h3{margin:16px 0 8px;font-size:16px}
-    p{margin:8px 0}
-    ul{margin:6px 0 12px 18px}
-    li{margin:4px 0}
-    .note{background:#f8fafc;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;color:#0f172a}
-    .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#e0f2fe;color:#075985;font-weight:700;font-size:12px;border:1px solid #bae6fd}
-    .footer{margin-top:16px;color:var(--dim);font-size:12px}
-    a{color:var(--accent-strong);text-decoration:none;border-bottom:1px dashed rgba(14,165,233,.4)}
-    a:hover{border-bottom-color:transparent}
-    @media print{
-      body{background:#fff}
-      .doc{box-shadow:none;border:none;padding:0}
-      a{color:#0369a1;border-bottom:none}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--ink);
+      font-family:ui-sans-serif,system-ui,"Noto Sans KR",sans-serif;
+      line-height:1.55;
+    }
+    .wrap{
+      max-width:980px;
+      margin:36px auto 64px;
+      padding:0 16px;
+    }
+    .page-title{
+      font-weight:900;
+      margin:0 0 6px;
+      font-size:1.45rem;
+      letter-spacing:-.02em;
+    }
+    .meta{
+      color:var(--dim);
+      font-size:.85rem;
+      margin-bottom:18px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px 14px;
+      align-items:center;
+    }
+    .meta .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#fff;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px 20px;
+      margin-bottom:16px;
+    }
+    .muted{color:var(--dim);}
+    a{color:inherit;}
+
+    /* 표 안 가독성 조금 더 높이기 */
+    .legal-table tbody td{
+      line-height:1.65;
+      word-break:keep-all;
+    }
+
+    /* 상단 요약 KV */
+    .kv{
+      display:grid;
+      grid-template-columns: 160px 1fr;
+      gap:10px 14px;
+      margin-top:10px;
+      padding-top:12px;
+      border-top:1px dashed var(--line);
+    }
+    .kv .k{
+      color:var(--dim);
+      font-size:.9rem;
+    }
+    .kv .v{
+      font-size:.95rem;
+      font-weight:700;
+    }
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      padding:4px 10px;
+      border-radius:999px;
+      background:var(--chip);
+      color:var(--chip-ink);
+      font-size:.82rem;
+      font-weight:800;
+      border:1px solid rgba(30,58,138,.12);
+    }
+    .note{
+      margin:10px 0 0;
+      color:var(--dim);
+      font-size:.9rem;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="doc">
-      <h1>개인정보의 국외 이전</h1>
-      <p class="desc">본 서비스는 외부 AI/클라우드 인프라를 활용할 수 있으며, 그 과정에서 개인정보가 국외로 이전될 수 있습니다.</p>
+<div class="wrap">
+  <h1 class="page-title">개인정보 국외이전 안내</h1>
 
-      <div class="note">
-        <b>요약</b> · 모델 추론/임베딩 처리 목적의 <span class="pill">네트워크 전송</span>이 발생할 수 있으며,
-        전송 구간에는 <span class="pill">TLS 암호화</span>가 적용됩니다. 최소한의 항목만 전송합니다.
+  <div class="meta">
+    <span class="pill">최종 갱신: <b>{{ last_updated|date:"Y-m-d H:i:s" }}</b></span>
+    <span class="pill">문서 버전: <b>{{ cfg.legal_docs_version|default:"v1.0" }}</b></span>
+    <span class="pill">시행일: <b>{{ cfg.legal_effective_date|default:"-" }}</b></span>
+  </div>
+
+  {% with contact_email=cfg.contact_email|default:"kdg283@gmail.com" %}
+  {% with retention=cfg.retention_days|default:30 %}
+  {% with first=cfg.overseas_transfers.0 %}
+
+  <section class="card">
+    <p class="muted" style="margin:0">
+      본 서비스는 비상업용 개인 포트폴리오 형태로 운영되며, 기능 제공을 위해 클라우드·AI 인프라를 사용합니다.
+      이 과정에서 사용자가 입력/업로드한 데이터 및 서비스 운영에 필요한 최소 기술정보가
+      국외 데이터센터로 전송·처리·보관될 수 있습니다. 아래는 현재 기준 국외이전 안내입니다.
+    </p>
+
+    <div class="kv">
+      <div class="k">주요 이전 국가(리전)</div>
+      <div class="v">
+        {% if first and first.country %}
+          {{ first.country }}
+        {% else %}
+          (표의 “국외이전 현황”을 참고해 주세요)
+        {% endif %}
       </div>
 
-      <h2>1. 이전받는 자(수탁자)</h2>
-      <ul>
-        <li>회사명: <b>[예: Google Cloud / OpenAI / 기타]</b></li>
-        <li>국가: <b>[예: 미국 등]</b></li>
-        <li>연락처/정책: <b>[예: 고객지원 링크]</b></li>
-      </ul>
+      <div class="k">기본 보관 기준</div>
+      <div class="v">{{ retention }}일 (항목별 보관정책 적용)</div>
 
-      <h2>2. 이전 일시 및 방법</h2>
-      <ul>
-        <li>사용자가 기능을 이용하는 시점에 API 호출 등 네트워크를 통해 전송</li>
-        <li>전송 시 TLS 등 전송 구간 암호화 적용</li>
-      </ul>
+      <div class="k">문의</div>
+      <div class="v">{{ contact_email }}</div>
+    </div>
 
-      <h2>3. 이전 항목</h2>
-      <ul>
-        <li>(필수) 질의문·요약문 등 기능 수행에 필요한 입력 데이터</li>
-        <li>(선택) 익명화된 사용 통계(활성화한 경우에 한함)</li>
-      </ul>
+    <p class="note">
+      ※ 실제 보관 위치·기간은 공급자 정책 및 서비스 설정(예: 보관기간 설정, 수명주기 정책)에 따라 달라질 수 있으며,
+      서비스는 목적 달성에 필요한 범위 내에서 최소화하여 처리하고 기간 경과 시 파기를 원칙으로 합니다.
+    </p>
+  </section>
 
-      <h2>4. 이용 목적 및 보유 기간</h2>
-      <ul>
-        <li>이용 목적: 모델 추론/임베딩 처리, 품질 및 안정성 제공</li>
-        <li>보유 기간: 수탁자 약관/정책 또는 관련 법령이 정한 기간(가능한 최소화)</li>
-      </ul>
+  {# ✅ “상태값” 대신 “정책 문장”으로 고정 #}
+  <section class="card">
+    <h2 style="margin:0 0 10px 0;font-size:1.05rem">국외이전 관련 원칙</h2>
+    <ul class="muted" style="margin:0;padding-left:18px">
+      <li>{{ cfg.policy_minimization|default:"국외 이전은 서비스 제공에 필요한 최소 범위의 정보에 한해 수행합니다." }}</li>
+      <li>{{ cfg.policy_processing_location|default:"전송은 TLS/HTTPS로 암호화되며, 접근 통제·권한 관리·보안 모니터링을 적용합니다." }}</li>
+      <li>{{ cfg.policy_change_note|default:"보관기간 경과 또는 목적 달성 시 지체 없이 파기하며, 동의 거부 시 관련 기능 이용이 제한될 수 있습니다." }}</li>
+    </ul>
+  </section>
 
-      <h2>5. 보호 조치</h2>
-      <ul>
-        <li>계약/약관 기반의 비밀유지·보안 의무</li>
-        <li>접근 통제, 암호화 등 보호 조치 적용</li>
-        <li>최소 수집·최소 보유 원칙 준수</li>
-      </ul>
+  <section class="card">
+    <div class="legal-section-head">
+      <div>
+        <h2 class="legal-section-title">국외이전 현황</h2>
+        <p class="legal-section-desc">
+          서비스는 클라우드 및 AI 인프라를 통해 요청을 처리하며, 그 과정에서 아래와 같이 국외이전이 발생할 수 있습니다.
+        </p>
+      </div>
+      <span class="chip">Cloud / AI 인프라 사용</span>
+    </div>
 
-      <h2>6. 동의 거부권 및 영향</h2>
-      <p>국외 이전에 대한 동의를 거부할 권리가 있으나, 이 경우 일부 기능 이용이 제한될 수 있습니다.</p>
-
-      <div class="footer">
-        시행일: <time datetime="[2025-11-10]">[2025-11-10]</time>
+    <div class="legal-table-wrap">
+      <div class="legal-table-scroll">
+        <table class="legal-table">
+          <thead>
+            <tr>
+              <th>이전받는 자</th>
+              <th>이전 국가</th>
+              <th>이전 시점·방법</th>
+              <th>이전 항목</th>
+              <th>이용 목적</th>
+              <th>보유·이용기간</th>
+              <th>거부/문의</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in cfg.overseas_transfers %}
+              <tr>
+                <td><span class="legal-k">{{ r.recipient }}</span></td>
+                <td>{{ r.country }}</td>
+                <td class="legal-muted">{{ r.timing_method }}</td>
+                <td class="legal-muted">{{ r.items }}</td>
+                <td>{{ r.purpose }}</td>
+                <td>{{ r.retention }}</td>
+                <td class="legal-muted">{{ r.refusal }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="legal-empty">
+                  표시할 국외이전 항목이 없습니다.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="legal-scroll-hint">
+        <span>표가 가로로 긴 경우 좌우로 스크롤하여 전체 내용을 확인할 수 있습니다.</span>
       </div>
     </div>
-  </div>
+
+    <p class="legal-note">
+      실제 데이터 보관 위치와 기간은 공급자 정책 및 서비스 설정에 따릅니다.
+      본 서비스는 목적 달성에 필요한 범위 내에서 최소화하여 처리하고, 보관 기간이 경과하면 파기하는 것을 원칙으로 합니다.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:0 0 10px 0;font-size:1.05rem">문의</h2>
+    <p class="muted" style="margin:0">
+      국외이전 및 개인정보 처리 관련 문의는 <b>{{ contact_email }}</b>로 연락해 주세요.
+    </p>
+  </section>
+
+  {% endwith %}
+  {% endwith %}
+  {% endwith %}
+
+</div>
 </body>
 </html>
+{% endtimezone %}

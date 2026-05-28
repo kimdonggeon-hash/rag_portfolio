@@ -1,0 +1,44 @@
+{# templates/ragapp/_usage_widget.html #}
+{% load static %}
+
+<div id="usage-widget" class="usage-widget-card">
+  <div class="usage-widget-header">
+    <div class="usage-widget-title">오늘 사용량</div>
+    <div class="usage-widget-sub">
+      이 브라우저 기준 / 하루 제한
+    </div>
+  </div>
+
+  <dl class="usage-widget-list">
+    <div class="uw-row" id="uw-row-web">
+      <dt>웹 검색</dt>
+      <dd>
+        <span id="uw-web-used">0</span>
+        /
+        <span id="uw-web-limit">{{ USAGE_LIMIT_WEB|default:"0" }}</span>회
+      </dd>
+    </div>
+
+    <div class="uw-row" id="uw-row-rag">
+      <dt>RAG 질문</dt>
+      <dd>
+        <span id="uw-rag-used">0</span>
+        /
+        <span id="uw-rag-limit">{{ USAGE_LIMIT_RAG|default:"0" }}</span>회
+      </dd>
+    </div>
+
+    <div class="uw-row" id="uw-row-pdf">
+      <dt>PDF 분석</dt>
+      <dd>
+        <span id="uw-pdf-used">0</span>
+        /
+        <span id="uw-pdf-limit">{{ USAGE_LIMIT_PDF|default:"0" }}</span>회
+      </dd>
+    </div>
+  </dl>
+
+  <p class="usage-widget-hint">
+    * 실제 제한은 서버/정책에 따라 달라질 수 있어요.
+  </p>
+</div>

@@ -1,0 +1,121 @@
+/* ragapp/static/ragapp/css/usage_widget.css
+   오늘 사용량 위젯 전용 스타일
+   - news.html 우측 side-card 안에 들어가는 걸 기준으로 디자인
+*/
+
+/* 위젯용 토큰 (기존 토큰이 있으면 그걸 우선 사용) */
+:root {
+    --uw-bg: var(--bg-card, var(--card-bg, #ffffff));
+    --uw-border: var(--border-soft, rgba(148, 163, 184, 0.35));
+    --uw-title: var(--text-main, #0f172a);
+    --uw-muted: var(--text-muted, #6b7280);
+    --uw-accent: var(--accent, #6366f1);
+}
+
+/* 기본 카드 레이아웃 (단독 사용 시를 위해 남겨둠) */
+.usage-widget-card {
+    background: var(--uw-bg);
+    border-radius: 12px;
+    border: 1px solid var(--uw-border);
+    padding: 12px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* news.html에서 <section class="side-card"> 안에 넣었을 때는
+   side-card가 이미 배경/테두리를 가지고 있을 테니 안쪽 카드 느낌만 나게 정리 */
+.side-card .usage-widget-card {
+    background: transparent;
+    border: 0;
+    padding: 0;
+}
+
+/* 헤더 영역 */
+.usage-widget-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 4px;
+}
+
+.usage-widget-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--uw-title);
+}
+
+.usage-widget-title::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 30%, #a5b4fc 0, #6366f1 45%, #4f46e5 100%);
+    box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.45);
+}
+
+.usage-widget-sub {
+    font-size: 11px;
+    color: var(--uw-muted);
+}
+
+/* 리스트 영역 */
+.usage-widget-list {
+    margin: 0;
+    padding: 0;
+}
+
+.usage-widget-list .uw-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 12px;
+}
+
+.usage-widget-list .uw-row+.uw-row {
+    border-top: 1px dashed var(--uw-border);
+    margin-top: 2px;
+}
+
+/* 레이블 / 값 정렬 */
+.usage-widget-list dt {
+    margin: 0;
+    font-weight: 500;
+    color: var(--uw-title);
+}
+
+.usage-widget-list dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--uw-title);
+}
+
+/* 현재 사용량 숫자 강조 */
+#uw-web-used,
+#uw-rag-used,
+#uw-pdf-used {
+    font-weight: 600;
+    color: var(--uw-accent);
+}
+
+/* 제한 숫자는 살짝 연하게 */
+#uw-web-limit,
+#uw-rag-limit,
+#uw-pdf-limit {
+    opacity: 0.9;
+}
+
+/* 하단 안내 문구 */
+.usage-widget-hint {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--uw-muted);
+}

@@ -1,0 +1,128 @@
+{% extends "ragapp/board/base.html" %}
+{% load static versioned_static %}
+{% url 'legal_privacy'  as legal_privacy_url %}
+{% url 'legal_tos'      as legal_tos_url %}
+{% url 'legal_overseas' as legal_overseas_url %}
+
+{% block title %}게시판 · {{ SERVICE_NAME|default:"김동건의 포트폴리오" }}{% endblock %}
+
+{% block page_css %}{% endblock %}
+
+{% block body %}
+  <div class="page-wrap app-shell">
+    <header class="page-header app-topbar">
+      <div class="title-block">
+        <h1>게시판</h1>
+        <p class="subline">공지/업데이트/피드백을 모아두는 공간이에요.</p>
+      </div>
+
+      <div class="nav-links">
+        <div class="header-right">
+          <a class="qa-launch-btn" href="/" role="button">🏠 홈</a>
+
+          {% if allow_guest_posts %}
+            <a class="qa-launch-btn" href="{% url 'board:create' %}" role="button">✍️ 글쓰기</a>
+          {% else %}
+            {% if request.user.is_authenticated and request.user.is_staff %}
+              <a class="qa-launch-btn" href="{% url 'board:create' %}" role="button">✍️ 글쓰기</a>
+            {% endif %}
+          {% endif %}
+
+          {% if request.user.is_authenticated and request.user.is_staff or request.user.is_superuser %}
+            <a class="qa-launch-btn" href="{% url 'board:reports' %}" role="button">🚨 신고 관리</a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <div class="shell-grid">
+      <main class="shell-main" aria-label="게시판 본문">
+
+        {% include "ragapp/partials/ai_notice_banner.html" %}
+
+        {% block content %}{% endblock %}
+      </main>
+
+      <aside class="shell-side" aria-label="게시판 도구">
+        <div class="side-stack">
+          <section class="side-card" aria-label="검색">
+            <div class="side-card-head">
+              <div class="side-card-title">Search</div>
+              <div class="side-meta">제목/내용</div>
+            </div>
+            <div class="side-card-body">
+              <form method="get" action="{% url 'board:list' %}" class="board-search">
+                <input
+                  class="board-input"
+                  type="search"
+                  name="q"
+                  value="{{ request.GET.q|default:'' }}"
+                  placeholder="검색어"
+                />
+                {% if request.GET.cat %}
+                  <input type="hidden" name="cat" value="{{ request.GET.cat }}"/>
+                {% endif %}
+                <button class="board-btn" type="submit">검색</button>
+              </form>
+
+              {% if request.GET.q %}
+                <a class="side-link"
+                   href="{% url 'board:list' %}{% if request.GET.cat %}?cat={{ request.GET.cat|urlencode }}{% endif %}">
+                  ↩ 검색 초기화
+                </a>
+              {% endif %}
+            </div>
+          </section>
+
+          <section class="side-card" aria-label="카테고리">
+            <div class="side-card-head">
+              <div class="side-card-title">Categories</div>
+              <div class="side-meta">필터</div>
+            </div>
+            <div class="side-card-body">
+              <a class="side-link {% if not cat_active %}is-active{% endif %}"
+                 href="{% url 'board:list' %}{% if request.GET.q %}?q={{ request.GET.q|urlencode }}{% endif %}">
+                전체 <span class="side-meta">All</span>
+              </a>
+
+              {% for c in categories %}
+                <a class="side-link {% if cat_active == c.slug %}is-active{% endif %}"
+                   href="{% url 'board:list' %}?cat={{ c.slug|urlencode }}{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}">
+                  {{ c.name }}
+                  <span class="side-meta">{{ c.count }}</span>
+                </a>
+              {% empty %}
+                <div class="board-empty">카테고리가 아직 없어요.</div>
+              {% endfor %}
+            </div>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <div class="page-footer-wrap">
+      <div class="legal-footer-bar">
+        <a class="legal-link"
+          href="{{ PRIVACY_PAGE_URL|default:'/legal/privacy/' }}">
+          개인정보처리방침
+        </a>
+        <span class="dot">·</span>
+        <a class="legal-link"
+          href="{{ TERMS_PAGE_URL|default:'/legal/tos/' }}">
+          이용약관
+        </a>
+        <span class="dot">·</span>
+        <a class="legal-link"
+          href="{{ CROSS_BORDER_PAGE_URL|default:'/legal/overseas/' }}">
+          국외이전 고지
+        </a>
+        <span class="dot">·</span>
+        <a class="legal-link" href="{% url 'legal_guide' %}">
+          서비스 이용 안내
+        </a>
+
+        {% include "ragapp/partials/ai_notice_footer.html" %}
+        
+      </div>
+    </div>
+{% endblock %}

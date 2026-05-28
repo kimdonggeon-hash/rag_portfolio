@@ -1,0 +1,171 @@
+{# ragapp/templates/ragapp/board/mine.html #}
+{% extends "ragapp/board/base.html" %}
+{% load static versioned_static %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/board_mine.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="mine-page" data-summary-api="{% url 'board:mine_summary_api' %}">
+  <div class="mine-topbar">
+    <div class="mine-breadcrumb">
+      <a class="mine-link" href="{% url 'board:list' %}">게시판</a>
+      <span class="mine-sep">/</span>
+      <span class="mine-here">내 활동</span>
+      <span class="mine-pill mine-pill--staff" aria-label="운영자 모드">
+        <span class="mine-pill-dot" aria-hidden="true"></span>
+        운영자 모드
+      </span>
+    </div>
+
+    <div class="mine-actions">
+      <a class="mine-btn mine-btn--ghost" href="{% url 'board:list' %}">목록으로</a>
+      <a class="mine-btn mine-btn--primary" href="{% url 'board:create' %}">새 글 작성</a>
+    </div>
+  </div>
+
+  <header class="mine-hero card">
+    <div class="mine-hero-left">
+      <h1 class="mine-title">내 글/댓글</h1>
+      <p class="mine-subtitle">게시판 운영을 위한 개인 활동 로그입니다. (운영자 전용)</p>
+
+      <div class="mine-search">
+        <label class="sr-only" for="mineFilter">검색</label>
+        <div class="mine-searchbox">
+          <span class="mine-search-ico" aria-hidden="true">⌕</span>
+          <input
+            id="mineFilter"
+            class="mine-search-input"
+            type="search"
+            inputmode="search"
+            placeholder="제목/내용으로 빠르게 필터링… ( / 키 )"
+            autocomplete="off"
+          >
+          <button class="mine-search-clear" type="button" aria-label="검색어 지우기">✕</button>
+        </div>
+        <div class="mine-hint" id="mineHint" aria-live="polite">리스트는 화면에서만 필터링돼요 (DB 검색 아님)</div>
+      </div>
+    </div>
+
+    <div class="mine-hero-right">
+      <div class="mine-stats">
+        <div class="mine-stat">
+          <div class="mine-stat-label">내 글</div>
+          <div class="mine-stat-value" id="mineStatPosts">
+            {% if posts_count is not None %}{{ posts_count }}{% else %}{{ posts|length }}{% endif %}
+          </div>
+        </div>
+
+        <div class="mine-stat">
+          <div class="mine-stat-label">내 댓글</div>
+          <div class="mine-stat-value" id="mineStatComments">
+            {% if comments_count is not None %}{{ comments_count }}{% else %}{{ comments|length }}{% endif %}
+          </div>
+        </div>
+
+        <div class="mine-stat mine-stat--muted">
+          <div class="mine-stat-label">권한</div>
+          <div class="mine-stat-value" id="mineStatRole">Staff</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="mine-grid">
+    <article class="mine-panel card" aria-label="내가 쓴 글">
+      <header class="mine-panel-head">
+        <div class="mine-panel-title">
+          <span class="mine-panel-ico" aria-hidden="true">📝</span>
+          <span>내가 쓴 글</span>
+        </div>
+        <div class="mine-badge" id="minePostsBadge" title="표시 개수">{{ posts|length }}</div>
+      </header>
+
+      <div class="mine-panel-body">
+        <div class="mine-list" id="minePosts">
+          {% for p in posts %}
+            <a class="mine-item"
+               href="{% url 'board:detail' p.pk %}"
+               data-filter="{{ p.title|default:''|striptags }} {{ p.created_at|date:'Y-m-d H:i' }}">
+              <div class="mine-item-main">
+                <div class="mine-item-title">
+                  {{ p.title|default:"(제목 없음)"|truncatechars:52 }}
+                </div>
+                <div class="mine-item-meta">
+                  <span class="mine-meta-chip">{{ p.created_at|date:"Y-m-d H:i" }}</span>
+                  {% if p.updated_at and p.updated_at != p.created_at %}
+                    <span class="mine-dot" aria-hidden="true">•</span>
+                    <span class="mine-meta-muted">수정 {{ p.updated_at|date:"Y-m-d H:i" }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="mine-item-cta" aria-hidden="true">→</div>
+            </a>
+          {% empty %}
+            <div class="mine-empty">
+              <div class="mine-empty-ico" aria-hidden="true">🗂️</div>
+              <div class="mine-empty-title">작성한 글이 없습니다</div>
+              <div class="mine-empty-text">공지/업데이트/피드백을 남기면 운영 히스토리가 깔끔해져요.</div>
+              <a class="mine-btn mine-btn--primary mine-btn--sm" href="{% url 'board:create' %}">첫 글 작성하기</a>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="mine-panel card" aria-label="내가 쓴 댓글">
+      <header class="mine-panel-head">
+        <div class="mine-panel-title">
+          <span class="mine-panel-ico" aria-hidden="true">💬</span>
+          <span>내가 쓴 댓글</span>
+        </div>
+        <div class="mine-badge" id="mineCommentsBadge" title="표시 개수">{{ comments|length }}</div>
+      </header>
+
+      <div class="mine-panel-body">
+        <div class="mine-list" id="mineComments">
+          {% for c in comments %}
+            <a class="mine-item"
+               href="{% url 'board:detail' c.post_id %}#c{{ c.pk }}"
+               data-filter="{{ c.post.title|default:''|striptags }} {{ c.content|default:''|striptags }} {{ c.created_at|date:'Y-m-d H:i' }}">
+              <div class="mine-item-main">
+                <div class="mine-item-title mine-item-title--comment">
+                  <span class="mine-tag">{{ c.post.title|default:"게시글"|truncatechars:22 }}</span>
+                  <span class="mine-comment-text">{{ c.content|default:"(내용 없음)"|truncatechars:64 }}</span>
+                </div>
+                <div class="mine-item-meta">
+                  <span class="mine-meta-chip">{{ c.created_at|date:"Y-m-d H:i" }}</span>
+                  <span class="mine-dot" aria-hidden="true">•</span>
+                  <span class="mine-meta-link">원문으로 이동</span>
+                </div>
+              </div>
+              <div class="mine-item-cta" aria-hidden="true">↩︎</div>
+            </a>
+          {% empty %}
+            <div class="mine-empty">
+              <div class="mine-empty-ico" aria-hidden="true">🫧</div>
+              <div class="mine-empty-title">작성한 댓글이 없습니다</div>
+              <div class="mine-empty-text">운영 코멘트를 남기면 처리 맥락이 더 명확해져요.</div>
+              <a class="mine-btn mine-btn--ghost mine-btn--sm" href="{% url 'board:list' %}">게시글 보러가기</a>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="mine-footer-note">
+    <span class="mine-footer-dot" aria-hidden="true"></span>
+    이 화면은 운영자용 개인 활동 로그이며, 일반 사용자에게 노출되지 않습니다.
+  </div>
+</section>
+{% endblock %}
+
+{% block page_js %}
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %} defer
+          src="{% versioned_static 'ragapp/javascript/board_mine_filter.js' %}"></script>
+
+  <script {% if csp_nonce %}nonce="{{ csp_nonce }}"{% endif %} defer
+          src="{% versioned_static 'ragapp/javascript/board_mine_live.js' %}"></script>
+{% endblock %}

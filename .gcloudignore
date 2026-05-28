@@ -1,0 +1,51 @@
+# -----------------------------------------------------------------------------
+# .gcloudignore
+# Cloud Run (gcloud run deploy --source .) 업로드 제외 규칙
+# -----------------------------------------------------------------------------
+
+# venv / cache
+.venv/
+venv/
+ENV/
+portfolio/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# git
+.git/
+.gitignore
+
+# local db / vector store / logs
+*.sqlite3
+vector_store.sqlite3
+vector_store.sqlite3-journal
+*.log
+
+# media/tmp
+media/
+tmp/
+
+# node (있다면)
+node_modules/
+
+# os/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# secrets (배포에 포함 금지)
+.env
+.env.*
+# !.env.example   # (원하면 샘플만 포함)
+job.env
+env/
+secrets/
+**/secrets/**
+
+# uploads: 기본은 전부 제외, 필요한 것만 예외 포함
+uploads/**
+!uploads/
+!uploads/table_data/
+!uploads/table_data/coffee_sales.json

@@ -1,0 +1,43 @@
+{% extends "ragapp/board/base.html" %}
+{% block content %}
+
+<div class="board-tabs">
+  <a class="board-tab" href="{% url 'board:list' %}">전체</a>
+  <a class="board-tab is-active" href="{% url 'board:mine_posts' %}">내 글</a>
+  <a class="board-tab" href="{% url 'board:mine_comments' %}">내 댓글</a>
+  {% if user.is_authenticated and user.is_staff %}
+    <a class="board-tab" href="{% url 'board:reports' %}">신고 관리</a>
+  {% endif %}
+</div>
+
+<section class="board-card">
+  <div class="board-card-head">
+    <div class="board-card-title">내가 쓴 글</div>
+    <div class="board-card-meta">로그인 사용자 전용</div>
+  </div>
+
+  <div class="board-list">
+    {% for p in posts %}
+      <a class="board-item" href="{% url 'board:detail' p.pk %}">
+        <div class="board-item-top">
+          <div class="board-item-title">
+            {% if p.pinned %}<span class="board-pin">📌</span>{% endif %}
+            {{ p.title }}
+          </div>
+          <div class="board-item-badges">
+            {% if p.category %}<span class="board-pill">{{ p.category.name }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="board-item-meta">
+          <span>조회 {{ p.view_count }}</span>
+          <span class="dot">·</span>
+          <span>{{ p.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+      </a>
+    {% empty %}
+      <div class="board-empty">아직 작성한 글이 없어요.</div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

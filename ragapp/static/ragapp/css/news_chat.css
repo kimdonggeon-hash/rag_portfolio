@@ -1,0 +1,1071 @@
+/* =========================================================
+   ChatGPT-style product layer (keeps core CSS intact)
+   File: ragapp/static/ragapp/css/news_chat.css
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   0) 레이아웃: 3칼럼 제거 → 메인 1컬럼
+   --------------------------------------------------------- */
+body.mz-chat-page .mz-shell {
+    display: block !important;
+    min-height: 100dvh;
+}
+
+body.mz-chat-page .mz-sidebar {
+    display: none !important;
+}
+
+body.mz-chat-page .mz-topbar {
+    min-height: 0;
+    padding: 0;
+}
+
+body.mz-chat-page #toolsOpenBtn {
+    display: none !important;
+}
+
+.mz-hero--chat {
+    padding-bottom: 8px;
+}
+
+body.tools-open {
+    overflow: hidden;
+    touch-action: none;
+}
+
+.mz-hero--chat .mz-hero-title,
+.mz-hero--chat .mz-hero-sub {
+    text-align: center;
+}
+
+.mz-mode-tabs--chat {
+    margin-top: 10px;
+    margin-bottom: 12px;
+}
+
+/* ---------------------------------------------------------
+   1) HERO 헤더: 텍스트(좌) + 햄버거(우)
+   --------------------------------------------------------- */
+.mz-hero.mz-hero--chat .mz-hero-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+}
+
+.mz-hero.mz-hero--chat .mz-hero-text {
+    min-width: 0;
+}
+
+.mz-hero.mz-hero--chat .mz-hero-title {
+    margin: 0;
+    line-height: 1.15;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width:420px) {
+    .mz-hero.mz-hero--chat .mz-hero-title {
+        font-size: clamp(22px, 7vw, 32px);
+    }
+
+    .mz-hero.mz-hero--chat .mz-hero-sub {
+        font-size: 13px;
+    }
+}
+
+.mz-main {
+    position: relative !important;
+    overflow: visible !important;
+}
+
+/* ---------------------------------------------------------
+   1-1) 도구 버튼(햄버거)
+   --------------------------------------------------------- */
+.mz-hero.mz-hero--chat #toolsDockBtn {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+
+    justify-self: end;
+    align-self: start;
+
+    width: 46px !important;
+    height: 46px !important;
+    border-radius: 14px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    background: rgba(15, 23, 42, .92) !important;
+    color: #fff !important;
+
+    border: 1px solid rgba(148, 163, 184, .22) !important;
+    box-shadow: 0 10px 26px rgba(2, 6, 23, .18),
+        inset 0 1px 0 rgba(255, 255, 255, .10) !important;
+
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+
+    cursor: pointer !important;
+    transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease !important;
+
+    line-height: 1 !important;
+    font-size: 0 !important;
+}
+
+@media (max-width:860px) {
+    .mz-hero.mz-hero--chat #toolsDockBtn {
+        width: 44px !important;
+        height: 44px !important;
+    }
+}
+
+.mz-hero.mz-hero--chat #toolsDockBtn .hb {
+    width: 18px;
+    height: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.mz-hero.mz-hero--chat #toolsDockBtn .hb>span {
+    display: block;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transform-origin: center;
+    transition: transform .18s ease, opacity .18s ease;
+}
+
+body.tools-open .mz-hero.mz-hero--chat #toolsDockBtn .hb>span:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+}
+
+body.tools-open .mz-hero.mz-hero--chat #toolsDockBtn .hb>span:nth-child(2) {
+    opacity: 0;
+}
+
+body.tools-open .mz-hero.mz-hero--chat #toolsDockBtn .hb>span:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+}
+
+.mz-hero.mz-hero--chat #toolsDockBtn:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 14px 34px rgba(2, 6, 23, .22),
+        inset 0 1px 0 rgba(255, 255, 255, .12) !important;
+}
+
+.mz-hero.mz-hero--chat #toolsDockBtn:active {
+    transform: translateY(0) scale(.98) !important;
+}
+
+.mz-hero.mz-hero--chat #toolsDockBtn:focus {
+    outline: none !important;
+}
+
+.mz-hero.mz-hero--chat #toolsDockBtn:focus-visible {
+    outline: 3px solid rgba(99, 102, 241, .45) !important;
+    outline-offset: 2px !important;
+}
+
+html[data-theme="dark"] .mz-hero.mz-hero--chat #toolsDockBtn {
+    background: rgba(255, 255, 255, .10) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(148, 163, 184, .20) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .35),
+        inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+
+/* ---------------------------------------------------------
+   2) Tools Drawer
+   --------------------------------------------------------- */
+#toolsDrawer.tools-drawer {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 20000 !important;
+    transition: opacity .22s ease !important;
+    will-change: opacity;
+}
+
+#toolsDrawer.tools-drawer[hidden] {
+    display: none !important;
+}
+
+#toolsDrawer.tools-drawer[aria-hidden="true"] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+#toolsDrawer.tools-drawer[aria-hidden="false"] {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+#toolsDrawer.tools-drawer[inert] {
+    pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #toolsDrawer.tools-drawer {
+        transition: none !important;
+    }
+}
+
+#toolsDrawer.tools-drawer .tools-backdrop {
+    position: absolute !important;
+    inset: 0 !important;
+    background: rgba(2, 6, 23, .38) !important;
+    opacity: 0 !important;
+    transition: opacity .22s ease !important;
+}
+
+#toolsDrawer.tools-drawer[aria-hidden="false"] .tools-backdrop {
+    opacity: 1 !important;
+}
+
+#toolsDrawer.tools-drawer .tools-panel {
+    position: absolute !important;
+    right: 0 !important;
+    top: 0 !important;
+    height: 100% !important;
+    width: min(380px, 88vw) !important;
+
+    transform: translateX(102%) scale(.985) !important;
+    transition: transform .22s cubic-bezier(.2, .8, .2, 1) !important;
+    will-change: transform;
+
+    background: rgba(255, 255, 255, .96) !important;
+    color: #0f172a !important;
+    border-left: 1px solid rgba(148, 163, 184, .25) !important;
+    box-shadow: -24px 0 60px rgba(2, 6, 23, .18) !important;
+
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+
+    padding: 14px 14px 18px !important;
+}
+
+#toolsDrawer.tools-drawer[aria-hidden="false"] .tools-panel {
+    transform: translateX(0) scale(1) !important;
+}
+
+html[data-theme="dark"] #toolsDrawer.tools-drawer .tools-panel {
+    background: rgba(15, 23, 42, .92) !important;
+    color: #e5e7eb !important;
+    border-left-color: rgba(148, 163, 184, .18) !important;
+    box-shadow: -24px 0 70px rgba(0, 0, 0, .45) !important;
+}
+
+#toolsDrawer.tools-drawer .tools-panel a,
+#toolsDrawer.tools-drawer .tools-panel button {
+    color: inherit !important;
+}
+
+#toolsDrawer .tools-panel-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    padding: 6px 6px 12px !important;
+    margin-bottom: 10px !important;
+    border-bottom: 1px solid rgba(148, 163, 184, .20) !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .tools-panel-head {
+    border-bottom-color: rgba(148, 163, 184, .16) !important;
+}
+
+#toolsDrawer .tools-panel-title {
+    font-weight: 900 !important;
+    letter-spacing: -.02em !important;
+    font-size: 15px !important;
+    opacity: .95 !important;
+}
+
+#toolsDrawer .tools-close-btn {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(148, 163, 184, .22) !important;
+    background: rgba(255, 255, 255, .65) !important;
+    cursor: pointer !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .tools-close-btn {
+    background: rgba(255, 255, 255, .08) !important;
+    border-color: rgba(148, 163, 184, .18) !important;
+}
+
+#toolsDrawer .side-stack {
+    display: grid !important;
+    gap: 12px !important;
+}
+
+#toolsDrawer .side-card {
+    border-radius: 18px !important;
+    border: 1px solid rgba(148, 163, 184, .18) !important;
+    background: rgba(255, 255, 255, .72) !important;
+    box-shadow: 0 10px 26px rgba(2, 6, 23, .08) !important;
+    overflow: hidden !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .side-card {
+    background: rgba(15, 23, 42, .55) !important;
+    border-color: rgba(148, 163, 184, .14) !important;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .30) !important;
+}
+
+#toolsDrawer .side-card-head {
+    padding: 12px 12px 10px !important;
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+}
+
+#toolsDrawer .side-card-title {
+    font-weight: 900 !important;
+    font-size: 14px !important;
+    letter-spacing: -.02em !important;
+}
+
+#toolsDrawer .side-meta {
+    font-size: 12px !important;
+    opacity: .70 !important;
+}
+
+#toolsDrawer .side-card-body {
+    padding: 12px !important;
+}
+
+#toolsDrawer .side-sep {
+    height: 1px !important;
+    background: rgba(148, 163, 184, .18) !important;
+    margin: 10px 0 !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .side-sep {
+    background: rgba(148, 163, 184, .14) !important;
+}
+
+#toolsDrawer .side-link,
+#toolsDrawer .side-link-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    width: 100% !important;
+    text-decoration: none !important;
+    padding: 11px 12px !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, .18) !important;
+    background: rgba(255, 255, 255, .55) !important;
+    cursor: pointer !important;
+    transition: transform .10s ease, background .10s ease !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .side-link,
+html[data-theme="dark"] #toolsDrawer .side-link-btn {
+    background: rgba(255, 255, 255, .06) !important;
+    border-color: rgba(148, 163, 184, .14) !important;
+}
+
+#toolsDrawer .side-link:hover,
+#toolsDrawer .side-link-btn:hover {
+    transform: translateY(-1px) !important;
+    background: rgba(255, 255, 255, .75) !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .side-link:hover,
+html[data-theme="dark"] #toolsDrawer .side-link-btn:hover {
+    background: rgba(255, 255, 255, .10) !important;
+}
+
+#toolsDrawer .side-link-btn {
+    font: inherit !important;
+    color: inherit !important;
+}
+
+#toolsDrawer .theme-toggle {
+    display: inline-flex !important;
+    gap: 10px !important;
+    align-items: center !important;
+}
+
+#toolsDrawer .theme-btn {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(148, 163, 184, .18) !important;
+    background: rgba(255, 255, 255, .60) !important;
+    cursor: pointer !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .theme-btn {
+    background: rgba(255, 255, 255, .08) !important;
+    border-color: rgba(148, 163, 184, .14) !important;
+}
+
+#toolsDrawer .theme-btn.is-active {
+    outline: 3px solid rgba(99, 102, 241, .35) !important;
+    outline-offset: 1px !important;
+}
+
+#toolsDrawer .quick-tools-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+}
+
+#toolsDrawer .manual-item {
+    border: 1px solid rgba(148, 163, 184, .18) !important;
+    border-radius: 14px !important;
+    padding: 10px 12px !important;
+    background: rgba(255, 255, 255, .55) !important;
+}
+
+html[data-theme="dark"] #toolsDrawer .manual-item {
+    background: rgba(255, 255, 255, .06) !important;
+    border-color: rgba(148, 163, 184, .14) !important;
+}
+
+#toolsDrawer .manual-item summary {
+    cursor: pointer !important;
+    font-weight: 800 !important;
+}
+
+#toolsDrawer .manual-body {
+    margin-top: 8px !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+    opacity: .85 !important;
+}
+
+/* ---------------------------------------------------------
+   3) Chat
+   --------------------------------------------------------- */
+.mz-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.mz-thread {
+    border: 1px solid rgba(148, 163, 184, .16);
+    border-radius: 22px;
+    padding: 18px;
+    overflow: auto;
+    background: rgba(15, 23, 42, .20);
+    box-shadow: 0 18px 50px rgba(2, 6, 23, .30);
+}
+
+#chatThread.mz-thread {
+    height: clamp(420px, 52vh, 680px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    padding-bottom: 12px;
+}
+
+.mz-composer {
+    border: 1px solid rgba(148, 163, 184, .16);
+    border-radius: 22px;
+    background: rgba(15, 23, 42, .28);
+    box-shadow: 0 18px 50px rgba(2, 6, 23, .30);
+    padding: 10px;
+    flex: 0 0 auto;
+}
+
+.mz-composer-inner {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.mz-attach-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(255, 255, 255, .06);
+    cursor: pointer;
+}
+
+.mz-chat-input {
+    width: 100%;
+    resize: none;
+    min-height: 44px;
+    max-height: 160px;
+    border-radius: 16px;
+    padding: 12px 12px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(255, 255, 255, .04);
+    outline: none;
+
+    /* ✅ 추가 */
+    color: #0f172a;
+}
+
+.mz-chat-input::placeholder {
+    color: rgba(15, 23, 42, .55);
+}
+
+html[data-theme="dark"] .mz-chat-input {
+    color: #e5e7eb;
+    background: rgba(255, 255, 255, .06);
+}
+
+html[data-theme="dark"] .mz-chat-input::placeholder {
+    color: rgba(226, 232, 240, .55);
+}
+
+.mz-chat-input:focus {
+    border-color: rgba(99, 102, 241, .35);
+}
+
+#chatSendBtn.mz-send-btn {
+    height: 44px;
+    border-radius: 16px;
+    padding: 0 16px;
+    border: 1px solid rgba(148, 163, 184, .22) !important;
+    background: rgba(15, 23, 42, .92) !important;
+    color: #fff !important;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform .08s ease, filter .12s ease;
+}
+
+#chatSendBtn.mz-send-btn:hover {
+    filter: brightness(1.05);
+}
+
+#chatSendBtn.mz-send-btn:active {
+    transform: translateY(1px);
+}
+
+#chatSendBtn.mz-send-btn:disabled,
+#chatSendBtn.mz-send-btn[aria-disabled="true"] {
+    opacity: .55 !important;
+    cursor: not-allowed !important;
+}
+
+html[data-theme="dark"] #chatSendBtn.mz-send-btn {
+    background: rgba(255, 255, 255, .10) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(148, 163, 184, .18) !important;
+}
+
+.mz-file-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    opacity: .75;
+    padding: 0 6px;
+}
+
+body[data-layout="overlay"] .mz-shell {
+    display: block !important;
+}
+
+body[data-layout="overlay"] .mz-sidebar {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------
+   4) Bubbles + Evidence(Top3 + toggle)  ✅ details/summary 기반
+   - Evidence: 기본 접기 → summary(타이틀) 클릭 시 펼침
+   - 펼친 뒤: Top3만 기본 노출, "+ n개 더" / 토글 버튼으로 전체 보기
+   --------------------------------------------------------- */
+.mz-msg {
+    display: flex;
+    gap: 12px;
+    margin: 12px 0;
+}
+
+.mz-msg--user {
+    justify-content: flex-end;
+}
+
+.mz-msg--assistant {
+    justify-content: flex-start;
+}
+
+.mz-bubble {
+    max-width: min(820px, 92%);
+    border-radius: 18px;
+    padding: 14px 16px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(255, 255, 255, .06);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.mz-msg--user .mz-bubble {
+    background: rgba(99, 102, 241, .18);
+    border-color: rgba(99, 102, 241, .22);
+}
+
+.mz-bubble .muted {
+    opacity: .75;
+}
+
+.mz-bubble pre {
+    overflow: auto;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(0, 0, 0, .18);
+}
+
+.mz-bubble code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* ---------------- Evidence block (details) ---------------- */
+.mz-evidence {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, .16);
+}
+
+/* ---------------------------------------------------------
+   Evidence item 제품화: 도메인 배지 + 출처 pill + 아이콘
+   --------------------------------------------------------- */
+
+.mz-evidence-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.mz-evidence-site {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mz-evidence-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(255, 255, 255, .06);
+    font-size: 13px;
+    flex: 0 0 auto;
+}
+
+.mz-evidence-domain {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 8px;
+    border-radius: 999px;
+
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(255, 255, 255, .06);
+    opacity: .9;
+}
+
+.mz-evidence-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.mz-pill {
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 8px;
+    border-radius: 999px;
+
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(255, 255, 255, .06);
+    opacity: .92;
+}
+
+/* 링크 제목 강조 */
+.mz-evidence-link {
+    display: inline-block;
+    font-weight: 900;
+    letter-spacing: -.01em;
+}
+
+/* 다크 모드 톤 */
+html[data-theme="dark"] .mz-evidence-ico,
+html[data-theme="dark"] .mz-evidence-domain,
+html[data-theme="dark"] .mz-pill {
+    background: rgba(0, 0, 0, .16);
+    border-color: rgba(148, 163, 184, .14);
+}
+
+
+/* ✅ 타이틀 줄 = summary/button (클릭해서 펼침/접기)
+   - details/summary(레거시) + div/button(신규 JS) 둘 다 커버
+*/
+.mz-evidence summary,
+.mz-evidence-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: rgba(255, 255, 255, .04);
+    color: inherit;
+
+    font-weight: 800;
+    font-size: 13px;
+
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ✅ button(.mz-evidence-summary) 기본 스타일 제거/정렬 보정 */
+.mz-evidence-summary {
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: left;
+    line-height: 1.25;
+
+    /* button 기본 여백/포커스 영향 최소화 */
+    margin: 0;
+}
+
+/* 기본 details 마커 제거 (Safari/Chromium/Firefox) */
+.mz-evidence summary::-webkit-details-marker,
+.mz-evidence-summary::-webkit-details-marker {
+    display: none;
+}
+
+.mz-evidence summary::marker,
+.mz-evidence-summary::marker {
+    content: "";
+}
+
+/* 접근성 포커스 링 */
+.mz-evidence summary:focus,
+.mz-evidence-summary:focus {
+    outline: none;
+}
+
+.mz-evidence summary:focus-visible,
+.mz-evidence-summary:focus-visible {
+    outline: 3px solid rgba(99, 102, 241, .35);
+    outline-offset: 2px;
+}
+
+.mz-evidence-title {
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: -.01em;
+}
+
+.mz-evidence-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mz-evidence-count {
+    font-size: 12px;
+    opacity: .75;
+}
+
+/* summary/button 우측 caret(회전) */
+.mz-evidence-caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 26px;
+    height: 26px;
+    border-radius: 10px;
+
+    border: 1px solid rgba(148, 163, 184, .18);
+    background: rgba(255, 255, 255, .06);
+
+    font-weight: 900;
+    opacity: .85;
+
+    transform: rotate(0deg);
+    transition: transform .14s ease;
+}
+
+/* ✅ details 기반(open) + div 기반(is-open/aria-expanded) 모두 회전 */
+.mz-evidence[open] .mz-evidence-caret,
+.mz-evidence.is-open .mz-evidence-caret,
+.mz-evidence-summary[aria-expanded="true"] .mz-evidence-caret {
+    transform: rotate(180deg);
+}
+
+/* ✅ 펼쳐진 본문 래퍼 */
+.mz-evidence-body {
+    margin-top: 10px;
+}
+
+/* ✅ div+button 버전은 hidden 토글을 쓰므로 커버 */
+.mz-evidence-body[hidden] {
+    display: none !important;
+}
+
+/* 다크 모드 summary 톤 */
+html[data-theme="dark"] .mz-evidence summary,
+html[data-theme="dark"] .mz-evidence-summary {
+    background: rgba(0, 0, 0, .14);
+    border-color: rgba(148, 163, 184, .12);
+}
+
+/* (옵션) 레거시 .mz-evidence-head를 쓰는 경우도 같이 커버 */
+.mz-evidence-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+/* ---------------- Top3 + toggle(전체보기) ---------------- */
+/* toggle button (Top3 → 전체보기) */
+.mz-evidence-toggle {
+    border: 1px solid rgba(148, 163, 184, .20);
+    background: rgba(255, 255, 255, .08);
+    border-radius: 999px;
+    padding: 6px 10px;
+
+    font-weight: 900;
+    font-size: 12px;
+    cursor: pointer;
+
+    transition: filter .12s ease, transform .12s ease;
+}
+
+.mz-evidence-toggle:hover {
+    filter: brightness(1.05);
+}
+
+.mz-evidence-toggle:active {
+    transform: translateY(1px);
+}
+
+html[data-theme="dark"] .mz-evidence-toggle {
+    background: rgba(0, 0, 0, .18);
+    border-color: rgba(148, 163, 184, .14);
+}
+
+.mz-evidence-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.mz-evidence-item {
+    border: 1px solid rgba(148, 163, 184, .14);
+    background: rgba(255, 255, 255, .04);
+    border-radius: 14px;
+    padding: 10px 12px;
+}
+
+html[data-theme="dark"] .mz-evidence-item {
+    background: rgba(0, 0, 0, .14);
+    border-color: rgba(148, 163, 184, .12);
+}
+
+.mz-evidence-link {
+    font-weight: 800;
+    text-decoration: none;
+    color: inherit;
+}
+
+.mz-evidence-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.mz-evidence-snippet {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: .85;
+    white-space: pre-wrap;
+}
+
+.mz-evidence-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    opacity: .70;
+}
+
+/* ✅ Top3만 보이게: 기본은 extra 숨김, is-expanded면 풀기 */
+.mz-evidence:not(.is-expanded) .mz-evidence-item[data-extra="1"] {
+    display: none;
+}
+
+/* "+ n개 더" 힌트는 펼치면 숨김 */
+.mz-evidence-more {
+    margin-top: 8px;
+    font-size: 12px;
+    opacity: .75;
+}
+
+.mz-evidence.is-expanded .mz-evidence-more {
+    display: none;
+}
+
+.mz-evidence-omitted {
+    margin-top: 8px;
+    font-size: 12px;
+    opacity: .72;
+}
+
+/* ---------------------------------------------------------
+   5) Legacy panels: DOM 유지 + 완전 숨김
+   --------------------------------------------------------- */
+.mz-legacy-panels {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    contain: layout style paint !important;
+}
+
+
+/* ---------------------------------------------------------
+   6) Chat Table Horizontal Scroll Hint
+   --------------------------------------------------------- */
+#chatThread .chat-table-wrap {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    border-radius: var(--ct-radius, 14px);
+}
+
+#chatThread .chat-table-wrap.is-overflow {
+    box-shadow: inset -26px 0 26px -26px rgba(2, 6, 23, 0.22);
+}
+
+#chatThread .chat-table-wrap.is-overflow.is-scrolled {
+    box-shadow:
+        inset 26px 0 26px -26px rgba(2, 6, 23, 0.18),
+        inset -26px 0 26px -26px rgba(2, 6, 23, 0.22);
+}
+
+#chatThread .chat-table-wrap.is-overflow.is-end {
+    box-shadow: inset 26px 0 26px -26px rgba(2, 6, 23, 0.18);
+}
+
+#chatThread .chat-table-wrap.is-overflow::after {
+    content: "↔ 좌우로 스크롤";
+    position: sticky;
+    left: 100%;
+    bottom: 10px;
+    transform: translateX(-10px);
+
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: -0.2px;
+
+    color: rgba(51, 65, 85, 0.85);
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(148, 163, 184, 0.30);
+    border-radius: 999px;
+    padding: 4px 8px;
+
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    opacity: 1;
+    transition: opacity .18s ease, transform .18s ease;
+}
+
+#chatThread .chat-table-wrap.is-overflow.is-end::after {
+    opacity: 0;
+    transform: translateX(-10px) translateY(4px);
+}
+
+html[data-theme="dark"] #chatThread .chat-table-wrap.is-overflow {
+    box-shadow: inset -26px 0 26px -26px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] #chatThread .chat-table-wrap.is-overflow.is-scrolled {
+    box-shadow:
+        inset 26px 0 26px -26px rgba(0, 0, 0, 0.30),
+        inset -26px 0 26px -26px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] #chatThread .chat-table-wrap.is-overflow.is-end {
+    box-shadow: inset 26px 0 26px -26px rgba(0, 0, 0, 0.30);
+}
+
+html[data-theme="dark"] #chatThread .chat-table-wrap.is-overflow::after {
+    color: rgba(226, 232, 240, 0.92);
+    background: rgba(2, 6, 23, 0.62);
+    border-color: rgba(55, 65, 81, 0.60);
+}
+
+#chatThread .chat-table-wrap::-webkit-scrollbar {
+    height: 10px;
+}
+
+#chatThread .chat-table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+}
+
+html[data-theme="dark"] #chatThread .chat-table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+}
+
+/* =========================================================
+   FIX: mz-legacy-panels 안에 cardRag가 들어가도 정상 렌더링 (CSS only)
+   - 원인: .mz-legacy-panels가 1px/clip/opacity로 전체를 죽임
+   - 해결: cardRag만 예외로 "unhide + normal flow"
+   ========================================================= */
+
+/* 템플릿에 caret(span)이 있으니 ::after 폴백 끄기 (⌄⌄ 방지) */
+.mz-evidence .mz-evidence-summary::after {
+    content: none !important;
+    display: none !important;
+}

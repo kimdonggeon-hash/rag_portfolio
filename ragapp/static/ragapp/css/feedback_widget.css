@@ -1,0 +1,280 @@
+/* ragapp/static/ragapp/css/feedback_widget.css */
+
+.fx-fb-host {
+    margin-top: 10px;
+}
+
+.fx-fb {
+    border: 1px solid var(--line, rgba(148, 163, 184, .18));
+    background: var(--card-bg, rgba(255, 255, 255, .92));
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: var(--shadow, 0 10px 30px rgba(2, 6, 23, .10));
+}
+
+/* =========================
+   ✅ 다크 모드 버튼 톤 유지
+   ========================= */
+html[data-theme="dark"] .fx-fb__btn,
+html[data-theme="dark"] .fx-fb__send,
+html[data-theme="dark"] .fx-fb__skip {
+    background: rgba(2, 6, 23, .18);
+}
+
+/* =========================
+   ✅ 라이트 모드: "전송" 버튼이 너무 밝게 보이는 문제 해결
+   - send: 진한 솔리드 버튼(가독성/대비 확실)
+   - skip: 덜 강조되는 중립 버튼
+   ========================= */
+html:not([data-theme="dark"]) .fx-fb__send {
+    background: rgba(15, 23, 42, 0.92);
+    /* 진한 배경 */
+    color: #ffffff;
+    border-color: rgba(15, 23, 42, 0.25);
+}
+
+html:not([data-theme="dark"]) .fx-fb__send:hover {
+    background: rgba(15, 23, 42, 1);
+}
+
+html:not([data-theme="dark"]) .fx-fb__skip {
+    background: rgba(148, 163, 184, 0.18);
+    color: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+html:not([data-theme="dark"]) .fx-fb__skip:hover {
+    background: rgba(148, 163, 184, 0.26);
+}
+
+/* (선택) 포커스 접근성: 키보드로 이동 시 테두리 */
+.fx-fb__btn:focus-visible,
+.fx-fb__chip:focus-visible,
+.fx-fb__comment:focus-visible,
+.fx-fb__send:focus-visible,
+.fx-fb__skip:focus-visible {
+    outline: 2px solid rgba(56, 189, 248, .55);
+    outline-offset: 2px;
+}
+
+.fx-fb__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.fx-fb__badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line, rgba(148, 163, 184, .25));
+    opacity: .9;
+}
+
+.fx-fb__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fx-fb__btn {
+    appearance: none;
+    border: 1px solid var(--line, rgba(148, 163, 184, .22));
+    background: transparent;
+    color: inherit;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-weight: 650;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fx-fb__btn:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.fx-fb__icon {
+    font-size: 15px;
+}
+
+.fx-fb__status {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted, #64748b);
+}
+
+.fx-fb__panel {
+    margin-top: 10px;
+    border-top: 1px dashed var(--line, rgba(148, 163, 184, .25));
+    padding-top: 10px;
+}
+
+.fx-fb__panelTitle {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.fx-fb__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.fx-fb__chip {
+    border: 1px solid var(--line, rgba(148, 163, 184, .22));
+    background: transparent;
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.fx-fb__chip.is-on {
+    background: rgba(56, 189, 248, .16);
+    border-color: rgba(56, 189, 248, .42);
+}
+
+.fx-fb__comment {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 12px;
+    border: 1px solid var(--line, rgba(148, 163, 184, .22));
+    padding: 10px 12px;
+    background: transparent;
+    color: inherit;
+    outline: none;
+    resize: vertical;
+    margin-bottom: 6px;
+}
+
+.fx-fb__hint {
+    font-size: 12px;
+    color: var(--muted, #64748b);
+    margin-bottom: 8px;
+}
+
+.fx-fb__actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.fx-fb__send,
+.fx-fb__skip {
+    border-radius: 12px;
+    border: 1px solid var(--line, rgba(15, 93, 203, 0.22));
+    background: transparent;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-weight: 650;
+}
+
+.fx-fb-host.is-sent .fx-fb__btn,
+.fx-fb-host.is-sent .fx-fb__send,
+.fx-fb-host.is-sent .fx-fb__skip,
+.fx-fb.is-sent .fx-fb__btn,
+.fx-fb.is-sent .fx-fb__send,
+.fx-fb.is-sent .fx-fb__skip {
+    pointer-events: none;
+    opacity: .85;
+}
+
+
+/* =========================================================
+   Feedback chips visibility fix (dark/light contrast)
+   ========================================================= */
+
+/* 기본(라이트 포함): 칩 배경을 살짝 채워서 텍스트 대비 확보 */
+.fx-fb__chip {
+    background: rgba(15, 23, 42, .06);
+    color: var(--ink, #0f172a);
+}
+
+/* hover/focus도 대비 확보 */
+.fx-fb__chip:hover {
+    background: rgba(15, 23, 42, .10);
+}
+
+.fx-fb__chip:focus-visible {
+    outline: 2px solid rgba(56, 189, 248, .55);
+    outline-offset: 2px;
+}
+
+/* 다크 모드: 칩 배경/텍스트를 확실히 지정 */
+html[data-theme="dark"] .fx-fb__chip {
+    background: rgba(148, 163, 184, .14);
+    color: rgba(248, 250, 252, .92);
+    border-color: rgba(148, 163, 184, .32);
+}
+
+html[data-theme="dark"] .fx-fb__chip:hover {
+    background: rgba(148, 163, 184, .22);
+}
+
+/* 선택된 칩은 더 선명하게 */
+.fx-fb__chip.is-on {
+    background: rgba(56, 189, 248, .18);
+    border-color: rgba(56, 189, 248, .55);
+    color: var(--ink, #0f172a);
+}
+
+html[data-theme="dark"] .fx-fb__chip.is-on {
+    background: rgba(56, 189, 248, .22);
+    border-color: rgba(56, 189, 248, .65);
+    color: rgba(248, 250, 252, .96);
+}
+
+/* =========================================================
+   FIX: 피드백 위젯의 "피드백 없이 전송" / "전송" 버튼이
+   너무 하얘서 글씨가 안 보이는 문제
+   - submit 버튼은 강한 대비(진한 배경 + 흰 글씨)
+   - skip(피드백 없이) 류는 연한 배경 + 진한 글씨
+   ========================================================= */
+
+/* 1) 전송(Submit) */
+.fx-fb button[type="submit"],
+.fx-fb input[type="submit"] {
+    background: rgba(15, 23, 42, .92) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(148, 163, 184, .22) !important;
+    border-radius: 14px !important;
+    padding: 10px 12px !important;
+}
+
+/* 2) 피드백 없이 전송(보통 button) — 아래 셀렉터는 “있으면 적용” */
+.fx-fb .fx-fb__skip,
+.fx-fb button[data-fb-skip],
+.fx-fb button[data-skip],
+.fx-fb button.skip-btn {
+    background: rgba(148, 163, 184, .16) !important;
+    color: rgba(15, 23, 42, .92) !important;
+    border: 1px solid rgba(148, 163, 184, .22) !important;
+    border-radius: 14px !important;
+    padding: 10px 12px !important;
+}
+
+/* 다크 모드 보정 */
+html[data-theme="dark"] .fx-fb button[type="submit"],
+html[data-theme="dark"] .fx-fb input[type="submit"] {
+    background: rgba(255, 255, 255, .10) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(148, 163, 184, .18) !important;
+}
+
+html[data-theme="dark"] .fx-fb .fx-fb__skip,
+html[data-theme="dark"] .fx-fb button[data-fb-skip],
+html[data-theme="dark"] .fx-fb button[data-skip],
+html[data-theme="dark"] .fx-fb button.skip-btn {
+    background: rgba(255, 255, 255, .08) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(148, 163, 184, .18) !important;
+}

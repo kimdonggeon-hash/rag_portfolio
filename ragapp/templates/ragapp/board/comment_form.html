@@ -1,0 +1,61 @@
+{% extends "ragapp/board/board_base.html" %}
+
+{% block content %}
+<section class="board-section">
+  <div class="board-card confirm-card">
+    <div class="confirm-head">
+      <div>
+        <div class="confirm-title">댓글 수정</div>
+        <div class="confirm-sub">
+          {% if post %}{{ post.title }}{% else %}원문 게시글{% endif %}
+        </div>
+      </div>
+      <span class="chip chip-cat">edit</span>
+    </div>
+
+    {% if err %}
+      <div class="board-alert is-danger">{{ err }}</div>
+    {% endif %}
+
+    {% if needs_guest_auth %}
+      <div style="text-align:center;margin:10px 0 2px;">
+        <span class="chip chip-warn">비회원 댓글은 이름/비밀번호가 일치해야 수정할 수 있어요.</span>
+      </div>
+    {% endif %}
+
+    <form method="post" class="board-form" style="margin-top:12px;">
+      {% csrf_token %}
+
+      {% if needs_guest_auth %}
+        <div class="board-form-card" style="margin-bottom:12px;">
+          <div class="board-field">
+            <label class="board-label" for="id_guest_name">비회원 이름</label>
+            <input id="id_guest_name" class="board-control" name="guest_name"
+                   placeholder="작성할 때 입력한 이름" autocomplete="off" required />
+          </div>
+
+          <div class="board-field" style="margin-top:10px;">
+            <label class="board-label" for="id_guest_pw">비회원 비밀번호</label>
+            <input id="id_guest_pw" class="board-control" name="guest_pw" type="password"
+                   placeholder="작성할 때 입력한 비밀번호" autocomplete="current-password" required />
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="board-form-card">
+        <div class="board-field">
+          <label class="board-label" for="id_body">내용</label>
+          <textarea id="id_body" name="body" class="board-control" rows="6"
+                    style="min-height:180px;resize:vertical;"
+                    required>{{ comment.body }}</textarea>
+        </div>
+      </div>
+
+      <div class="board-form-actions">
+        <a class="qa-launch-btn is-ghost" href="{% url 'board:detail' post.pk %}#c{{ comment.pk }}">취소</a>
+        <button class="board-btn is-primary" type="submit">수정 저장</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

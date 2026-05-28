@@ -15,7 +15,8 @@ try:
     from vertexai.generative_models import GenerativeModel, GenerationConfig
 except Exception:  # vertexai 미설치 대비
     vertexai = None
-    GenerativeModel = None
+    GenerativeModel = None  # type: ignore[assignment]
+    GenerationConfig = None  # type: ignore[assignment]
 
 try:
     from google.oauth2 import service_account
@@ -25,6 +26,10 @@ except Exception:  # pragma: no cover
 
 class VertexNotConfiguredError(RuntimeError):
     """Vertex 설정/라이브러리 문제용 예외"""
+
+
+class VertexEmptyOutputError(RuntimeError):
+    """Vertex가 텍스트(parts) 없이 빈 응답을 반환한 경우"""
 
 
 _vertex_initialized = False
@@ -76,7 +81,7 @@ def _ensure_vertex() -> None:
     """vertexai.init 1번만 호출 + JSON 기반 자격 증명 지원."""
     global _vertex_initialized
 
-    if vertexai is None or GenerativeModel is None:
+    if vertexai is None or GenerativeModel is None or GenerationConfig is None:
         raise VertexNotConfiguredError(
             "vertexai 라이브러리가 없습니다. "
             "터미널에서 'pip install google-cloud-aiplatform' 실행 후 서버를 다시 켜 주세요."
@@ -106,6 +111,49 @@ def _ensure_vertex() -> None:
 AnswerMode = Literal["summary", "table"]
 
 
+def _safe_resp_text(resp) -> Optional[str]:
+    """
+    resp.text는 프로퍼티라서 예외를 던질 수 있음.
+    (parts가 비어있거나 safety로 막히면 여기서 터지는 케이스가 있음)
+    """
+    try:
+        t = resp.text  # type: ignore[attr-defined]
+        return t if t else None
+    except Exception as e:
+        log.warning("Vertex resp.text 추출 실패(무시하고 candidates로 fallback): %s", e)
+        return None
+
+
+def _collect_candidate_text(resp) -> str:
+    """
+    candidates[0].content.parts[].text를 모아서 하나의 문자열로 합친다.
+    (첫 후보만 사용)
+    """
+    cands = getattr(resp, "candidates", None) or []
+    if not cands:
+        return ""
+    cand = cands[0]
+    content = getattr(cand, "content", None)
+    parts = getattr(content, "parts", None) or []
+    chunks: list[str] = []
+    for p in parts:
+        t = getattr(p, "text", None)
+        if t:
+            chunks.append(t)
+    return "\n".join(chunks).strip()
+
+
+def _first_finish_reason(resp) -> str:
+    try:
+        cands = getattr(resp, "candidates", None) or []
+        if not cands:
+            return ""
+        fr = getattr(cands[0], "finish_reason", "")
+        return str(fr) if fr is not None else ""
+    except Exception:
+        return ""
+
+
 def summarize_pdf_text_with_vertex(
     text: str,
     question: str | None = None,
@@ -132,7 +180,7 @@ def summarize_pdf_text_with_vertex(
     model_name = (
         getattr(settings, "VERTEX_TEXT_MODEL", None)
         or os.getenv("VERTEX_TEXT_MODEL")
-        or "gemini-1.5-pro"
+        or "gemini-2.5-flash"
     )
     model = GenerativeModel(model_name)
 
@@ -166,21 +214,27 @@ def summarize_pdf_text_with_vertex(
 
     gen_config = GenerationConfig(
         temperature=0.3 if mode == "table" else 0.5,
-        max_output_tokens=1024,
+        max_output_tokens=2048,
     )
 
     resp = model.generate_content(prompt, generation_config=gen_config)
 
-    # 최신 vertexai SDK 기준 .text 가 있으면 그걸 우선, 없으면 candidates에서 모으기
-    answer = getattr(resp, "text", None)
-    if not answer and getattr(resp, "candidates", None):
-        chunks: list[str] = []
-        for cand in resp.candidates:
-            parts = getattr(getattr(cand, "content", None), "parts", []) or []
-            for p in parts:
-                t = getattr(p, "text", None)
-                if t:
-                    chunks.append(t)
-        answer = "\n".join(chunks)
+    # 1) resp.text는 예외가 날 수 있으니 안전하게
+    answer = _safe_resp_text(resp)
 
-    return (answer or "").strip()
+    # 2) 없으면 candidates에서 텍스트 모으기
+    if not answer:
+        answer2 = _collect_candidate_text(resp)
+        answer = answer2 if answer2 else None
+
+    # 3) 그래도 비면: 빈 응답(차단/빈 parts/토큰종료 등)
+    if not answer:
+        fr = _first_finish_reason(resp)
+        usage = getattr(resp, "usage_metadata", None)
+        log.warning(
+            "Vertex 빈 응답 반환 (finish_reason=%s, usage=%s, model=%s)",
+            fr, usage, model_name
+        )
+        raise VertexEmptyOutputError(f"empty output (finish_reason={fr})")
+
+    return answer.strip()

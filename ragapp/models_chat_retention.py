@@ -1,6 +1,8 @@
 # ragapp/models_chat_retention.py
 from __future__ import annotations
 
+import re
+from django.core.cache import cache
 from datetime import timedelta
 from django.conf import settings
 from django.db import models
@@ -25,10 +27,72 @@ def compute_purge_at(created_at, retention_class: str):
     return created_at + timedelta(days=retention_days_for(retention_class))
 
 
+_ABUSE_CACHE_KEY = "livechat_abuse_patterns_v1"
+_ABUSE_CACHE_TTL = 60  # 초 (너무 길게 잡지 말기)
+
+def _load_abuse_patterns():
+    """
+    returns: list of (pattern:str, use_regex:bool, kind:str)
+    """
+    cached = cache.get(_ABUSE_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    rows = []
+    try:
+        # DB 금지어
+        rows.extend(
+            list(
+                LiveChatAbuseKeyword.objects.filter(is_active=True)
+                .values_list("pattern", "use_regex", "kind")
+            )
+        )
+    except Exception:
+        # DB 조회 실패해도 서비스는 돌아가게(차단은 consumers에서 1차로 또 함)
+        rows = []
+
+    # (선택) settings fallback도 섞고 싶으면 유지
+    for kw in (getattr(settings, "ABUSE_KEYWORDS", []) or []):
+        if kw:
+            rows.append((str(kw), False, "abuse"))
+
+    cache.set(_ABUSE_CACHE_KEY, rows, _ABUSE_CACHE_TTL)
+    return rows
+
+
+def detect_abuse(text: str):
+    """
+    returns: (hit:bool, kind:str|None, matched_pattern:str|None)
+    """
+    t = (text or "").strip()
+    if not t:
+        return False, None, None
+
+    low = t.lower()
+    for pat, use_regex, kind in (_load_abuse_patterns() or []):
+        if not pat:
+            continue
+
+        try:
+            if use_regex:
+                if re.search(pat, t, flags=re.IGNORECASE):
+                    return True, (kind or "abuse"), pat
+            else:
+                if str(pat).lower() in low:
+                    return True, (kind or "abuse"), str(pat)
+        except re.error:
+            # 잘못된 정규식은 무시
+            continue
+        except Exception:
+            continue
+
+    return False, None, None
+
+
 def is_abusive_text(text: str) -> bool:
-    kws = getattr(settings, "ABUSE_KEYWORDS", []) or []
-    t = (text or "").lower()
-    return any((kw or "").lower() in t for kw in kws)
+    hit, _, _ = detect_abuse(text)
+    return hit
+
 
 
 class LiveChatMessage(models.Model):
@@ -60,11 +124,16 @@ class LiveChatMessage(models.Model):
             self.purge_at = compute_purge_at(self.created_at, self.retention_class)
 
     def save(self, *args, **kwargs):
-        # 자동 탐지: NORMAL인데 욕설 키워드 매칭되면 ABUSE로 승격 (키워드 비었으면 아무 일도 없음)
-        if self.retention_class == RetentionClass.NORMAL and is_abusive_text(self.content):
-            self.retention_class = RetentionClass.ABUSE
-            self.flagged_at = self.flagged_at or timezone.now()
-            self.flag_reason = self.flag_reason or "auto:keyword"
+        if self.retention_class == RetentionClass.NORMAL:
+            hit, kind, pat = detect_abuse(self.content)
+            if hit:
+                self.retention_class = RetentionClass.ABUSE
+                self.flagged_at = self.flagged_at or timezone.now()
+                # kind/pattern 남겨두면 나중에 증빙/분석이 편함
+                if not self.flag_reason:
+                    k = kind or "abuse"
+                    p = (pat or "match")[:80]
+                    self.flag_reason = f"auto:{k}:{p}"
 
         self.apply_retention(force=False)
         super().save(*args, **kwargs)
@@ -112,12 +181,19 @@ class PurgeRun(models.Model):
     note = models.TextField(blank=True, default="")
 
 class LiveChatAbuseKeyword(models.Model):
-    """
-    상담 욕설/금지어 키워드
-    - pattern: 단순 포함 키워드 또는 정규식 패턴
-    - use_regex: True면 pattern을 정규식으로 사용
-    - is_active: 사용 여부
-    """
+    KIND_CHOICES = [
+        ("abuse", "욕설/모욕"),
+        ("sexual", "성희롱"),
+    ]
+
+    kind = models.CharField(
+        "분류",
+        max_length=16,
+        choices=KIND_CHOICES,
+        default="abuse",
+        db_index=True,
+    )
+
     pattern = models.CharField(
         "금지어 (키워드 또는 정규식)",
         max_length=128,
@@ -132,6 +208,7 @@ class LiveChatAbuseKeyword(models.Model):
     is_active = models.BooleanField(
         "사용 여부",
         default=True,
+        db_index=True,
     )
     note = models.CharField(
         "메모",
@@ -145,5 +222,17 @@ class LiveChatAbuseKeyword(models.Model):
         verbose_name = "상담 욕설/금지어"
         verbose_name_plural = "상담 욕설/금지어 목록"
 
-    def __str__(self) -> str:  # type: ignore[override]
-        return self.pattern
+    def __str__(self) -> str:
+        return f"[{self.kind}] {self.pattern}"
+
+# ✅ 추가: 기존 코드 호환용 alias 모델 (DB 테이블 추가 없음)
+class LiveChatBlockPattern(LiveChatAbuseKeyword):
+    """
+    호환용 이름.
+    기존 코드에서 LiveChatBlockPattern을 import해도 깨지지 않게 유지.
+    실제 데이터는 LiveChatAbuseKeyword 테이블을 그대로 사용.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = "상담 차단 패턴"
+        verbose_name_plural = "상담 차단 패턴 목록"

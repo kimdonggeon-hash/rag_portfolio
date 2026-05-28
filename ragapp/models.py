@@ -1,13 +1,13 @@
 # ragapp/models.py
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
+import secrets
 
 from django.conf import settings
-import secrets
 from django.db import models
 from django.utils import timezone
-from django.utils.crypto import get_random_string
+from .moderation_models import UserPenalty, ImageUploadRequest 
 
 # ✅ LiveChatMessage/ChatEvidence 등은 "한 곳(models_chat_retention.py)"에서만 정의하고
 #   여기서는 import 해서 ragapp.models 네임스페이스로 재-export 한다.
@@ -15,6 +15,8 @@ from .models_chat_retention import (  # noqa: F401
     LiveChatMessage,
     ChatEvidence,
     PurgeRun,
+    LiveChatAbuseKeyword,
+    LiveChatBlockPattern,   # ✅ 추가
     RetentionClass,
     compute_purge_at,
 )
@@ -41,6 +43,11 @@ def _compute_delete_at(created_at, days: int):
     if not created_at or not days or days <= 0:
         return None
     return created_at + timedelta(days=days)
+
+
+def _thumb_bool_or_none(v) -> str:
+    # 👍 True / 👎 False / · None
+    return "👍" if v is True else ("👎" if v is False else "·")
 
 
 # ============================================================================
@@ -212,7 +219,7 @@ class ConsentLog(models.Model):
 
     def __str__(self):
         ts = timezone.localtime(self.created_at).strftime("%Y-%m-%d %H:%M")
-        return f"[self.consent_type/{self.version}] {self.session_key[:8]}… @ {ts}"
+        return f"[{self.consent_type}/{self.version}] {self.session_key[:8]}… @ {ts}"
 
     def save(self, *args, **kwargs):
         if not self.delete_at and not self.legal_hold:
@@ -248,7 +255,6 @@ class ChatQueryLog(models.Model):
     ]
 
     ROLE_CHOICES = [("user", "사용자"), ("assistant", "봇/상담원"), ("system", "시스템")]
-
     MESSAGE_TYPE_CHOICES = [("query", "질문"), ("answer", "답변"), ("note", "노트/코멘트"), ("error", "에러")]
 
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
@@ -270,11 +276,21 @@ class ChatQueryLog(models.Model):
         help_text="메시지가 생성된 채널(위젯/실시간콘솔/API 등)",
     )
 
-    mode = models.CharField(max_length=20, choices=MODE_CHOICES, help_text="어떤 엔진 또는 단계가 최종 응답했는지", db_index=True)
+    mode = models.CharField(
+        max_length=20,
+        choices=MODE_CHOICES,
+        help_text="어떤 엔진 또는 단계가 최종 응답했는지",
+        db_index=True,
+    )
 
     role = models.CharField(max_length=16, choices=ROLE_CHOICES, blank=True, default="user", db_index=True)
-
-    message_type = models.CharField(max_length=16, choices=MESSAGE_TYPE_CHOICES, blank=True, default="query", db_index=True)
+    message_type = models.CharField(
+        max_length=16,
+        choices=MESSAGE_TYPE_CHOICES,
+        blank=True,
+        default="query",
+        db_index=True,
+    )
 
     question = models.TextField(help_text="사용자가 실제로 입력한 질문 원문")
 
@@ -433,7 +449,7 @@ class QaragFeedback(models.Model):
         base_q = (self.question or "").strip().replace("\n", " ")
         if len(base_q) > 50:
             base_q = base_q[:50] + "..."
-        thumb = "👍" if self.is_helpful else "👎"
+        thumb = _thumb_bool_or_none(self.is_helpful)
         return f"[QARAG/{thumb}] {base_q}"
 
     def save(self, *args, **kwargs):
@@ -577,7 +593,7 @@ class AuditEvent(models.Model):
 
 
 # ============================================================================
-# 법 관련 설정 + HTML sanitize 유틸
+# 법 관련 설정 + HTML sanitize 유틸  (✅ LegalConfig 단일 정의)
 # ============================================================================
 def sanitize_legal_html(value: str) -> str:
     if not value:
@@ -586,27 +602,11 @@ def sanitize_legal_html(value: str) -> str:
         import bleach  # type: ignore
 
         allowed_tags = [
-            "a",
-            "b",
-            "strong",
-            "i",
-            "em",
-            "u",
-            "br",
-            "p",
-            "ul",
-            "ol",
-            "li",
-            "h2",
-            "h3",
-            "h4",
-            "h5",
-            "h6",
-            "code",
-            "pre",
-            "blockquote",
-            "span",
-            "div",
+            "a", "b", "strong", "i", "em", "u", "br",
+            "p", "ul", "ol", "li",
+            "h2", "h3", "h4", "h5", "h6",
+            "code", "pre", "blockquote",
+            "span", "div",
         ]
         allowed_attrs = {"a": ["href", "title", "target", "rel"], "span": ["data-bind"], "div": ["data-bind"]}
         return bleach.clean(value, tags=allowed_tags, attributes=allowed_attrs, strip=True)
@@ -614,21 +614,71 @@ def sanitize_legal_html(value: str) -> str:
         return value
 
 
+def default_overseas_transfers():
+    # DB에 기본값 1행(템플릿 하드코딩 제거용)
+    return [{
+        "recipient": "Google Cloud (Cloud Run / Cloud SQL / Vertex AI)",
+        "country": "국외(데이터센터 위치는 공급자 정책 및 운영 상황에 따름)",
+        "timing_method": "서비스 이용 시 네트워크를 통해 전송·처리(필요 시 저장)",
+        "items": "서비스 입력/업로드 데이터 및 운영에 필요한 최소 정보",
+        "purpose": "기능 제공(검색/요약/RAG), 오류·장애 분석, 보안 모니터링",
+        "retention": "서비스 정책 및 공급자 정책/설정에 따름(예: 기본 {retention_days}일)",
+        "refusal": "국외이전 관련 문의: {contact_email}",
+    }]
+
+
 class LegalConfig(models.Model):
+    # ── 기본 정보 ──
     service_name = models.CharField(max_length=120, blank=True, default="")
-    effective_date = models.DateField(blank=True, null=True)
 
     operator_name = models.CharField(max_length=120, blank=True, default="")
     contact_email = models.EmailField(blank=True, default="")
     contact_phone = models.CharField(max_length=50, blank=True, default="")
+    contact_link = models.URLField(blank=True, default="")
 
+    # ── 동의 게이트 ──
     consent_gate_enabled = models.BooleanField(default=True)
 
+    # ── 약관/테스터 버전/시행일 ──
+    tos_version = models.CharField(max_length=32, default="v1.0", blank=True)
+    tos_effective_date = models.DateField(null=True, blank=True)
+
+    tester_version = models.CharField(max_length=32, default="v1.0", blank=True)
+    tester_effective_date = models.DateField(null=True, blank=True)
+
+    # ── 정책 문장(운영자 즉시 수정) ──
+    policy_minimization = models.TextField(
+        blank=True,
+        default=(
+            "본 서비스는 개인정보 최소 수집을 원칙으로 하며, 이용자가 개인정보를 입력·업로드하지 않도록 안내합니다. "
+            "원문 저장은 최소화하고 가능하면 요약/메타데이터 중심으로 처리합니다."
+        ),
+    )
+    policy_processing_location = models.TextField(
+        blank=True,
+        default=(
+            "본 서비스는 클라우드 인프라 및 AI API를 활용하여 처리하며, 처리 위치(리전/국가)는 공급자 정책 및 운영 상황에 따라 변동될 수 있습니다. "
+            "중요 변경사항은 본 문서를 통해 갱신 고지합니다."
+        ),
+    )
+    policy_change_note = models.TextField(
+        blank=True,
+        default=(
+            "기술적 구성(저장 방식, 처리 흐름, 로그 항목 등)은 보안/안정성/비용 최적화를 위해 변경될 수 있으며, "
+            "변경 시 개인정보 보호 원칙(최소 수집, 목적 제한, 보관기간 준수)을 우선합니다."
+        ),
+    )
+
+    # ── 국외이전 표(JSON) ──
+    overseas_transfers = models.JSONField(default=default_overseas_transfers, blank=True)
+
+    # ── 문서 HTML(기존 유지) ──
     guide_html = models.TextField(blank=True, default="")
     privacy_html = models.TextField(blank=True, default="")
     cross_border_html = models.TextField(blank=True, default="")
     tester_html = models.TextField(blank=True, default="")
 
+    # ── 시각 ──
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -637,7 +687,8 @@ class LegalConfig(models.Model):
         verbose_name_plural = "법적 설정"
 
     def __str__(self):
-        return f"[법적설정] {self.service_name} ({self.effective_date})"
+        d = self.tester_effective_date or self.tos_effective_date
+        return f"[법적설정] {self.service_name} ({d})"
 
     @property
     def sanitized_privacy_html(self) -> str:
@@ -659,6 +710,9 @@ class LegalConfig(models.Model):
         return cls.objects.create()
 
 
+# ============================================================================
+# RAG Chunk / 업로드 자산
+# ============================================================================
 class RagChunk(models.Model):
     id = models.BigAutoField(primary_key=True)
     unique_hash = models.CharField(max_length=64, unique=True, db_index=True)
@@ -709,6 +763,9 @@ class TableDataset(models.Model):
         return f"{self.table_name} ({self.csv.name})"
 
 
+# ============================================================================
+# 실시간 상담
+# ============================================================================
 class LiveChatRoom(models.Model):
     STATUS_CHOICES = [("waiting", "대기"), ("active", "진행 중"), ("closed", "종료")]
 
@@ -803,9 +860,6 @@ class LiveChatSession(models.Model):
     def __str__(self) -> str:
         return f"LiveChatSession(id={self.id}, room={self.room}, status={self.status})"
 
-    # ─────────────────────────────────────────
-    # 상태 전이 헬퍼
-    # ─────────────────────────────────────────
     def mark_waiting(self):
         self.status = self.Status.WAITING
         if not self.requested_at:
@@ -830,9 +884,8 @@ class LiveChatSession(models.Model):
 
     @property
     def status_priority(self) -> int:
-        # 정렬용 우선순위 (기록 필요/진행중/대기/기록완료 순)
         return {
-            self.Status.ENDED: 0,   # 종료(기록 필요)
+            self.Status.ENDED: 0,  # 종료(기록 필요)
             self.Status.ACTIVE: 1,
             self.Status.WAITING: 2,
             self.Status.DONE: 3,
@@ -841,25 +894,18 @@ class LiveChatSession(models.Model):
 
     @property
     def note(self) -> str:
-        # 예전 템플릿/코드에서 note를 쓰던 경우 대응
         return (self.session_note or "").strip() or (self.memo or "").strip()
 
     def get_session_type_display(self) -> str:
-        # choices 없어도 템플릿에서 안전하게 라벨 표시
         v = (self.session_type or "").strip()
         return self.SESSION_TYPE_LABELS.get(v, v)
 
-    # ─────────────────────────────────────────
-    # code 자동 발급 (충돌 방지 + update_fields 대응)
-    # ─────────────────────────────────────────
     def _gen_code(self) -> str:
         return "lc-" + secrets.token_hex(4)
 
     def save(self, *args, **kwargs):
         if not self.code:
             Model = type(self)
-
-            # 충돌 가능성 거의 없지만 “진짜로” 안전하게
             for _ in range(8):
                 cand = self._gen_code()
                 if not Model.objects.filter(code=cand).exists():
@@ -868,7 +914,6 @@ class LiveChatSession(models.Model):
             else:
                 self.code = "lc-" + secrets.token_hex(8)
 
-            # update_fields로 저장하는 경우 code도 같이 포함시켜 유실 방지
             uf = kwargs.get("update_fields")
             if uf is not None:
                 kwargs["update_fields"] = list(set(uf) | {"code"})
@@ -876,10 +921,9 @@ class LiveChatSession(models.Model):
         super().save(*args, **kwargs)
 
 
-# ✅✅✅ LiveChatMessage 모델은 여기서 정의하지 않는다.
-# (models_chat_retention.py 의 LiveChatMessage 하나만 사용)
-
-
+# ============================================================================
+# 표/테이블 검색
+# ============================================================================
 class TableSchema(models.Model):
     table_name = models.CharField(max_length=128, unique=True)
     columns = models.JSONField(default=list)
@@ -911,7 +955,7 @@ class TableSearchRule(models.Model):
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "표 검색 규칙"
@@ -923,6 +967,9 @@ class TableSearchRule(models.Model):
         return f"{self.name} / {target}"
 
 
+# ============================================================================
+# 피드백(Proxy) + 통합 피드백 로그
+# ============================================================================
 class WebFeedback(Feedback):
     class Meta:
         proxy = True
@@ -993,7 +1040,7 @@ class FeedbackReview(models.Model):
 
     resolved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("-feedback__created_at",)
@@ -1008,6 +1055,9 @@ class FeedbackReview(models.Model):
         return f"Review #{self.pk} for #{self.feedback_id}"
 
 
+# ============================================================================
+# 앱 로그 / 사용량 카운트
+# ============================================================================
 class AppLog(models.Model):
     LEVEL_CHOICES = [("DEBUG", "DEBUG"), ("INFO", "INFO"), ("WARN", "WARN"), ("ERROR", "ERROR")]
 
@@ -1026,7 +1076,104 @@ class AppLog(models.Model):
         return f"[{self.created_at:%Y-%m-%d %H:%M:%S}] {self.level} {self.component}: {self.message[:50]}"
 
 
-try:
-    from .models_chat_retention import LiveChatMessage  # noqa: F401
-except Exception:
-    pass
+class DailyUsage(models.Model):
+    date = models.DateField()
+    client_key = models.CharField(max_length=200)
+
+    web_count = models.PositiveIntegerField(default=0)
+    rag_count = models.PositiveIntegerField(default=0)
+    pdf_count = models.PositiveIntegerField(default=0)
+    image_count = models.PositiveIntegerField(default=0)
+    table_count = models.PositiveIntegerField(default=0)
+
+    # ✅ 추가: 어드민 사용량(제한 없이 누적)
+    admin_count = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("date", "client_key")
+        indexes = [models.Index(fields=["date", "client_key"])]
+
+    def __str__(self) -> str:
+        return f"{self.date} {self.client_key}"
+
+
+class DailyUsageCounter(models.Model):
+    """
+    하루 단위 사용량 카운터 (완전 하드 제한용)
+
+    - date: YYYY-MM-DD (Asia/Seoul 기준)
+    - key : 유저 식별용 해시( IP + UA + secret 기반 )
+    - kind: web / rag / pdf
+    - used: 오늘 사용한 횟수
+    """
+
+    KIND_CHOICES = [
+        ("web", "웹 검색"),
+        ("rag", "RAG 질문"),
+        ("pdf", "PDF 분석"),
+        ("image", "이미지 검색"),
+        ("table", "표 검색"), 
+    ]
+
+    date = models.DateField(db_index=True)
+    key = models.CharField(max_length=64, db_index=True)
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    used = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("date", "key", "kind")
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.date} {self.key} {self.kind}={self.used}"
+
+
+# ============================================================================
+# 이미지 확장
+# ============================================================================
+class ImageAsset(models.Model):
+    pid = models.CharField(max_length=128, unique=True, db_index=True)
+    storage_key = models.CharField(max_length=512, unique=True, db_index=True)
+
+    caption = models.TextField(blank=True, default="")
+    tags = models.TextField(blank=True, default="")       # 공백/쉼표 구분 문자열로 단순 운영
+    search_text = models.TextField(blank=True, default="")
+
+    orig_name = models.CharField(max_length=255, blank=True, default="")
+    mime = models.CharField(max_length=120, blank=True, default="")
+    sha16 = models.CharField(max_length=32, blank=True, default="")
+
+    is_deleted = models.BooleanField(default=False)       # soft delete(선택)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["updated_at"]),
+            models.Index(fields=["is_deleted", "updated_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.pid} {self.storage_key}"
+
+
+# ============================================================================
+# 자동삭제 감사 로그(커맨드에서 남길 용도)
+# ============================================================================
+class PurgeAuditLog(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    model_label = models.CharField(max_length=200)  # 예: "ragapp.ChatQueryLog"
+    action = models.CharField(max_length=20)  # "delete" | "soft_delete"
+    cutoff_at = models.DateTimeField()  # 기준 시각(이전 데이터 삭제)
+    retention_days = models.IntegerField(default=0)
+    target_rows = models.IntegerField(default=0)  # 삭제 대상 row 수(추정)
+    deleted_rows = models.IntegerField(default=0)  # delete() 결과(연쇄삭제 포함될 수 있음)
+    note = models.CharField(max_length=400, blank=True, default="")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["model_label"]),
+        ]

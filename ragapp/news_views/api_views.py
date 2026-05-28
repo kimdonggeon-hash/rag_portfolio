@@ -12,6 +12,13 @@ from urllib.parse import urlparse
 
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from ragapp.decorators_staff_api import staff_api_required
+from django.views.decorators.csrf import csrf_protect
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from ragapp.utils.pii_guard import detect_pii, redact_pii
+from ragapp.services.usage_limiter import check_and_increment_usage
+from ragapp.services.vdb_store import vdb_url_exists as vector_url_exists
+
 from django.conf import settings
 from django.utils import timezone
 
@@ -39,7 +46,200 @@ from ragapp.services.news_services import (
 # 변경: IP는 해싱 유틸로 통일
 from ragapp.services.utils import client_ip_for_log
 
+# ✅ 하루 사용량 제한 데코레이터
+from ragapp.decorators import quota_required
+
 log = logging.getLogger(__name__)
+
+_MEDIA_UPSERT_ERR = None
+try:
+    from ragapp.services.chroma_media import upsert_image_tags_caption
+except Exception as e:  # pragma: no cover
+    upsert_image_tags_caption = None  # type: ignore
+    _MEDIA_UPSERT_ERR = f"{e.__class__.__name__}: {e}"
+
+def _pii_block_msg(kind: str | None) -> str:
+    k = kind or "개인정보"
+    return f"개인정보({k})가 포함되어 요청을 처리할 수 없습니다. (전화번호/주민번호/주소 입력 금지)"
+
+
+def _guard_pii_or_none(q: str) -> tuple[bool, str | None]:
+    try:
+        hit = detect_pii(q)
+        if isinstance(hit, dict):
+            blocked = bool(hit.get("hit") or hit.get("blocked"))
+            kind = hit.get("kind") or hit.get("type")
+        else:
+            blocked = bool(getattr(hit, "hit", False) or getattr(hit, "blocked", False))
+            kind = getattr(hit, "kind", None) or getattr(hit, "type", None)
+        return blocked, (str(kind) if kind else None)
+    except Exception:
+        return False, None
+    
+def _norm_url_for_run(u: str) -> str:
+    """
+    run 내 중복 제거용 URL 정규화
+    - fragment 제거
+    - utm/gclid/fbclid 등 트래킹 파라미터 제거
+    - scheme/netloc 소문자(+ www 제거)
+    - query 파라미터 정렬(순서 차이 중복 방지)
+    - trailing slash 정리
+    """
+    u = (u or "").strip()
+    if not u:
+        return ""
+
+    # fragment 1차 제거(안전)
+    u = u.split("#", 1)[0].strip()
+
+    try:
+        sp = urlsplit(u)
+
+        drop = {
+            "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+            "gclid", "fbclid", "igshid", "mc_cid", "mc_eid",
+        }
+
+        scheme = (sp.scheme or "").lower()
+        netloc = (sp.netloc or "").lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+
+        path = sp.path or ""
+        if path.endswith("/") and path != "/":
+            path = path[:-1]
+
+        q = sp.query or ""
+        if q:
+            kept = [
+                (k, v)
+                for (k, v) in parse_qsl(q, keep_blank_values=True)
+                if (k or "").lower() not in drop
+            ]
+            kept.sort(key=lambda kv: (kv[0].lower(), kv[1]))  # ✅ 순서 정규화
+            q = urlencode(kept, doseq=True)
+
+        return urlunsplit((scheme, netloc, path, q, "")).strip()
+
+    except Exception:
+        # 폴백: 최소한의 정리만
+        u2 = u.split("#", 1)[0].strip()
+        if u2.endswith("/") and len(u2) > 1:
+            u2 = u2[:-1]
+        return u2
+
+
+def _s(v: Any) -> str:
+    return (str(v) if v is not None else "").strip()
+
+def _low(v: Any) -> str:
+    return _s(v).lower()
+
+def _extract_url(s: Dict[str, Any]) -> str:
+    # hits 구조가 조금 달라도 최대한 url을 찾아줌
+    return _s(
+        s.get("url")
+        or s.get("link")
+        or s.get("href")
+        or s.get("source_url")
+        or ""
+    )
+
+def _looks_meta_only(title: str, snippet: str) -> bool:
+    t = _low(title)
+    sn = _low(snippet)
+    return (
+        "meta only" in sn
+        or "[meta" in sn
+        or "fulltext=disabled" in sn
+        or "meta only" in t
+        or "fulltext=disabled" in t
+    )
+
+def _is_bad_rag_source(s: Any) -> bool:
+    """
+    '근거가 이상하게 보이면 차라리 안 보이게' 라는 목표에 맞춘 강한 필터.
+    """
+    if not isinstance(s, dict):
+        return True
+
+    title = _s(s.get("title"))
+    snippet = _s(s.get("snippet"))
+    url = _extract_url(s)
+
+    t = _low(title)
+    u = _low(url)
+    sn = _low(snippet)
+    src = _low(s.get("source"))
+
+    # 1) 네가 보여준 “RAG 소개/seed/example.local” 류는 제거
+    if "rag 소개" in t or "rag-intro" in u:
+        return True
+    if "example.local" in u:
+        return True
+    if src == "seed":
+        # seed 전체를 근거에서 빼고 싶으면 유지(=True). seed도 근거로 쓰고 싶으면 이 줄 제거.
+        return True
+
+    # 2) META ONLY / fulltext=disabled 는 UI에서 “이상한 근거”의 핵심이라 제거
+    if _looks_meta_only(title, snippet):
+        return True
+
+    # 3) 너무 의미 없는 타이틀 제거
+    if t in ("manual_upload", "manual upload") and not url:
+        return True
+
+    # 4) 텍스트 자체가 거의 없으면 제거
+    if len(_s(title)) < 2 and len(_s(snippet)) < 20 and not url:
+        return True
+
+    return False
+
+def filter_rag_sources_for_ui(hits: Any, max_n: int = 20) -> List[Dict[str, Any]]:
+    """
+    api_rag_search에서 내려줄 sources를 UI-friendly하게 정리.
+    - 부적합 항목 제거
+    - url 기준 중복 제거(단, url 없으면 title+snippet로 중복 제거)
+    - 최대 max_n 개로 제한
+    """
+    if not isinstance(hits, list):
+        return []
+
+    out: List[Dict[str, Any]] = []
+    seen = set()
+
+    for s in hits:
+        if _is_bad_rag_source(s):
+            continue
+
+        if not isinstance(s, dict):
+            continue
+
+        url = _extract_url(s)
+        title = _s(s.get("title"))
+        snippet = _s(s.get("snippet"))
+
+        # ✅ 중복 키: url이 있으면 url, 없으면 title+snippet으로
+        if url:
+            key = url.lower()
+        else:
+            key = (title.lower() + "|" + snippet[:160].lower()).strip()
+
+        if not key or key in seen:
+            continue
+        seen.add(key)
+
+        # ✅ url 키를 일관되게 맞춰줌(프런트가 url만 보는 경우 대비)
+        if url and not s.get("url"):
+            s = dict(s)
+            s["url"] = url
+
+        out.append(s)
+        if len(out) >= int(max_n or 20):
+            break
+
+    return out
+
 
 
 # ---------------------------------------------------------------------
@@ -103,35 +303,109 @@ def api_ping(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def api_config(request: HttpRequest) -> JsonResponse:
+    """
+    진단용 설정 조회 API
+    - 프런트/테스터에게 필요한 값만 노출
+    - DEBUG=False(Cloud Run/제품)에서는 내부 경로는 숨김
+    """
     cfg = _get_latest_ragsetting()
-    data = {
-        "news_topk": getattr(cfg, "news_topk", None),
-        "rag_query_topk": getattr(cfg, "rag_query_topk", None),
-        "rag_fallback_topk": getattr(cfg, "rag_fallback_topk", None),
-        "rag_max_sources": getattr(cfg, "rag_max_sources", None),
-        "auto_ingest_after_gemini": getattr(cfg, "auto_ingest_after_gemini", None),
-        # 과거 호환 키(Chroma) — 값만 전달(사용 안 해도 무관)
-        "web_ingest_to_chroma": getattr(cfg, "web_ingest_to_chroma", None),
-        "chroma_db_dir": getattr(cfg, "chroma_db_dir", None),
-        "chroma_collection": getattr(cfg, "chroma_collection", None),
-        # 신규 표기(현 벡터 스토어)
-        "vector_db_path": _vector_db_path(),
+
+    def _cfg_int(attr_name: str, setting_name: str, default: int) -> int:
+        """
+        RagSetting(최신값) → settings.py → 기본값 순으로 int 설정 읽기
+        """
+        # 1) RagSetting 우선
+        try:
+            if cfg is not None:
+                v = getattr(cfg, attr_name, None)
+                if v not in (None, ""):
+                    return int(v)
+        except Exception:
+            pass
+
+        # 2) settings.py 값
+        try:
+            v2 = getattr(settings, setting_name, None)
+            if v2 not in (None, ""):
+                return int(v2)
+        except Exception:
+            pass
+
+        # 3) 기본값
+        return default
+
+    data: Dict[str, Any] = {
+        # 검색/인덱싱 파라미터 (숫자 값은 RagSetting / settings / default 순으로)
+        "news_topk": _cfg_int("news_topk", "NEWS_TOPK", 5),
+        "rag_query_topk": _cfg_int("rag_query_topk", "RAG_QUERY_TOPK", 5),
+        "rag_fallback_topk": _cfg_int("rag_fallback_topk", "RAG_FALLBACK_TOPK", 12),
+        "rag_max_sources": _cfg_int("rag_max_sources", "RAG_MAX_SOURCES", 8),
+
+        # 플래그류: RagSetting 값이 있으면 우선, 없으면 settings 값
+        "auto_ingest_after_gemini": bool(
+            getattr(
+                cfg,
+                "auto_ingest_after_gemini",
+                getattr(settings, "AUTO_INGEST_AFTER_GEMINI", True),
+            )
+        ),
+        "web_ingest_to_chroma": bool(
+            getattr(
+                cfg,
+                "web_ingest_to_chroma",
+                getattr(settings, "WEB_INGEST_TO_CHROMA", True),
+            )
+        ),
+
+        # 컬렉션 이름은 호환용으로만 노출
+        "chroma_collection": getattr(
+            cfg,
+            "chroma_collection",
+            getattr(settings, "CHROMA_COLLECTION", ""),
+        ) or "",
+
+        # 벡터 문서 수(숫자만 공개)
         "vector_count": _vector_store_count(),
     }
-    return JsonResponse({"status": "ok", "config": data})
+
+    # ⚠ 경로 정보는 DEBUG에서만 (로컬 개발/테스트용)
+    if settings.DEBUG:
+        data["chroma_db_dir"] = getattr(
+            cfg,
+            "chroma_db_dir",
+            getattr(settings, "CHROMA_DB_DIR", None),
+        )
+        data["vector_db_path"] = _vector_db_path()
+
+    return JsonResponse(
+        {"status": "ok", "config": data},
+        json_dumps_params={"ensure_ascii": False},
+    )
 
 
 @require_GET
 def api_diag(request: HttpRequest) -> JsonResponse:
-    info = {
-        # 과거 호환 필드 유지(값은 의미 없음)
+    """
+    간단 진단용 API
+    - 운영에서는 경로 노출 최소화
+    """
+    info: Dict[str, Any] = {
+        "debug": settings.DEBUG,
+        # 과거 호환용 필드
         "chroma_collection": getattr(settings, "CHROMA_COLLECTION", None),
-        "chroma_db_dir": getattr(settings, "CHROMA_DB_DIR", None),
-        # 현 사용중인 로컬 스토어 정보
-        "vector_db_path": _vector_db_path(),
         "collection_count": _vector_store_count(),
     }
-    return JsonResponse({"status": "ok", "diag": info})
+
+    # 로컬 디버깅 전용 경로 정보
+    if settings.DEBUG:
+        info["chroma_db_dir"] = getattr(settings, "CHROMA_DB_DIR", None)
+        info["vector_db_path"] = _vector_db_path()
+
+    return JsonResponse(
+        {"status": "ok", "diag": info},
+        json_dumps_params={"ensure_ascii": False},
+    )
+
 
 
 # ---------------------------------------------------------------------
@@ -333,7 +607,9 @@ def api_feedback(request: HttpRequest) -> JsonResponse:
 # ---------------------------------------------------------------------
 # (신규) 원터치 인덱싱 파이프라인: /api/ingest_news
 # ---------------------------------------------------------------------
-@require_http_methods(["GET", "POST"])
+@require_POST
+@staff_api_required
+@csrf_protect
 def api_ingest_news(request: HttpRequest) -> JsonResponse:
     client_ip = client_ip_for_log(request)
 
@@ -347,6 +623,29 @@ def api_ingest_news(request: HttpRequest) -> JsonResponse:
         return JsonResponse(
             {"status": "error", "error": "keyword 파라미터가 없습니다."},
             status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # ✅ PII 차단
+    blocked, kind = _guard_pii_or_none(keyword)
+    if blocked:
+        redacted = redact_pii(keyword)
+        _safe_log(
+            mode_text="api_ingest_news",
+            query=redacted,
+            ok_flag=False,
+            remote_addr_text=client_ip,
+            extra_payload={"code": "PII_BLOCKED", "pii_kind": kind},
+        )
+        return JsonResponse(
+            {
+                "status": "error",
+                "error": _pii_block_msg(kind),
+                "code": "PII_BLOCKED",
+                "pii_kind": kind,
+            },
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
         )
 
     cfg = _get_latest_ragsetting()
@@ -361,6 +660,8 @@ def api_ingest_news(request: HttpRequest) -> JsonResponse:
     failed_count = 0
     results_detail: List[Dict[str, Any]] = []
 
+    seen_urls: set[str] = set()  # run 내 중복 방지
+
     try:
         headlines = search_news_rss(keyword, topk)
         articles_full = crawl_news_bodies(headlines, max_workers=6)
@@ -368,67 +669,103 @@ def api_ingest_news(request: HttpRequest) -> JsonResponse:
         total_candidates = len(articles_full)
 
         for art in articles_full:
-            art_url = art.get("url") or art.get("link") or ""
-            art_title = art.get("title") or ""
-            art_body = art.get("news_body") or art.get("content") or art.get("body") or ""
+            art_url = (
+                art.get("final_url")
+                or art.get("canonical_url")
+                or art.get("url")
+                or art.get("link")
+                or art.get("original_url")
+                or ""
+            ).strip()
+            art_title = (art.get("title") or "").strip()
+            art_source = (art.get("publisher") or art.get("source") or "").strip() or "news"
+            art_published_at = (art.get("published_at") or "").strip()
 
-            if not art_url or not art_body.strip():
+            if not art_url:
                 failed_count += 1
                 results_detail.append(
-                    {
-                        "url": art_url[:1000],
-                        "status": "skip_empty",
-                        "title": art_title[:80],
-                    }
+                    {"url": "", "status": "skip_no_url", "title": (art_title[:80] if art_title else "")}
+                )
+                continue
+
+            # 1) run 내 중복 (요청 1회 실행 중 같은 URL 여러 번 뜨는 거 방지)
+            run_key = _norm_url_for_run(art_url) or art_url.split("#", 1)[0].strip()  # ✅ lower() 제거
+
+            if run_key in seen_urls:
+                skipped_count += 1
+                results_detail.append(
+                    {"url": art_url[:1000], "status": "duplicate_in_run", "title": (art_title[:80] if art_title else "")}
+                )
+                continue
+            seen_urls.add(run_key)
+
+            # 2) ✅ DB(벡터 스토어) 내 중복 (DB 규칙으로 키 통일)
+            db_key = (run_key or art_url).strip()
+
+            try:
+                if vector_url_exists(db_key):
+                    skipped_count += 1
+                    results_detail.append(
+                        {"url": art_url[:1000], "status": "duplicate_in_db", "title": (art_title[:80] if art_title else "")}
+                    )
+                    continue
+            except Exception as e:
+                results_detail.append(
+                    {"url": art_url[:1000], "status": "warn_dupcheck_failed", "error": str(e)[:200], "title": (art_title[:80] if art_title else "")}
+                )
+
+            # legal-safe: 본문 대신 preview/snippet 기반
+            preview = (art.get("news_preview") or art.get("snippet") or "").strip()
+            if not preview:
+                preview = art_title or ""
+            if not preview.strip():
+                failed_count += 1
+                results_detail.append(
+                    {"url": art_url[:1000], "status": "skip_empty", "title": (art_title[:80] if art_title else "")}
                 )
                 continue
 
             try:
                 fake_news_list = [
                     {
-                        "title": art_title,
-                        "url": art_url,
-                        "source": art.get("source", "") or "news",
-                        "published_at": art.get("published_at", ""),
-                        "snippet": (art_body[:300] or ""),
-                        "news_body": art_body,
+                        "title": art_title or art_url,
+                        "url": db_key,
+                        "source": art_source,
+                        "published_at": art_published_at,
+                        "snippet": preview[:300],
+                        "news_body": "",  # 🔒 MAX LEGAL-SAFE
                     }
                 ]
 
                 r = indexto_chroma_safe(
                     question=keyword,
-                    answer=art_title or "",
+                    answer="",  # 뉴스 meta-only에 집중
                     news_list=fake_news_list,
                 )
 
                 status = "ok"
+                inserted = None
                 if isinstance(r, dict):
-                    status = r.get("status", "ok")
+                    status = (r.get("status") or "ok")
+                    try:
+                        inserted = int(r.get("inserted")) if r.get("inserted") is not None else None
+                    except Exception:
+                        inserted = None
 
-                if status in ("ok", "new", "inserted"):
-                    ingested_count += 1
-                elif status in ("duplicate", "exists", "skipped"):
+                if inserted == 0:
                     skipped_count += 1
+                    status = "skipped"
                 else:
-                    failed_count += 1
+                    ingested_count += 1
 
                 results_detail.append(
-                    {
-                        "url": art_url[:1000],
-                        "status": status,
-                        "title": art_title[:80],
-                    }
+                    {"url": art_url[:1000], "status": status, "title": (art_title[:80] if art_title else "")}
                 )
 
             except Exception as e:
                 failed_count += 1
                 results_detail.append(
-                    {
-                        "url": art_url[:1000],
-                        "status": "error",
-                        "error": str(e)[:500],
-                        "title": art_title[:80],
-                    }
+                    {"url": art_url[:1000], "status": "error", "error": str(e)[:500], "title": (art_title[:80] if art_title else "")}
                 )
 
         ok_flag = True
@@ -437,6 +774,7 @@ def api_ingest_news(request: HttpRequest) -> JsonResponse:
         log.exception("api_ingest_news 처리 중 예외")
         error_msg = str(e)
 
+    # IngestHistory 저장
     try:
         hist = IngestHistory.objects.create(
             keyword=keyword[:500],
@@ -481,6 +819,7 @@ def api_ingest_news(request: HttpRequest) -> JsonResponse:
                 "history_id": hist_id,
             },
             status=500,
+            json_dumps_params={"ensure_ascii": False},
         )
 
     return JsonResponse(
@@ -497,6 +836,7 @@ def api_ingest_news(request: HttpRequest) -> JsonResponse:
             "detail_sample": results_detail[:5],
         },
         status=200,
+        json_dumps_params={"ensure_ascii": False},
     )
 
 
@@ -509,7 +849,33 @@ def api_news_ingest(request: HttpRequest) -> JsonResponse:
     client_ip = client_ip_for_log(request)
 
     if not q:
-        return JsonResponse({"status": "error", "error": "q 파라미터가 없습니다."}, status=400)
+        return JsonResponse(
+            {"status": "error", "error": "q 파라미터가 없습니다."},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # ✅ PII 차단 (검색/크롤/외부호출/인덱싱/로그 전에)
+    blocked, kind = _guard_pii_or_none(q)
+    if blocked:
+        redacted = redact_pii(q)
+        _safe_log(
+            mode_text="api_news_ingest",
+            query=redacted,
+            ok_flag=False,
+            remote_addr_text=client_ip,
+            extra_payload={"code": "PII_BLOCKED", "pii_kind": kind},
+        )
+        return JsonResponse(
+            {
+                "status": "error",
+                "error": _pii_block_msg(kind),
+                "code": "PII_BLOCKED",
+                "pii_kind": kind,
+            },
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
 
     cfg = _get_latest_ragsetting()
     topk = int(getattr(cfg, "news_topk", 5) or 5)
@@ -557,6 +923,7 @@ def api_news_ingest(request: HttpRequest) -> JsonResponse:
         ],
         "answer_preview": (model_answer or "")[:300],
     }
+
     _safe_log(
         mode_text="api_news_ingest",
         query=q,
@@ -573,6 +940,7 @@ def api_news_ingest(request: HttpRequest) -> JsonResponse:
                 "ingest_summary": ingest_summary,
             },
             status=500,
+            json_dumps_params={"ensure_ascii": False},
         )
 
     return JsonResponse(
@@ -590,7 +958,9 @@ def api_news_ingest(request: HttpRequest) -> JsonResponse:
                 }
                 for n in news_list_with_body[:5]
             ],
-        }
+        },
+        status=200,
+        json_dumps_params={"ensure_ascii": False},
     )
 
 
@@ -598,17 +968,56 @@ def api_news_ingest(request: HttpRequest) -> JsonResponse:
 # 2) RAG 인덱스 관련 API
 # ---------------------------------------------------------------------
 @require_POST
+@staff_api_required
+@csrf_protect
 def api_rag_upsert(request: HttpRequest) -> JsonResponse:
     client_ip = client_ip_for_log(request)
 
     try:
+        # 1) payload 파싱
         try:
-            payload = json.loads(request.body.decode("utf-8"))
+            payload = json.loads((request.body or b"").decode("utf-8") or "{}")
         except Exception:
             payload = {}
-        title = (payload.get("title") or "").strip()[:500] or "manual_upload"
-        body = (payload.get("body") or "").strip()[:200_000]
 
+        raw_title = (payload.get("title") or "").strip()
+        raw_body = (payload.get("body") or "").strip()
+
+        title = (raw_title[:500] or "manual_upload")
+        body = raw_body[:200_000]
+
+        # 2) ✅ PII 차단 (저장/임베딩/인덱싱/로그 전에)
+        blocked, kind = _guard_pii_or_none(raw_title)
+        if blocked:
+            _safe_log(
+                mode_text="api_rag_upsert",
+                query=redact_pii(title),
+                ok_flag=False,
+                remote_addr_text=client_ip,
+                extra_payload={"code": "PII_BLOCKED", "pii_kind": kind, "field": "title"},
+            )
+            return JsonResponse(
+                {"status": "error", "error": _pii_block_msg(kind), "code": "PII_BLOCKED", "pii_kind": kind},
+                status=400,
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+        blocked, kind = _guard_pii_or_none(raw_body)
+        if blocked:
+            _safe_log(
+                mode_text="api_rag_upsert",
+                query=redact_pii(title),
+                ok_flag=False,
+                remote_addr_text=client_ip,
+                extra_payload={"code": "PII_BLOCKED", "pii_kind": kind, "field": "body", "body_len": len(body)},
+            )
+            return JsonResponse(
+                {"status": "error", "error": _pii_block_msg(kind), "code": "PII_BLOCKED", "pii_kind": kind},
+                status=400,
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+        # 3) 정상 업서트
         fake_news_list = [
             {
                 "title": title,
@@ -637,7 +1046,11 @@ def api_rag_upsert(request: HttpRequest) -> JsonResponse:
             },
         )
 
-        return JsonResponse({"status": "ok", "ingest_summary": ingest_summary})
+        return JsonResponse(
+            {"status": "ok", "ingest_summary": ingest_summary},
+            status=200,
+            json_dumps_params={"ensure_ascii": False},
+        )
 
     except Exception as e:
         log.exception("api_rag_upsert 예외")
@@ -648,10 +1061,17 @@ def api_rag_upsert(request: HttpRequest) -> JsonResponse:
             remote_addr_text=client_ip,
             extra_payload={"error": str(e)},
         )
-        return JsonResponse({"status": "error", "error": f"upsert 실패: {e}"}, status=500)
+        return JsonResponse(
+            {"status": "error", "error": f"upsert 실패: {e}"},
+            status=500,
+            json_dumps_params={"ensure_ascii": False},
+        )
 
 
-@require_GET
+
+@require_POST
+@staff_api_required
+@csrf_protect
 def api_rag_seed(request: HttpRequest) -> JsonResponse:
     client_ip = client_ip_for_log(request)
 
@@ -720,22 +1140,6 @@ def api_rag_seed(request: HttpRequest) -> JsonResponse:
 # ---------------------------------------------------------------------
 @require_http_methods(["GET", "POST"])
 def api_rag_search(request: HttpRequest) -> JsonResponse:
-    """
-    RAG 검색 API
-    - GET:  /api/rag_search?q=...
-    - POST: /api/rag_search  { "q": "...", "initial_topk"?, "fallback_topk"?, "max_sources"? }
-
-    응답 형식은 예전 JS와의 호환을 위해 아래처럼 맞춘다.
-    {
-        "status": "ok",
-        "ok": true,
-        "mode": "rag",
-        "answer_type": "rag",
-        "question": "...",
-        "answer": "...",
-        "sources": [...]
-    }
-    """
     client_ip = client_ip_for_log(request)
 
     # q 파싱 (GET/POST 공통 지원)
@@ -749,7 +1153,6 @@ def api_rag_search(request: HttpRequest) -> JsonResponse:
             payload = {}
         q = (payload.get("q") or payload.get("query") or "").strip()
 
-        # 옵션 파라미터 (POST에서만 사용, 없으면 0 → 아래에서 설정 기본값으로 대체)
         def _to_int(v, default=0):
             try:
                 return int(v)
@@ -766,14 +1169,44 @@ def api_rag_search(request: HttpRequest) -> JsonResponse:
         max_sources = 0
 
     if not q:
+        return JsonResponse({"status": "error", "ok": False, "error": "q 파라미터 누락"}, status=400)
+
+    # ✅ 1) PII 먼저 차단 (quota/검색/로그 전에)
+    blocked, kind = _guard_pii_or_none(q)
+    if blocked:
+        redacted = redact_pii(q)
+        _safe_log(
+            mode_text="api_rag_search",
+            query=redacted,
+            ok_flag=False,
+            remote_addr_text=client_ip,
+            extra_payload={"code": "PII_BLOCKED", "pii_kind": kind},
+        )
         return JsonResponse(
-            {"status": "error", "ok": False, "error": "q 파라미터 누락"},
+            {"status": "error", "ok": False, "error": _pii_block_msg(kind), "code": "PII_BLOCKED", "pii_kind": kind},
             status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # ✅ 2) 그 다음 quota
+    allowed, limit, used = check_and_increment_usage(request, "rag")
+    if not allowed:
+        return JsonResponse(
+            {
+                "status": "error",
+                "ok": False,
+                "error": "오늘 사용할 수 있는 RAG 질문 횟수를 모두 사용했습니다.",
+                "code": "limit_exceeded",
+                "kind": "rag",
+                "limit": limit,
+                "used": used,
+            },
+            status=429,
+            json_dumps_params={"ensure_ascii": False},
         )
 
     cfg = _get_latest_ragsetting()
 
-    # 설정값 + 기본값 병합
     def _int_cfg(attr_name: str, setting_name: str, default: int) -> int:
         try:
             if attr_name and cfg is not None:
@@ -794,6 +1227,9 @@ def api_rag_search(request: HttpRequest) -> JsonResponse:
     if max_sources <= 0:
         max_sources = _int_cfg("rag_max_sources", "RAG_MAX_SOURCES", 8)
 
+    raw_hits = []
+    hits = []
+
     try:
         answer_text, hits = rag_answer_grounded(
             question=q,
@@ -801,12 +1237,18 @@ def api_rag_search(request: HttpRequest) -> JsonResponse:
             fallback_topk=fallback_topk,
             max_sources=max_sources,
         )
+
+        raw_hits = hits or []
+        hits = filter_rag_sources_for_ui(raw_hits, max_n=max_sources)
+
         ok_flag = True
         err_msg = None
+
     except Exception as e:
         log.exception("api_rag_search 예외")
         answer_text = ""
         hits = []
+        raw_hits = []
         ok_flag = False
         err_msg = str(e)
 
@@ -818,28 +1260,26 @@ def api_rag_search(request: HttpRequest) -> JsonResponse:
         extra_payload={
             "error_msg": err_msg,
             "answer_preview": (answer_text or "")[:400],
-            "num_hits": len(hits),
+            "num_hits_raw": (len(raw_hits) if isinstance(raw_hits, list) else None),
+            "num_hits_ui": (len(hits) if isinstance(hits, list) else None),
         },
     )
 
     if not ok_flag:
-        return JsonResponse(
-            {"status": "error", "ok": False, "error": err_msg or "rag_search 실패"},
-            status=500,
-        )
+        return JsonResponse({"status": "error", "ok": False, "error": err_msg or "rag_search 실패"}, status=500)
 
-    # 🔥 여기서 예전 구조 그대로 반환
     return JsonResponse(
         {
             "status": "ok",
             "ok": True,
-            "mode": "rag",           # 옛 JS 호환용
-            "answer_type": "rag",    # 옛 JS 호환용
+            "mode": "rag",
+            "answer_type": "rag",
             "question": q,
             "answer": answer_text,
             "sources": hits,
         },
         status=200,
+        json_dumps_params={"ensure_ascii": False},
     )
 
 
@@ -1090,6 +1530,94 @@ def api_vector_diag(_request: HttpRequest) -> JsonResponse:
     except Exception:
         cnt = None
     return JsonResponse({"status": "ok", "diag": {"db_path": db_path, "doc_count": cnt}})
+
+
+@require_POST
+def api_media_upsert(request: HttpRequest) -> JsonResponse:
+    """
+    /api/media/upsert
+    - 이미지(pid)의 caption/tags/search_text 를 Chroma 메타에 업서트
+    - 태그 기반 검색(예: '도라미')이 벡터 유사도와 무관하게 살아나게 하는 용도
+    """
+    client_ip = client_ip_for_log(request)
+
+    if upsert_image_tags_caption is None:
+        return JsonResponse(
+            {"ok": False, "error": "media_upsert_not_available", "detail": _MEDIA_UPSERT_ERR},
+            status=500,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # 1) payload 파싱
+    try:
+        if request.content_type and "application/json" in request.content_type.lower():
+            data = json.loads((request.body or b"{}").decode("utf-8") or "{}")
+        else:
+            data = request.POST.dict()
+    except Exception:
+        data = request.POST.dict()
+
+    pid = str(data.get("pid") or data.get("id") or "").strip()
+    caption = str(data.get("caption") or "").strip()
+    tags = str(data.get("tags") or data.get("tag") or "").strip()
+
+    if not pid:
+        return JsonResponse({"ok": False, "error": "pid_required"}, status=400)
+
+    # ✅ (권장) PII 차단: 태그/캡션도 저장 데이터라 동일하게 막는 게 안전
+    for field_name, value in (("caption", caption), ("tags", tags)):
+        blocked, kind = _guard_pii_or_none(value)
+        if blocked:
+            _safe_log(
+                mode_text="api_media_upsert",
+                query=f"(PII_BLOCKED:{field_name})",
+                ok_flag=False,
+                remote_addr_text=client_ip,
+                extra_payload={"code": "PII_BLOCKED", "pii_kind": kind, "field": field_name},
+            )
+            return JsonResponse(
+                {"ok": False, "error": _pii_block_msg(kind), "code": "PII_BLOCKED", "pii_kind": kind},
+                status=400,
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+    # 2) 업서트 실행
+    try:
+        r = upsert_image_tags_caption(
+            pid=pid,
+            caption=caption,
+            tags=tags,
+        )
+        ok_flag = bool(r.get("ok")) if isinstance(r, dict) else True
+
+        _safe_log(
+            mode_text="api_media_upsert",
+            query=f"pid={pid}",
+            ok_flag=ok_flag,
+            remote_addr_text=client_ip,
+            extra_payload={"pid": pid, "caption": caption[:120], "tags": tags[:200], "result": r},
+        )
+
+        return JsonResponse(
+            {"ok": ok_flag, "pid": pid, "result": r},
+            status=200 if ok_flag else 404,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    except Exception as e:
+        log.exception("api_media_upsert 실패")
+        _safe_log(
+            mode_text="api_media_upsert",
+            query=f"pid={pid}",
+            ok_flag=False,
+            remote_addr_text=client_ip,
+            extra_payload={"error": str(e)},
+        )
+        return JsonResponse(
+            {"ok": False, "error": "media_upsert_failed", "detail": str(e)},
+            status=500,
+            json_dumps_params={"ensure_ascii": False},
+        )
 
 
 # ---------------------------------------------------------------------

@@ -1,0 +1,363 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>잠시 후 다시 접속해 주세요</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  {% include "ragapp/partials/favicon.html" %}
+  
+  <style>
+    :root{
+      --bg: #020617;
+      --bg-soft: radial-gradient(circle at top, rgba(56,189,248,.22), transparent 55%), #020617;
+      --card: rgba(15,23,42,.94);
+      --border: rgba(148,163,184,.38);
+      --accent: #38bdf8;
+      --accent-soft: rgba(56,189,248,.16);
+      --accent-strong: #0ea5e9;
+      --ink: #e5e7eb;
+      --muted: #9ca3af;
+      --danger: #fb7185;
+      --radius-lg: 22px;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+
+    body{
+      min-height:100vh;
+      margin:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px 16px;
+      background:var(--bg-soft);
+      color:var(--ink);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Noto Sans KR",sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    .shell{
+      width:100%;
+      max-width:520px;
+    }
+
+    .logo-mark{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom:10px;
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .logo-dot{
+      width:9px;height:9px;
+      border-radius:999px;
+      background:var(--accent);
+      box-shadow:0 0 0 6px var(--accent-soft);
+    }
+
+    .card{
+      position:relative;
+      border-radius:var(--radius-lg);
+      background:var(--card);
+      border:1px solid var(--border);
+      padding:22px 22px 20px;
+      box-shadow:
+        0 30px 80px rgba(15,23,42,.85),
+        0 0 0 1px rgba(15,23,42,.6);
+      overflow:hidden;
+    }
+
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-40%;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(56,189,248,.08), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(129,140,248,.12), transparent 60%);
+      opacity:.9;
+      pointer-events:none;
+    }
+
+    .card-inner{
+      position:relative;
+      z-index:1;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:4px 10px 4px 6px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.7);
+      background:rgba(15,23,42,.92);
+      color:var(--muted);
+      font-size:11px;
+      margin-bottom:12px;
+    }
+
+    .pill-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:18px;height:18px;
+      border-radius:999px;
+      background:rgba(15,23,42,1);
+      border:1px solid rgba(148,163,184,.5);
+      font-size:11px;
+    }
+
+    .pill-dot{
+      width:7px;height:7px;
+      border-radius:999px;
+      background:var(--danger);
+      box-shadow:0 0 0 4px rgba(248,113,113,.25);
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:6px;
+    }
+
+    .title-main{
+      font-size:20px;
+      font-weight:620;
+      letter-spacing:-.01em;
+    }
+
+    .title-tag{
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(15,23,42,.9);
+      border:1px solid rgba(148,163,184,.45);
+      font-size:11px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+
+    .subtitle{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.6;
+      margin-bottom:14px;
+    }
+
+    .subtitle strong{
+      color:var(--accent-strong);
+      font-weight:600;
+    }
+
+    .metrics{
+      display:flex;
+      align-items:stretch;
+      gap:8px;
+      margin-bottom:16px;
+      font-size:13px;
+    }
+
+    .metric-card{
+      flex:1;
+      border-radius:14px;
+      border:1px solid rgba(148,163,184,.45);
+      background:rgba(15,23,42,.92);
+      padding:10px 11px 9px;
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+
+    .metric-label{
+      color:var(--muted);
+      font-size:11px;
+    }
+
+    .metric-value{
+      font-size:15px;
+      font-weight:600;
+      display:flex;
+      align-items:baseline;
+      gap:4px;
+    }
+
+    .metric-value span.small{
+      font-size:11px;
+      color:var(--muted);
+      font-weight:500;
+    }
+
+    .metric-chip{
+      align-self:flex-start;
+      margin-top:4px;
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .metric-chip-soft{
+      background:rgba(56,189,248,.08);
+      color:var(--accent-strong);
+      border:1px solid rgba(56,189,248,.4);
+    }
+
+    .metric-chip-warn{
+      background:rgba(248,113,113,.08);
+      color:var(--danger);
+      border:1px solid rgba(248,113,113,.35);
+    }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:4px;
+    }
+
+    .btn{
+      border:none;
+      outline:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      padding:8px 14px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:550;
+      cursor:pointer;
+      text-decoration:none;
+      transition:transform .12s ease, box-shadow .12s ease, background .12s ease, opacity .12s ease;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    .btn-primary{
+      background:linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color:#0f172a;
+      box-shadow:0 14px 35px rgba(56,189,248,.45);
+    }
+
+    .btn-primary:hover{
+      transform:translateY(-1px);
+      box-shadow:0 18px 40px rgba(56,189,248,.6);
+    }
+
+    .btn-secondary{
+      background:rgba(15,23,42,.95);
+      border:1px solid rgba(148,163,184,.7);
+      color:var(--ink);
+    }
+
+    .btn-secondary:hover{
+      background:rgba(15,23,42,1);
+      transform:translateY(-1px);
+    }
+
+    .btn-icon{
+      font-size:14px;
+    }
+
+    .hint{
+      margin-top:12px;
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.6;
+    }
+
+    .hint strong{
+      color:var(--accent);
+      font-weight:500;
+    }
+
+    @media (max-width:480px){
+      .card{
+        padding:18px 16px 18px;
+        border-radius:18px;
+      }
+      .title-main{
+        font-size:18px;
+      }
+      .metrics{
+        flex-direction:column;
+      }
+      .logo-mark{
+        justify-content:flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="logo-mark">
+      <span class="logo-dot"></span>
+      <span>김동건 포트폴리오 · Live</span>
+    </div>
+
+    <section class="card">
+      <div class="card-inner">
+        <div class="pill">
+          <span class="pill-badge">
+            <span class="pill-dot"></span>
+          </span>
+          <span>접속 인원 제한으로 잠시 입장이 지연되고 있어요</span>
+        </div>
+
+        <header class="title">
+          <h1 class="title-main">잠시 후 다시 접속해 주세요</h1>
+          <span class="title-tag">안정적인 테스트 모드</span>
+        </header>
+
+        <p class="subtitle">
+          이 포트폴리오는 <strong>소규모 테스트 환경</strong>으로 운영 중이라<br>
+          동시에 접속할 수 있는 인원을 제한하고 있습니다.
+        </p>
+
+        <div class="metrics">
+          <div class="metric-card">
+            <div class="metric-label">현재 접속 인원</div>
+            <div class="metric-value">
+              {{ online_count }}명
+              <span class="small">실시간 추정</span>
+            </div>
+            <div class="metric-chip metric-chip-warn">LIMITED CAPACITY</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">허용 인원</div>
+            <div class="metric-value">
+              {{ limit }}명
+              <span class="small">동시 접속 기준</span>
+            </div>
+            <div class="metric-chip metric-chip-soft">PORTFOLIO MODE</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" type="button" onclick="location.reload()">
+            <span class="btn-icon">🔄</span>
+            <span>다시 시도하기</span>
+          </button>
+          <a class="btn btn-secondary" href="/">
+            <span class="btn-icon">🏠</span>
+            <span>홈으로 돌아가기</span>
+          </a>
+        </div>
+
+        <p class="hint">
+          안정적인 데모 환경 유지를 위해
+          <strong>일시적으로 접속이 제한</strong>될 수 있습니다.<br>
+          잠시 뒤 새로고침하거나, 한두 분 후 다시 접속해 주세요.
+        </p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,103 @@
+{% extends "ragapp/board/board_base.html" %}
+
+{% block content %}
+
+  
+  {% if notices %}
+    <section class="board-section">
+      <h2 class="board-h2">공지</h2>
+
+      <div class="board-list">
+        {% for p in notices %}
+          <a class="board-row is-notice" href="{% url 'board:detail' p.pk %}">
+            <div class="board-row-title">
+              <span class="board-badge">공지</span>
+
+              {# ✅ 비밀 공지면 표시 (운영자는 바로 열람, 비회원/일반은 auth로 이동) #}
+              {% if p.is_secret %}
+                <span class="board-badge is-secret" aria-label="비밀글">🔒 비밀</span>
+              {% endif %}
+
+              <span class="board-title-text">{{ p.title }}</span>
+            </div>
+
+            <div class="board-row-meta">
+              {% if p.is_secret and not is_staff %}
+                <span class="board-meta is-secret-hint">비밀번호 필요</span>
+                <span class="board-meta">{{ p.created_at|date:"Y-m-d" }}</span>
+              {% else %}
+                <span class="board-meta">{{ p.created_at|date:"Y-m-d" }}</span>
+                <span class="board-meta">조회 {{ p.view_count }}</span>
+              {% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="board-section">
+    <div class="board-head">
+      <h2 class="board-h2">전체 글</h2>
+      <div class="board-head-right">
+        <span class="board-muted">최신순</span>
+      </div>
+    </div>
+
+    {% if posts %}
+      <div class="board-list">
+        {% for p in posts %}
+          <a class="board-row" href="{% url 'board:detail' p.pk %}">
+            <div class="board-row-title">
+              {% if p.category %}
+                <span class="board-chip">{{ p.category.name }}</span>
+              {% endif %}
+
+              {% if p.pinned %}
+                <span class="board-badge">PIN</span>
+              {% endif %}
+
+              {% if p.is_secret %}
+                <span class="board-badge is-secret" aria-label="비밀글">🔒 비밀</span>
+              {% endif %}
+
+              <span class="board-title-text">{{ p.title }}</span>
+            </div>
+
+            <div class="board-row-meta">
+              {% if p.is_secret and not is_staff %}
+                <span class="board-meta">비밀번호 필요</span>
+                <span class="board-meta">{{ p.created_at|date:"Y-m-d H:i" }}</span>
+              {% else %}
+                <span class="board-meta">{{ p.created_at|date:"Y-m-d H:i" }}</span>
+                <span class="board-meta">조회 {{ p.view_count }}</span>
+              {% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="board-empty">아직 글이 없어요.</div>
+    {% endif %}
+
+    
+    {% if is_paginated %}
+      <nav class="board-pager" aria-label="페이지 이동">
+        {% if page_obj.has_previous %}
+          <a class="board-page"
+             href="?page={{ page_obj.previous_page_number }}{% if qparams %}&{{ qparams }}{% endif %}">이전</a>
+        {% endif %}
+
+        <span class="board-page is-current">
+          {{ page_obj.number }} / {{ paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+          <a class="board-page"
+             href="?page={{ page_obj.next_page_number }}{% if qparams %}&{{ qparams }}{% endif %}">다음</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </section>
+
+{% endblock %}

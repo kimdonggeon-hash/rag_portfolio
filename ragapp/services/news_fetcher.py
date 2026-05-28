@@ -190,11 +190,19 @@ def _extract_main_text(html: str, *, hard_limit: int = 40_000) -> str:
 # ─────────────────────────────────────────────────────────────
 # HTTP fetch
 # ─────────────────────────────────────────────────────────────
-def _fetch_html(url: str, *, timeout: int | float) -> tuple[str, str]:
+def _fetch_html(url: str, *, timeout: int | float, allow_xml: bool = False) -> tuple[str, str]:
     """
     반환: (final_url, html)
     """
-    if not url or not _host_allowed(url):
+    if not url:
+        return "", ""
+
+    # ✅ 스킴 제한: http/https만 허용
+    parsed0 = urlparse(url)
+    if parsed0.scheme not in ("http", "https"):
+        return "", ""
+
+    if not _host_allowed(url):
         return "", ""
 
     if not _robots_can_fetch(url):
@@ -205,16 +213,26 @@ def _fetch_html(url: str, *, timeout: int | float) -> tuple[str, str]:
 
     try:
         resp = _session.get(url, timeout=timeout, allow_redirects=True)
+        final_url = resp.url or url
+
+        # ✅ redirect 이후 최종 URL도 allowlist 재검증 (우회 방지)
+        if not _host_allowed(final_url):
+            return "", ""
+
         ctype = (resp.headers.get("Content-Type") or "").lower()
-        if "text/html" not in ctype and "application/xhtml+xml" not in ctype:
-            return resp.url or url, ""
+        ok_html = ("text/html" in ctype) or ("application/xhtml+xml" in ctype)
+        ok_xml = allow_xml and (
+            ("application/xml" in ctype) or ("text/xml" in ctype) or ("application/rss+xml" in ctype)
+        )
+        if not (ok_html or ok_xml):
+            return final_url, ""
 
         # 인코딩 보정
         if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
             resp.encoding = resp.apparent_encoding or "utf-8"
 
         html = resp.text or ""
-        return resp.url or url, html
+        return final_url, html
     except Exception as e:
         log.warning("fetch 실패: %s (%s)", url, e)
         return "", ""
@@ -233,8 +251,12 @@ def search_news_rss(query: str, topk: int = 5) -> List[Dict]:
         "NEWS_RSS_QUERY_TEMPLATE",
         "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko",
     )
+
+    # ✅ 정책상/안전상 상한 고정(원하면 5 대신 settings로)
+    topk = max(1, min(int(topk or 5), 5))
+
     url = tmpl.format(query=urlencode({"": query})[1:])  # 'q=...'만 치환
-    final, html = _fetch_html(url, timeout=_DEFAULT_TIMEOUT)
+    final, html = _fetch_html(url, timeout=_DEFAULT_TIMEOUT, allow_xml=True)
     if not html:
         return []
 

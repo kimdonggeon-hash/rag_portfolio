@@ -7,130 +7,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
-      background:#f3f4f6;
-      color:#111827;
-    }
-    .wrap{
-      max-width:980px;
-      margin:24px auto;
-      padding:0 16px 32px;
-    }
-    .card{
-      background:#ffffff;
-      border-radius:14px;
-      border:1px solid #e5e7eb;
-      box-shadow:0 10px 30px rgba(15,23,42,.08);
-      padding:18px 20px;
-      margin-bottom:16px;
-    }
-    .title{
-      font-size:18px;
-      font-weight:600;
-      margin:0 0 4px;
-    }
-    .sub{
-      font-size:13px;
-      color:#6b7280;
-      margin:0;
-    }
-    .meta-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px 16px;
-      font-size:12px;
-      color:#4b5563;
-      margin-top:8px;
-    }
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;background:#f3f4f6;color:#111827;}
+    .wrap{max-width:980px;margin:24px auto;padding:0 16px 32px;}
+    .card{background:#fff;border-radius:14px;border:1px solid #e5e7eb;box-shadow:0 10px 30px rgba(15,23,42,.08);padding:18px 20px;margin-bottom:16px;}
+    .title{font-size:18px;font-weight:600;margin:0 0 4px;}
+    .sub{font-size:13px;color:#6b7280;margin:0;}
+    .meta-row{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:#4b5563;margin-top:8px;}
     .meta-label{font-weight:500;}
-    .pill{
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:999px;
-      font-size:11px;
-      background:#eef2ff;
-      color:#4338ca;
-      border:1px solid #c7d2fe;
-    }
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;}
 
-    /* 메시지 리스트 */
-    .msg-list{
-      max-height:70vh;
-      overflow-y:auto;
-      padding-right:4px;
-    }
-    .msg{
-      margin-bottom:10px;
-      display:flex;
-      flex-direction:column;
-      align-items:flex-start;
-    }
+    .msg-list{max-height:70vh;overflow-y:auto;padding-right:4px;}
+    .msg{margin-bottom:10px;display:flex;flex-direction:column;align-items:flex-start;}
     .msg-operator{align-items:flex-end;}
     .msg-system{align-items:center;}
 
-    .msg-meta{
-      font-size:11px;
-      color:#6b7280;
-      margin-bottom:2px;
-      display:flex;
-      gap:8px;
-      align-items:center;
-    }
-    .msg-role{
-      padding:1px 6px;
-      border-radius:999px;
-      font-size:10px;
-      border:1px solid #e5e7eb;
-      background:#f9fafb;
-    }
-    .msg-operator .msg-role{
-      background:#eef2ff;
-      border-color:#c7d2fe;
-      color:#4338ca;
-    }
-    .msg-user .msg-role{
-      background:#dcfce7;
-      border-color:#bbf7d0;
-      color:#166534;
-    }
-    .msg-bubble{
-      max-width:80%;
-      border-radius:12px;
-      padding:8px 10px;
-      font-size:13px;
-      line-height:1.6;
-      white-space:pre-wrap;
-      word-break:break-word;
-      background:#f3f4f6;
-    }
-    .msg-operator .msg-bubble{
-      background:#4f46e5;
-      color:#eef2ff;
-      border-bottom-right-radius:4px;
-    }
-    .msg-user .msg-bubble{
-      background:#111827;
-      color:#e5e7eb;
-      border-bottom-left-radius:4px;
-    }
-    .msg-system .msg-bubble{
-      background:#e5e7eb;
-      color:#374151;
-      max-width:100%;
-      text-align:center;
-    }
+    .msg-meta{font-size:11px;color:#6b7280;margin-bottom:2px;display:flex;gap:8px;align-items:center;}
+    .msg-role{padding:1px 6px;border-radius:999px;font-size:10px;border:1px solid #e5e7eb;background:#f9fafb;}
+    .msg-operator .msg-role{background:#eef2ff;border-color:#c7d2fe;color:#4338ca;}
+    .msg-user .msg-role{background:#dcfce7;border-color:#bbf7d0;color:#166534;}
 
-    .back-link{
-      display:inline-flex;
-      align-items:center;
-      gap:4px;
-      font-size:12px;
-      color:#4b5563;
-      text-decoration:none;
-      margin-bottom:8px;
-    }
+    .msg-bubble{max-width:80%;border-radius:12px;padding:8px 10px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;background:#f3f4f6;}
+    .msg-operator .msg-bubble{background:#4f46e5;color:#eef2ff;border-bottom-right-radius:4px;}
+    .msg-user .msg-bubble{background:#111827;color:#e5e7eb;border-bottom-left-radius:4px;}
+    .msg-system .msg-bubble{background:#e5e7eb;color:#374151;max-width:100%;text-align:center;}
+
+    .back-link{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#4b5563;text-decoration:none;margin-bottom:8px;}
     .back-link:hover{text-decoration:underline;}
   </style>
 </head>
@@ -140,31 +41,16 @@
   <a href="{% url 'livechat:console' %}" class="back-link">← 실시간 상담 콘솔로 돌아가기</a>
 
   <section class="card">
-    <h1 class="title">
-      상담 로그 · 세션 #{{ session.id }}
-    </h1>
-    <p class="sub">
-      {{ SERVICE_NAME }} 실시간 상담 이력입니다. (room={{ session.room }})
-    </p>
+    <h1 class="title">상담 로그 · 세션 #{{ session.id }}</h1>
+    <p class="sub">{{ SERVICE_NAME }} 실시간 상담 이력입니다. (room={{ session.room }})</p>
+
     <div class="meta-row">
-      <div><span class="meta-label">상태:</span>
-        <span class="pill">{{ session.status }}</span>
-      </div>
-      {% if session.created_at %}
-        <div><span class="meta-label">요청 시각:</span> {{ session.created_at }}</div>
-      {% endif %}
-      {% if session.started_at %}
-        <div><span class="meta-label">상담 시작:</span> {{ session.started_at }}</div>
-      {% endif %}
-      {% if session.ended_at %}
-        <div><span class="meta-label">상담 종료:</span> {{ session.ended_at }}</div>
-      {% endif %}
-      {% if session.session_type %}
-        <div><span class="meta-label">분류:</span> {{ session.session_type }}</div>
-      {% endif %}
-      {% if session.session_note %}
-        <div><span class="meta-label">한 줄 요약:</span> {{ session.session_note }}</div>
-      {% endif %}
+      <div><span class="meta-label">상태:</span> <span class="pill">{{ session.status }}</span></div>
+      {% if session.created_at %}<div><span class="meta-label">요청 시각:</span> {{ session.created_at }}</div>{% endif %}
+      {% if session.started_at %}<div><span class="meta-label">상담 시작:</span> {{ session.started_at }}</div>{% endif %}
+      {% if session.ended_at %}<div><span class="meta-label">상담 종료:</span> {{ session.ended_at }}</div>{% endif %}
+      {% if session.session_type %}<div><span class="meta-label">분류:</span> {{ session.session_type }}</div>{% endif %}
+      {% if session.session_note %}<div><span class="meta-label">한 줄 요약:</span> {{ session.session_note }}</div>{% endif %}
     </div>
   </section>
 
@@ -173,21 +59,17 @@
     <p class="sub">가장 오래된 메시지부터 순서대로 표시합니다.</p>
 
     <div class="msg-list">
-      {% for m in messages %}
-        {% with role=(m.role|default:"system") %}
-        <article class="msg msg-{{ role|lower }}">
-          <div class="msg-meta">
-            <span class="msg-role">
-              {% if role == "user" %}사용자{% elif role == "operator" %}상담사{% else %}시스템{% endif %}
-            </span>
-            {% if m.created_at %}
-              <time>{{ m.created_at }}</time>
-            {% endif %}
-          </div>
-          <div class="msg-bubble">
-            {{ m.content|default_if_none:""|linebreaksbr }}
-          </div>
-        </article>
+      {% for m in message_items %}
+        {% with r=m.role|default:"system"|lower %}
+          <article class="msg msg-{{ r }}">
+            <div class="msg-meta">
+              <span class="msg-role">
+                {% if r == "user" %}사용자{% elif r == "operator" %}상담사{% else %}시스템{% endif %}
+              </span>
+              {% if m.created_at %}<time>{{ m.created_at }}</time>{% endif %}
+            </div>
+            <div class="msg-bubble">{{ m.text|default_if_none:""|linebreaksbr }}</div>
+          </article>
         {% endwith %}
       {% empty %}
         <p class="sub">이 세션에는 저장된 메시지가 없습니다.</p>

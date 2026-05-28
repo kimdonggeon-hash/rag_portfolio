@@ -1,52 +1,65 @@
 {# ragapp/templates/ragapp/partials/consent_overlay.html #}
-<!-- ✅ 첫 방문 동의 오버레이 -->
+
 <div id="consentOverlay" class="consent-overlay" hidden>
   <div class="consent-card" role="dialog" aria-modal="true" aria-labelledby="consentGateTitle">
     <h3 id="consentGateTitle" class="consent-title">
-      {{ CONSENT_TITLE|default:"질문 저장 안내 (필수)" }}
+      {{ CONSENT_TITLE|default:"안내 사항" }}
     </h3>
 
     <p class="consent-desc">
-      {{ CONSENT_DESC_PREFIX|default:"이 화면에서 입력하는 내용은 아래와 같이 저장·이용됩니다."|safe }}
+      {{ CONSENT_DESC_PREFIX|default:"여기서 검색하면 질문이랑 결과 요약, 참고 링크가 잠깐 저장돼. 그래야 내가 서비스 개선할 때 뭐가 잘 되고 뭐가 문제인지 볼 수 있거든."|safe }}
     </p>
 
     <ul class="consent-list">
-      <li><strong>저장되는 내용</strong> : 질문, 답변 요약, 참고 링크 등</li>
-      <li><strong>보관 장소</strong>: 이 서비스의 검색 DB(내부 서버)</li>
-      <li><strong>사용 목적</strong> : 검색 품질과 서비스 개선을 위한 테스트</li>
+      <li>
+        <strong>보관 기간</strong> : 최대 30일만 들고 있다가 자동으로 정리할게.
+      </li>
+      <li>
+        <strong>보안 팁</strong> : 주민번호·전화번호·주소 같은 건 그냥 안 적는 게 제일 안전해.
+      </li>
+      <li>
+        <strong>문의 사항</strong> : 메일이나 라이브 채팅으로 바로 도와줄게.
+      </li>
     </ul>
 
     <p class="consent-desc">
       {% if CONSENT_DESC_SUFFIX %}
         {{ CONSENT_DESC_SUFFIX|safe }}
       {% else %}
-        자세한 내용은
+        더 자세한 건
         <a class="link"
            href="{{ PRIVACY_PAGE_URL|default:'/privacy' }}"
            target="_blank"
            rel="noopener noreferrer">개인정보처리방침</a>
-        을 확인해 주세요.
+        여기 있어.
       {% endif %}
     </p>
 
     <label class="opt-line">
       <input type="checkbox" id="consent_required" />
       <span>
-        {{ CONSENT_CHECK_LABEL|default:"위 내용을 읽었으며, 질문·답변 저장에 동의합니다." }}
+        {{ CONSENT_CHECK_LABEL|default:"확인했어. 저장되는 거 동의할께!" }}
       </span>
     </label>
 
     <div id="consentErr" class="consent-err" role="alert" aria-live="polite" hidden>
-      {{ CONSENT_ERROR_MSG|default:"❌ 체크 후 계속할 수 있어요." }}
+      {{ CONSENT_ERROR_MSG|default:"체크 한번만 해주라! 그래야 진행할 수 있어." }}
     </div>
 
-    <!-- 🔽 여기만 변경: 링크 버튼 삭제 + 메인 버튼만 남김 -->
     <div class="consent-actions">
+      <button
+        type="button"
+        class="consent-primary-btn consent-guide-btn"
+        data-open-ig-guide
+        aria-label="서비스 이용 안내 보기">
+        사용법 한번 볼래?
+      </button>
+
       <button
         class="consent-primary-btn"
         id="consentConfirmBtn"
         type="button">
-        {{ CONSENT_CONFIRM_BUTTON|default:"동의하고 계속하기" }}
+        {{ CONSENT_CONFIRM_BUTTON|default:"시작하자" }}
       </button>
     </div>
   </div>

@@ -1,9 +1,11 @@
+{# ragapp/templates/ragapp/news.html #}
 {% load static versioned_static %}
 {% url 'legal_privacy'  as legal_privacy_url %}
 {% url 'legal_tos'      as legal_tos_url %}
 {% url 'legal_overseas' as legal_overseas_url %}
 {% url 'legal_tester'   as legal_tester_url %}
 {% url 'livechat:livechat_status_api' as livechat_status_url %}
+{% url 'api_feedback' as api_feedback_url %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -11,7 +13,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ SERVICE_NAME|default:"RAG 통합 검색 콘솔" }}</title>
 
-  <link rel="icon" href="{% static 'ragapp/favicon.ico' %}" />
+  {% include "ragapp/partials/favicon.html" %}
+
   <meta name="theme-color" content="#0f172a" />
   <meta name="color-scheme" content="light dark" />
 
@@ -35,17 +38,20 @@
                  upgrade-insecure-requests">
   {% endif %}
 
-  <!-- ✅ CSS: QARAG/법무/메인 순서 -->
   <link rel="stylesheet" href="{% versioned_static 'ragapp/css/legal-bundle.css' %}">
   <link rel="stylesheet" href="{% versioned_static 'ragapp/css/qarag_chat.css' %}">
   <link rel="stylesheet" href="{% versioned_static 'ragapp/css/news.css' %}">
-  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/feedback.css' %}">
-  
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/usage_widget.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/feedback_widget.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/guide_cards_modal.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/news_chat.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/card_rag_scope.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/rag_evidence_dock.css' %}">
 </head>
 
-<!-- ✅ 도킹이 아니라 overlay 토글 구조 + 상담 가능 여부 API 경로 -->
 <body data-layout="overlay"
-      data-livechat-availability-url="{{ livechat_status_url }}">
+      data-livechat-availability-url="{{ livechat_status_url }}"
+      data-tools-open="0">
 
   <noscript>
     <div class="noscript-banner">
@@ -55,206 +61,219 @@
 
   {% include "ragapp/partials/consent_overlay.html" %}
 
-  <div class="page-wrap app-shell" data-mode="web">
+  <div class="page-wrap app-shell mz-shell" data-mode="rag">
 
-    <!-- ============================== -->
-    <!-- 헤더 영역 -->
-    <!-- ============================== -->
-    <header class="page-header app-topbar">
-      <div class="title-block">
-        <h1>
-          {{ SERVICE_NAME|default:"김동건의 포트폴리오" }}
-          <span class="badge">베타</span>
-        </h1>
-        <p class="subline">
-          위쪽에서 검색 방법(웹 / 내 문서 / PDF)을 고르고, 오른쪽에서 질문 챗봇을 바로 사용할 수 있어요.
-        </p>
-      </div>
+    <aside class="mz-sidebar" aria-label="사이드바"></aside>
 
-      <div class="nav-links">
-        <div class="header-right">
+    <main class="mz-main" aria-label="검색 및 결과">
 
-          <div class="theme-toggle" aria-label="화면 모드 변경" role="group">
-            <button type="button"
-                    class="theme-btn"
-                    data-theme-choice="light"
-                    aria-pressed="false"
-                    title="라이트 모드">☀️</button>
-            <button type="button"
-                    class="theme-btn"
-                    data-theme-choice="system"
-                    aria-pressed="false"
-                    title="시스템 설정 따라가기">💻</button>
-            <button type="button"
-                    class="theme-btn"
-                    data-theme-choice="dark"
-                    aria-pressed="false"
-                    title="다크 모드">🌙</button>
+      <section class="mz-hero mz-hero--chat" aria-label="소개">
+        <div class="mz-hero-head">
+          <div class="mz-hero-text">
+            <h1 class="mz-hero-title">
+              <span class="mz-hero-accent">무엇이든</span> 물어봐!
+            </h1>
+            <p class="mz-hero-sub">
+              AI 검색부터 PDF 분석까지 전부 해결
+            </p>
           </div>
 
-          <!-- ✅ 버튼은 토글: 누르면 열고, 다시 누르면 닫음 -->
-          <button id="qaragLaunchBtn"
-                  class="qa-launch-btn"
-                  type="button"
-                  aria-expanded="false">
-            <span class="qa-launch-icon">💬</span>
-            질문 챗봇
+          <button type="button"
+                  id="toolsDockBtn"
+                  aria-controls="toolsDrawer"
+                  aria-expanded="false"
+                  aria-label="도구 패널 열기">
+            <span class="hb" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
           </button>
+        </div>
+      </section>
 
+      {% include "ragapp/partials/ai_notice_banner.html" %}
+
+      <div class="mode-tabs mode-tabs--scope mz-mode-tabs mz-mode-tabs--chat"
+           role="tablist"
+           aria-label="답변 범위 선택">
+        <button type="button" class="mode-tab is-active" data-mode="rag" role="tab" aria-selected="true">
+          AI 요약 검색
+        </button>
+        <button type="button" class="mode-tab" data-mode="web" role="tab" aria-selected="false">
+          웹 검색
+        </button>
+        <button type="button" class="mode-tab" data-mode="pdf" role="tab" aria-selected="false">
+          PDF 검색
+        </button>
+      </div>
+
+      <section class="mz-chat" aria-label="대화">
+        <div id="chatThread" class="mz-thread" aria-live="polite" aria-label="대화 스레드"></div>
+
+        <form id="chatComposer" class="mz-composer" autocomplete="off">
+          <div class="mz-composer-inner">
+            <button type="button" id="chatAttachBtn" class="mz-attach-btn" aria-label="파일 선택">
+              📎
+            </button>
+
+            <textarea id="chatInput"
+                      class="mz-chat-input"
+                      rows="1"
+                      placeholder="궁금한 거 다 적어봐..."
+                      aria-label="질문 입력"></textarea>
+
+            <button type="submit" id="chatSendBtn" class="mz-send-btn" aria-label="전송">
+              <span class="mz-send-ico">✈️</span> 전송
+            </button>
+          </div>
+
+          <div id="chatFileHint" class="mz-file-hint" hidden></div>
+        </form>
+      </section>
+
+      <section id="dgRagEvidenceDock" aria-label="근거"></section>
+
+      <div class="page-footer-wrap mz-footer">
+        {% include "ragapp/partials/tester_notice.html" %}
+        <div class="legal-footer-bar">
+          <a href="{{ legal_privacy_url }}"  class="legal-link">개인정보처리방침</a>
+          <span class="dot">·</span>
+          <a href="{{ legal_tos_url }}"      class="legal-link">이용약관</a>
+          <span class="dot">·</span>
+          <a href="{{ legal_overseas_url }}" class="legal-link">국외이전 고지</a>
+          <span class="dot">·</span>
+          <a href="{% url 'legal_guide' %}" class="legal-link">서비스 이용 안내</a>
+
+          {% include "ragapp/partials/ai_notice_footer.html" %}
         </div>
       </div>
-    </header>
+    </main>
+  </div>
 
-    <!-- ============================== -->
-    <!-- 메인 + 사이드 레이아웃 -->
-    <!-- ============================== -->
-    <div class="shell-grid">
+  <div id="toolsDrawer" class="tools-drawer" aria-hidden="true" hidden>
+    <button class="tools-backdrop" type="button" data-tools-close aria-label="도구 패널 닫기"></button>
 
-      <!-- 메인 콘텐츠 -->
-      <main class="shell-main" aria-label="검색 및 결과">
+    <aside class="tools-panel shell-side" role="dialog" aria-label="도구 패널">
+      <div class="tools-panel-head">
+        <div class="tools-panel-title">도구</div>
+        <button class="tools-close-btn" type="button" data-tools-close aria-label="닫기">✕</button>
+      </div>
 
-        <div class="mode-tabs" role="tablist" aria-label="검색 모드 선택">
-          <button type="button"
-                  class="mode-tab is-active"
-                  data-mode="web"
-                  role="tab"
-                  aria-selected="true">
-            웹 검색
-          </button>
-          <button type="button"
-                  class="mode-tab"
-                  data-mode="rag"
-                  role="tab"
-                  aria-selected="false">
-            AI 요약 검색
-          </button>
-          <button type="button"
-                  class="mode-tab"
-                  data-mode="pdf"
-                  role="tab"
-                  aria-selected="false">
-            PDF 검색
-          </button>
-        </div>
+      <div class="side-stack">
 
-        <div id="modeSectionWeb"
-             class="mode-section mode-anim"
-             data-section="web"
-             aria-hidden="false">
-          {% include "ragapp/partials/card_web.html" %}
-        </div>
+        <section class="side-card" aria-label="도구 메뉴">
+          <div class="side-card-head">
+            <div class="side-card-title">도구</div>
+            <div class="side-meta">테마 · 게시판 · 챗봇</div>
+          </div>
 
-        <div id="modeSectionRag"
-             class="mode-section"
-             data-section="rag"
-             hidden
-             aria-hidden="true">
-          {% include "ragapp/partials/card_rag.html" %}
-        </div>
-
-        <div id="modeSectionPdf"
-             class="mode-section"
-             data-section="pdf"
-             hidden
-             aria-hidden="true">
-          {% include "ragapp/partials/card_pdf.html" %}
-        </div>
-
-      </main>
-
-      <!-- ✅ 우측은 “사이드 카드”만 (챗봇 전용 공간 X) -->
-      <aside class="shell-side" aria-label="바로가기 및 가이드">
-        <div class="side-stack">
-
-          <section class="side-card" aria-label="바로가기">
-            <div class="side-card-head">
-              <div class="side-card-title">Quick Tools</div>
-              <div class="side-meta">한 번에 이동</div>
+          <div class="side-card-body">
+            <div class="theme-toggle" aria-label="화면 모드 변경" role="group">
+              <button type="button" class="theme-btn" data-theme-choice="light" aria-pressed="false" title="라이트 모드">☀️</button>
+              <button type="button" class="theme-btn" data-theme-choice="system" aria-pressed="false" title="시스템 설정 따라가기">💻</button>
+              <button type="button" class="theme-btn" data-theme-choice="dark" aria-pressed="false" title="다크 모드">🌙</button>
             </div>
-            <div class="side-card-body">
+
+            <div class="side-sep"></div>
+
+            <a class="side-link" href="/board/" aria-label="게시판으로 이동">
+              🧾 게시판 <span class="side-meta">커뮤니티</span>
+            </a>
+
+            <button type="button"
+                    id="qaragLaunchBtn"
+                    class="side-link side-link-btn"
+                    aria-expanded="false"
+                    aria-label="질문 챗봇 열기">
+              💬 질문 챗봇 <span class="side-meta">Q&amp;A</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="side-card" aria-label="바로가기">
+          <div class="side-card-head">
+            <div class="side-card-title">Quick Tools</div>
+            <div class="side-meta">한 번에 이동</div>
+          </div>
+
+          <div class="side-card-body">
+            <div class="quick-tools-grid">
               <a class="side-link" href="{% url 'media_index' %}">
                 🖼️ 이미지 모아두기 <span class="side-meta">이미지 저장</span>
               </a>
               <a class="side-link" href="{% url 'media_search' %}">
                 🔎 글로 이미지 찾기 <span class="side-meta">이미지 검색</span>
               </a>
-
-              <div class="side-sep"></div>
-
-              <a class="side-link" href="{% url 'table_index' %}">
-                📄 표 파일 저장하기 <span class="side-meta">표 저장</span>
-              </a>
-              <a class="side-link" href="{% url 'table_search' %}">
-                📊 표에서 찾기 <span class="side-meta">표 검색</span>
-              </a>
             </div>
-          </section>
 
-          <section class="side-card" aria-label="사용 가이드">
-            <div class="side-card-head">
-              <div class="side-card-title">User Manual</div>
-              <div class="side-meta">접어서 보기</div>
-            </div>
-            <div class="side-card-body">
-              <details class="manual-item" open>
-                <summary>처음 사용하는 순서</summary>
-                <div class="manual-body">
-                  1) 모드 선택 → 2) 질문 입력 → 3) 결과 확인 → 4) 필요 시 결과 저장하기
-                </div>
-              </details>
+            <div class="side-sep"></div>
 
-              <details class="manual-item">
-                <summary>웹 검색 / 결과 저장하기</summary>
-                <div class="manual-body">
-                  웹 검색 결과를 보고 “저장” 기능을 사용할 때는 동의가 필요할 수 있어요.
-                </div>
-              </details>
+            <a class="side-link" href="#" data-open-ig-guide data-guide-url="/legal/guide/">
+              📘 사용 안내(카드뉴스) <span class="side-meta">1분 설명</span>
+            </a>
+          </div>
+        </section>
 
-              <details class="manual-item">
-                <summary>AI 요약 검색</summary>
-                <div class="manual-body">
-                  내 문서/데이터 기반 요약·답변을 확인합니다.
-                </div>
-              </details>
+        <section class="side-card" aria-label="오늘 사용량">
+          {% include "ragapp/_usage_widget.html" %}
+        </section>
 
-              <details class="manual-item">
-                <summary>PDF 검색</summary>
-                <div class="manual-body">
-                  PDF 요약/표 정리 등은 PDF 탭에서 확인합니다.
-                </div>
-              </details>
-            </div>
-          </section>
+        <section class="side-card" aria-label="사용 가이드">
+          <div class="side-card-head">
+            <div class="side-card-title">User Manual</div>
+            <div class="side-meta">접어서 보기</div>
+          </div>
+          <div class="side-card-body">
+            <details class="manual-item" open>
+              <summary>처음 사용하는 순서</summary>
+              <div class="manual-body">
+                1) 범위 선택 → 2) 질문 입력 → 3) 결과 확인 → 4) 필요 시 결과 저장하기
+              </div>
+            </details>
 
-        </div>
-      </aside>
-    </div><!-- /shell-grid -->
-  </div><!-- /page-wrap -->
+            <details class="manual-item">
+              <summary>웹 검색 / 결과 저장하기</summary>
+              <div class="manual-body">
+                웹 검색 결과를 보고 “저장” 기능을 사용할 때는 동의가 필요할 수 있어요.
+              </div>
+            </details>
 
-  <!-- ✅ 질문 챗봇 오버레이 -->
+            <details class="manual-item">
+              <summary>내 자료로 답변</summary>
+              <div class="manual-body">
+                내 문서/데이터 기반 요약·답변을 확인합니다.
+              </div>
+            </details>
+
+            <details class="manual-item">
+              <summary>PDF 업로드 후 요약/질문</summary>
+              <div class="manual-body">
+                PDF 요약/표 정리 등은 PDF 범위에서 확인합니다.
+              </div>
+            </details>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+  </div>
+
   {% include "ragapp/partials/qarag_panel.html" %}
+  {% include "ragapp/partials/guide_cards_modal.html" %}
 
-  <!-- ============================== -->
-  <!-- 푸터: 테스터 고지 + 법무 링크 -->
-  <!-- ============================== -->
-  <div class="page-footer-wrap">
-    {% include "ragapp/partials/tester_notice.html" %}
-    <div class="legal-footer-bar">
-      <a href="{{ legal_privacy_url }}"  class="legal-link">개인정보처리방침</a>
-      <span class="dot">·</span>
-      <a href="{{ legal_tos_url }}"      class="legal-link">이용약관</a>
-      <span class="dot">·</span>
-      <a href="{{ legal_overseas_url }}" class="legal-link">국외이전 고지</a>
+  <div id="dgLegacyHost" hidden aria-hidden="true">
+    <div id="modeSectionWeb" class="mode-section" data-section="web" hidden aria-hidden="true">
+      {% include "ragapp/partials/card_web.html" %}
+    </div>
+    <div id="modeSectionRag" class="mode-section" data-section="rag" hidden aria-hidden="true">
+      {% include "ragapp/partials/card_rag.html" %}
+    </div>
+    <div id="modeSectionPdf" class="mode-section" data-section="pdf" hidden aria-hidden="true">
+      {% include "ragapp/partials/card_pdf.html" %}
     </div>
   </div>
 
-  {% include "ragapp/partials/legal_bundle_modal.html" %}
-
-  <!-- =============================== -->
-  <!-- Scripts: 순서 유지 (로깅 → 테마 → 동의 → 메인 JS) -->
-  <!-- =============================== -->
-
-  <!-- 로깅/디버그 -->
   <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
   (function(){
     const buf = [];
@@ -275,7 +294,6 @@
   })();
   </script>
 
-  <!-- 테마 토글 -->
   <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
   (function(){
     const STORAGE_KEY = 'dg-theme-mode';
@@ -294,6 +312,11 @@
       const resolved = resolveTheme(mode);
       root.dataset.themeMode = mode;
       root.dataset.theme = resolved;
+
+      try {
+        document.body.dataset.themeMode = mode;
+        document.body.dataset.theme = resolved;
+      } catch (_) {}
 
       document.querySelectorAll('[data-theme-choice]').forEach(btn=>{
         const active = btn.getAttribute('data-theme-choice') === mode;
@@ -332,167 +355,44 @@
   })();
   </script>
 
-  <!-- 동의/폼/링크 정리 + “매 진입마다” 동의 모달 열기 -->
-  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
-  (function () {
-    const CONSENT_KEY = 'rag_legal_consent_v2';   // 지금은 session 용도만 (로컬 저장 X)
-    let _queued = null;
-
-    // 페이지 안에서만 쓰는 플래그
-    window.__SESSION_CONSENT__ = window.__SESSION_CONSENT__ || { ok: false };
-
-    function openConsentOverlay(showError){
-      try{
-        var ov  = document.getElementById('consentOverlay');
-        var err = document.getElementById('consentErr');
-        if (ov) ov.hidden = false;
-        if (err) err.hidden = !showError;
-        try { document.body.classList.add('legal-open'); } catch(_){}
-      }catch(e){
-        try { window.dglog && window.dglog('CONSENT_OPEN_ERR', e.message || e); } catch(_){}
-      }
-    }
-
-    function closeConsentOverlay(){
-      try{
-        var ov  = document.getElementById('consentOverlay');
-        if (ov) ov.hidden = true;
-        try { document.body.classList.remove('legal-open'); } catch(_){}
-      }catch(e){
-        try { window.dglog && window.dglog('CONSENT_CLOSE_ERR', e.message || e); } catch(_){}
-      }
-    }
-
-    // 다른 스크립트에서 필요하면 쓸 수 있게만 열어 줌 (있으면 덮어쓰지 않음)
-    if (typeof window.__openConsentOverlay !== 'function') {
-      window.__openConsentOverlay = function(){ openConsentOverlay(false); };
-    }
-    if (typeof window.__closeConsentOverlay !== 'function') {
-      window.__closeConsentOverlay = closeConsentOverlay;
-    }
-
-    function sanitizeAnchors(scopeSel){
-      try{
-        var root = document.querySelector(scopeSel) || document;
-        root.querySelectorAll('a[href]').forEach(function(a){
-          var href = a.getAttribute('href') || '';
-          try{
-            var u = new URL(href, location.origin);
-            if(!/^https?:$/i.test(u.protocol) && !u.pathname.startsWith('/')){
-              var span = document.createElement('span'); span.className = a.className;
-              span.textContent = a.textContent || href; a.replaceWith(span); return;
-            }
-            a.setAttribute('rel','noopener noreferrer nofollow');
-            a.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
-          }catch(_){
-            var s=document.createElement('span'); s.className=a.className; s.textContent=a.textContent||href; a.replaceWith(s);
-          }
-        });
-      }catch(_){}
-    }
-
-    window.collectWebSourcesFromDOM = window.collectWebSourcesFromDOM || function(){
-      var out=[];
-      document.querySelectorAll('.sources-list a[href^="http"]').forEach(function(a){
-        out.push({ title:(a.textContent||'').trim(), url:a.href });
-      });
-      return out;
-    };
-
-    function installForceAction(hiddenId, defaultAction) {
-      var hid=document.getElementById(hiddenId);
-      var form=hid?hid.closest('form'):null;
-      if(!form) return;
-      form.addEventListener('click', function (e) {
-        var btn=e.target.closest('button[type="submit"][data-action]');
-        if(!btn||!form.contains(btn)) return;
-        if (hid) hid.value = btn.dataset.action || hid.value || defaultAction;
-      }, true);
-    }
-
-    function installEnterSubmitFallback(form, defaultAction) {
-      form.addEventListener('submit', function () {
-        try {
-          var h=form.querySelector('input[name="action"][type="hidden"]');
-          if (h && !h.value) h.value = defaultAction;
-        } catch (_){}
-        return true;
-      }, { capture:true });
-    }
-
-    window.beforeWebSubmit = function(form){
-      try {
-        var ansBlock=document.getElementById('web-answer-block');
-        var ansField=document.getElementById('web_answer_payload');
-        if (ansBlock && ansField) ansField.value=(ansBlock.innerText||'').trim();
-        var srcField=document.getElementById('web_sources_payload');
-        if (srcField) {
-          var srcs=(window.collectWebSourcesFromDOM?collectWebSourcesFromDOM():[]);
-          try{ srcField.value=JSON.stringify(srcs||[]);}catch(_){ srcField.value='[]';}
-        }
-      } catch(_){}
-      return true;
-    };
-
-    window.ensureConsentGate = function(form){
-      try{
-        const requireConsent = form && form.matches('[data-require-consent="1"]');
-        const action = (form.querySelector('input[name="action"]')?.value || '').trim();
-        const hasSessionConsent = !!(window.__SESSION_CONSENT__ && window.__SESSION_CONSENT__.ok);
-
-        const need = requireConsent && action === 'web_ingest' && !hasSessionConsent;
-        if (!need) return true;
-
-        _queued = { form, action };
-
-        // 이 시점에도 오버레이 열기
-        openConsentOverlay(false);
-        return false;
-      }catch(_){}
-      return true;
-    };
-
-    sanitizeAnchors('[data-sanitize-links]');
-    installForceAction('webActionField','web_search');
-    installForceAction('ragActionField','rag_search');
-
-    var webForm=document.getElementById('webActionField')?.closest('form');
-    var ragForm=document.getElementById('ragActionField')?.closest('form');
-    if (webForm) installEnterSubmitFallback(webForm,'web_search');
-    if (ragForm) installEnterSubmitFallback(ragForm,'rag_search');
-
-    window.__CONSENT_QUEUE__ = {
-      get queued(){ return _queued; },
-      resume(){
-        const q = _queued; _queued = null;
-        if (!q || !q.form) return;
-        if (typeof q.form.requestSubmit === 'function') q.form.requestSubmit();
-        else q.form.submit();
-      },
-      key: CONSENT_KEY
-    };
-
-    // ✅ 페이지에 들어올 때마다 무조건 동의창 표시
-    document.addEventListener('DOMContentLoaded', function(){
-      openConsentOverlay(false);
-    });
-  })();
-  </script>
-
-  <!-- RAG 메인 API 엔드포인트 -->
   <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
     window.RAG_QA_MAIN = "{% url 'api_rag_qa' %}";
   </script>
 
-  <!-- 외부 JS 번들 -->
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+    window.DG_ENDPOINTS = window.DG_ENDPOINTS || {};
+    window.DG_ENDPOINTS.webQa     = "{% url 'api_web_qa' %}";
+    window.DG_ENDPOINTS.ragQa     = "{% url 'api_rag_qa' %}";
+    window.DG_ENDPOINTS.ragUpsert = "{% url 'api_rag_upsert' %}";
+    window.DG_ENDPOINTS.ragSeed   = "{% url 'api_rag_seed' %}";
+    window.DG_ENDPOINTS.feedback  = "{% url 'api_feedback' %}";
+  </script>
+
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+    window.USAGE_LIMIT_WEB = {{ USAGE_LIMIT_WEB|default:"0" }};
+    window.USAGE_LIMIT_RAG = {{ USAGE_LIMIT_RAG|default:"0" }};
+    window.USAGE_LIMIT_PDF = {{ USAGE_LIMIT_PDF|default:"0" }};
+  </script>
+
+  <script src="{% versioned_static 'ragapp/javascript/usage_widget.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/sidebar_v2.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/feedback_widget.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+
+  <script src="{% versioned_static 'ragapp/javascript/news_chat_adapter.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/rag_evidence_bridge.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
   <script src="{% versioned_static 'ragapp/javascript/news.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+
+  {# ✅ consent gate 로직은 이제 legal-bundle.js로 이동 #}
   <script src="{% versioned_static 'ragapp/javascript/legal-bundle.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+
   <script src="{% versioned_static 'ragapp/javascript/qarag_chat.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
-  <!-- ✅ 리뉴얼된 실시간 상담 클라이언트 JS -->
+  <script src="{% versioned_static 'ragapp/javascript/guide_cards_modal.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
   <script src="{% versioned_static 'ragapp/javascript/livechat_client.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
   <script src="{% versioned_static 'ragapp/javascript/pdf_tab.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/pdf_thread_ext.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
+  <script src="{% versioned_static 'ragapp/javascript/chat_table_hscroll_hint.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
 
-  <!-- 탭 전환 / 모드 상태 -->
+  {# ✅ 모드 탭: dataset만 바꿈 #}
   <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
   (function(){
     const wrap = document.querySelector('.page-wrap');
@@ -501,35 +401,14 @@
     const tabs = Array.from(document.querySelectorAll('.mode-tab'));
     if (!tabs.length) return;
 
-    const sections = {
-      web: document.getElementById('modeSectionWeb'),
-      rag: document.getElementById('modeSectionRag'),
-      pdf: document.getElementById('modeSectionPdf'),
-    };
-
-    function restartAnim(el){
-      if (!el) return;
-      el.classList.remove('mode-anim');
-      void el.offsetWidth;
-      el.classList.add('mode-anim');
-    }
-
     function setMode(mode){
-      if (!sections[mode]) mode = 'web';
+      if (mode !== 'rag' && mode !== 'web' && mode !== 'pdf') mode = 'rag';
       wrap.dataset.mode = mode;
 
       tabs.forEach(tab=>{
         const active = tab.dataset.mode === mode;
         tab.classList.toggle('is-active', active);
         tab.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-
-      Object.entries(sections).forEach(([key, el])=>{
-        if (!el) return;
-        const on = (key === mode);
-        el.hidden = !on;
-        el.setAttribute('aria-hidden', on ? 'false' : 'true');
-        if (on) restartAnim(el);
       });
     }
 
@@ -540,60 +419,7 @@
       });
     });
 
-    setMode('web');
-  })();
-  </script>
-
-  <!-- 동의 버튼 동작 (체크 확인 + 재실행) -->
-  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
-  (function () {
-    function handleConsentConfirm() {
-      try {
-        var chk = document.getElementById('consent_required');
-        var err = document.getElementById('consentErr');
-
-        if (!chk || !chk.checked) {
-          if (err) err.hidden = false;
-          return;
-        }
-
-        if (err) err.hidden = true;
-
-        // 이 페이지에서만 유효한 동의 플래그
-        try {
-          window.__SESSION_CONSENT__ = window.__SESSION_CONSENT__ || {};
-          window.__SESSION_CONSENT__.ok = true;
-        } catch (_) {}
-
-        // 오버레이 닫기
-        try {
-          if (typeof window.__closeConsentOverlay === 'function') {
-            window.__closeConsentOverlay();
-          } else {
-            var ov = document.getElementById('consentOverlay');
-            if (ov) ov.hidden = true;
-          }
-        } catch (_) {}
-
-        // 대기 중이던 폼 제출 다시 실행
-        try {
-          if (window.__CONSENT_QUEUE__ && typeof window.__CONSENT_QUEUE__.resume === 'function') {
-            window.__CONSENT_QUEUE__.resume();
-          }
-        } catch (_) {}
-      } catch (e) {
-        try {
-          if (window.dglog) window.dglog('CONSENT_CONFIRM_ERR', e && e.message ? e.message : e);
-        } catch (_) {}
-      }
-    }
-
-    document.addEventListener('click', function (ev) {
-      var btn = ev.target.closest && ev.target.closest('#consentConfirmBtn');
-      if (!btn) return;
-      ev.preventDefault();
-      handleConsentConfirm();
-    });
+    setMode('rag');
   })();
   </script>
 

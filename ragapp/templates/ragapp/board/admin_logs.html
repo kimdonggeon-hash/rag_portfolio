@@ -1,0 +1,152 @@
+{% extends "ragapp/board/base.html" %}
+{% load static versioned_static %}
+{% load humanize %}
+
+{% block page_css %}
+  <link rel="stylesheet" href="{% versioned_static 'ragapp/css/board_admin_logs_v2.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="board-wrap adminlogs-page">
+
+  <div class="adminlog-toolbar">
+    <div>
+      <h2 class="board-title">📜 운영 로그</h2>
+      <div class="adminlog-meta">
+        운영자가 수행한 처리 내역(일괄 처리 등)을 확인합니다.
+      </div>
+    </div>
+
+    <div class="adminlog-meta--right">
+      <a class="board-btn subtle" href="{% url 'board:reports' %}">🚨 신고 관리</a>
+      <a class="board-btn subtle" href="{% url 'board:bans' %}">⛔ 차단/링크 제한</a>
+    </div>
+  </div>
+
+  <div class="board-card">
+    <form method="get">
+      <div class="adminlog-filters">
+        <select class="adminlog-select adminlog-input--xs" name="action" aria-label="Action">
+          <option value="" {% if not f_action %}selected{% endif %}>전체</option>
+
+          {# ✅ 뷰에서 내려준 action_choices 있으면 그걸 우선 사용 #}
+          {% if action_choices %}
+            {% for val,label in action_choices %}
+              <option value="{{ val }}" {% if f_action == val %}selected{% endif %}>{{ val }}</option>
+            {% endfor %}
+          {% else %}
+            {# (fallback) #}
+            <option value="bulk_resolve" {% if f_action == "bulk_resolve" %}selected{% endif %}>bulk_resolve</option>
+            <option value="bulk_reject" {% if f_action == "bulk_reject" %}selected{% endif %}>bulk_reject</option>
+            <option value="report_action" {% if f_action == "report_action" %}selected{% endif %}>report_action</option>
+          {% endif %}
+        </select>
+
+        <input
+          class="adminlog-input adminlog-input--lg"
+          type="search"
+          name="q"
+          value="{{ f_q|default:'' }}"
+          placeholder="note / filter_qs / report_ids / actor"
+          aria-label="Search"
+          autocomplete="off"
+        />
+
+        <button class="board-btn primary" type="submit">필터 적용</button>
+        <a class="board-btn ghost" href="{% url 'board:admin_logs' %}">초기화</a>
+      </div>
+
+      <div class="adminlog-meta adminlog-meta--right adminlog-meta--spaced">
+        <span class="pill dim">표시: 최근 {{ logs|length }}건</span>
+        {% if f_action %}<span class="pill info">action={{ f_action }}</span>{% endif %}
+        {% if f_q %}<span class="pill info">q={{ f_q }}</span>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  {% if logs %}
+    <div class="adminlog-list">
+      {% for it in logs %}
+      {% with a=it.action|default:""|lower %}
+      <article class="log-item">
+        <div class="log-head">
+          <div class="log-title">
+            <span class="pill {% if a == 'bulk_resolve' %}ok{% elif a == 'bulk_reject' %}warn{% else %}info{% endif %}">
+              {{ it.action|default:"-" }}
+            </span>
+
+            {% if it.created_at %}
+              <span class="pill dim mono">{{ it.created_at|date:"Y-m-d H:i:s" }}</span>
+              <span class="pill dim">{{ it.created_at|naturaltime }}</span>
+            {% else %}
+              <span class="pill dim">time=-</span>
+            {% endif %}
+          </div>
+
+          <div class="log-title">
+            {% if it.actor %}
+              <span class="pill dim">actor: <span class="mono">{{ it.actor.username }}</span></span>
+            {% else %}
+              <span class="pill dim">actor: -</span>
+            {% endif %}
+
+            <span class="pill dim">done: <span class="mono">{{ it.done|default:"-" }}</span></span>
+          </div>
+        </div>
+
+        <div class="log-kv">
+          {% if it.status %}
+            <span class="pill info">status={{ it.status }}</span>
+          {% endif %}
+          {% if it.auto_only %}
+            <span class="pill info">auto_only=1</span>
+          {% endif %}
+          {% if it.report_ids %}
+            <span class="pill dim">report_ids: <span class="mono">{{ it.report_ids }}</span></span>
+          {% endif %}
+        </div>
+
+        <div class="log-body">
+          <p class="log-body-title">메모</p>
+          <p class="log-body-text">
+            {% if it.note %}{{ it.note|linebreaksbr }}{% else %}-{% endif %}
+          </p>
+
+          {% if it.filter_qs %}
+            <p class="log-body-title">필터</p>
+            <p class="log-body-text mono">{{ it.filter_qs }}</p>
+          {% endif %}
+
+          {% if not it.report_ids and not it.filter_qs and not it.note %}
+            <p class="log-body-text dim">표시할 상세 정보가 없어요.</p>
+          {% endif %}
+        </div>
+      </article>
+      {% endwith %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="adminlog-empty">
+      <div class="adminlog-empty-ico" aria-hidden="true">📭</div>
+
+      <div class="adminlog-empty-body">
+        <h3 class="adminlog-empty-title">아직 운영 로그가 없어요</h3>
+        <p class="adminlog-empty-sub">
+          신고 처리(해결/반려)나 일괄 처리 작업을 수행하면 이곳에 기록이 쌓입니다.
+          데모 확인을 원하면 ‘신고 관리’에서 테스트로 처리해보면 바로 로그가 생겨요.
+        </p>
+
+        <div class="adminlog-empty-actions">
+          <a class="board-btn primary" href="{% url 'board:reports' %}">🚨 신고 관리로 이동</a>
+          <a class="board-btn ghost" href="{% url 'board:bans' %}">⛔ 차단/링크 제한</a>
+        </div>
+
+        <div class="adminlog-empty-hint">
+          팁: “해결/반려” 같은 액션이 수행되면 여기서 확인 가능합니다.
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+</div>
+{% endblock %}
