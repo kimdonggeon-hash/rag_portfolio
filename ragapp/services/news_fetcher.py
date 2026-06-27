@@ -5,7 +5,7 @@ import logging
 import time
 import re
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from typing import Any, List, Dict, Tuple, Optional
 from urllib.parse import urlencode, urlparse, urljoin
 
 import requests
@@ -25,9 +25,42 @@ _UA = (
 )
 
 _DEFAULT_TIMEOUT = int(getattr(settings, "HEADLESS_TIMEOUT_SEC", 12) or 12)
-_RESPECT_ROBOTS = bool(getattr(settings, "RESPECT_ROBOTS", True))
+
+def _as_bool(v: Any, default: bool = False) -> bool:
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, int):
+        return v != 0
+    if isinstance(v, str):
+        return v.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(v)
+
+
+_RESPECT_ROBOTS = _as_bool(getattr(settings, "RESPECT_ROBOTS", True), default=True)
+
 _RATE_PER_HOST = float(getattr(settings, "CRAWL_RATE_LIMIT_PER_HOST", 1.0) or 1.0)  # req/sec
-_ALLOWLIST = list(getattr(settings, "ALLOWLIST_DOMAINS", []) or [])
+
+
+def _as_list(v: Any) -> list[str]:
+    if v is None:
+        return []
+
+    if isinstance(v, (list, tuple, set)):
+        return [str(x).strip().lower() for x in v if str(x).strip()]
+
+    if isinstance(v, str):
+        return [
+            x.strip().lower()
+            for x in v.split(",")
+            if x.strip()
+        ]
+
+    return []
+
+
+_ALLOWLIST = _as_list(getattr(settings, "ALLOWLIST_DOMAINS", []))
 
 _session = requests.Session()
 _session.headers.update(
@@ -258,16 +291,32 @@ def search_news_rss(query: str, topk: int = 5) -> List[Dict]:
     url = tmpl.format(query=urlencode({"": query})[1:])  # 'q=...'만 치환
     final, html = _fetch_html(url, timeout=_DEFAULT_TIMEOUT, allow_xml=True)
     if not html:
+        log.warning(
+            "[news_fetcher] RSS fetch 결과 없음 query=%r url=%s final=%s allowlist=%s respect_robots=%s",
+            query,
+            url,
+            final,
+            _ALLOWLIST,
+            _RESPECT_ROBOTS,
+        )
         return []
 
-    soup = BeautifulSoup(html, "xml")
+    try:
+        soup = BeautifulSoup(html, "xml")
+    except Exception:
+        soup = BeautifulSoup(html, "html.parser")
+
     items = soup.find_all("item")[: max(0, topk)]
 
     out = []
     for it in items:
         title = (it.title.text if it.title else "").strip()
         link = (it.link.text if it.link else "").strip()
-        pub = (it.pubDate.text if it.pubDate else "") or (it.find_text("published") or "")
+        pub = ""
+        if it.find("pubDate"):
+            pub = it.find("pubDate").get_text(" ", strip=True)
+        elif it.find("published"):
+            pub = it.find("published").get_text(" ", strip=True)
         source = ""
         src_tag = it.find("source")
         if src_tag and src_tag.text:

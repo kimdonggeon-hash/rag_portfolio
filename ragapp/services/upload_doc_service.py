@@ -19,8 +19,27 @@ from ragapp.log_utils import log_success, log_error
 
 log = logging.getLogger(__name__)
 
-# ✅ RAG 필터링에 쓰는 "source"는 고정(업로드 문서 hit 보장)
-UPLOAD_SOURCE = "upload_doc"
+# ✅ RAG 검색 필터에 걸리는 source
+# PDF 업로드가 RAG 검색에서 잡히려면 source="pdf"가 가장 안전하다.
+PDF_SOURCE = "pdf"
+
+# TXT/직접 입력 텍스트용
+TEXT_SOURCE = "upload_doc"
+
+# 업로드 문서라는 성격은 kind로 따로 보관
+UPLOAD_KIND = "upload_doc"
+
+
+def _source_for_file(name: str, *, is_pasted: bool = False) -> str:
+    if is_pasted:
+        return TEXT_SOURCE
+
+    ext = os.path.splitext(str(name).lower())[1]
+
+    if ext == ".pdf":
+        return PDF_SOURCE
+
+    return TEXT_SOURCE
 
 
 def _sha(s: str) -> str:
@@ -91,17 +110,24 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             or (request.POST.get("pasted_text") or "")
         ).strip()
 
-    # ✅ 표시용(source_name)만 정리해서 사용 (필터링 키 source는 고정 upload_doc)
-    source_name = _safe_label(source_label_raw) or UPLOAD_SOURCE
+    # ✅ 표시용(source_name)만 정리해서 사용
+    # 검색 필터용 source는 파일 확장자에 따라 pdf/upload_doc로 따로 결정한다.
+    source_name = _safe_label(source_label_raw) or UPLOAD_KIND
 
     files: List[Any] = []
-    if hasattr(request, "FILES"):
+
+    # ✅ upload_views.py에서 보조 속성으로 넘긴 파일 목록 우선 사용
+    preset_files = getattr(request, "_upload_doc_files", None)
+
+    if preset_files:
+        files = list(preset_files)
+    elif hasattr(request, "FILES"):
         files += list(request.FILES.getlist("docfiles"))  # ✅ 정식
         files += list(request.FILES.getlist("files"))     # (호환)
         if request.FILES.get("file"):
             files.append(request.FILES["file"])
 
-    extracted: List[Tuple[str, str]] = []
+    extracted: List[Tuple[str, str, str]] = []
     extracted_infos: List[Dict[str, Any]] = []
     error_infos: List[Dict[str, Any]] = []
     file_errors: List[str] = []
@@ -109,7 +135,9 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
     # 붙여넣기 텍스트
     if pasted_text:
         name_key = "__pasted__.txt"
-        extracted.append((name_key, pasted_text))
+        file_source = _source_for_file(name_key, is_pasted=True)
+
+        extracted.append((name_key, pasted_text, file_source))
         extracted_infos.append(
             {
                 "name_key": name_key,
@@ -117,6 +145,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 "is_pasted": True,
                 "size_bytes": len(pasted_text.encode("utf-8", errors="ignore")),
                 "text": pasted_text,
+                "source": file_source,
             }
         )
 
@@ -147,7 +176,9 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 file_errors.append(f"{name}: {msg}")
                 error_infos.append({"file_name": name, "message": msg})
             else:
-                extracted.append((name, text))
+                file_source = _source_for_file(name, is_pasted=False)
+
+                extracted.append((name, text, file_source))
                 extracted_infos.append(
                     {
                         "name_key": name,
@@ -155,6 +186,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                         "is_pasted": False,
                         "size_bytes": getattr(f, "size", 0) or 0,
                         "text": text,
+                        "source": file_source,
                     }
                 )
         except Exception as e:
@@ -187,7 +219,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
     all_metas: List[Dict[str, Any]] = []
     per_file_cnt: defaultdict[str, int] = defaultdict(int)
 
-    for name, text in extracted:
+    for name, text, file_source in extracted:
         chunks = _chunk(text, maxlen=size, overlap=overlap)
 
         # ✅ doc_id를 "내용 기반"으로 안정화: 같은 내용 재업로드 → 같은 ids로 업서트
@@ -199,13 +231,21 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             if not ch_s:
                 continue
 
-            # ✅ 핵심: RAG 필터용 source는 무조건 upload_doc
+            # ✅ 핵심: RAG 필터용 source는 파일 종류에 따라 pdf/upload_doc로 저장
             meta: Dict[str, Any] = {
-                "source": UPLOAD_SOURCE,         # ✅ 검색 필터에 걸리는 값(고정)
-                "source_name": source_name,      # ✅ 화면 표시용 라벨(사용자 입력 반영 가능)
+                # ✅ RAG 검색 필터에 걸리는 값
+                # PDF면 "pdf", TXT/직접입력이면 "upload_doc"
+                "source": file_source,
+
+                # ✅ 업로드 문서라는 성격은 따로 보관
+                "kind": UPLOAD_KIND,
+
+                # ✅ 화면 표시용 라벨
+                "source_name": source_name,
+
                 "title": common_title or name,
                 "file_name": name,
-                "url": "",                       # 업로드 문서는 URL 없음
+                "url": "",
                 "doc_id": doc_id,
                 "chunk_index": i,
                 "ingested_at": now_iso,
@@ -320,7 +360,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             by_file_docs[fname].append(d)
             if fname not in by_file_meta:
                 by_file_meta[fname] = {
-                    "kind": UPLOAD_SOURCE,
+                    "kind": m.get("kind") or UPLOAD_KIND,
                     "file_name": fname,
                     "source": m.get("source"),
                     "source_name": m.get("source_name"),
@@ -330,12 +370,18 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 }
 
         for fname, docs in by_file_docs.items():
+            meta0 = by_file_meta.get(fname) or {
+                "kind": UPLOAD_KIND,
+                "file_name": fname,
+                "source": TEXT_SOURCE,
+            }
+
             saved_total += save_ragchunks_safe(
                 texts=docs,
                 title=(common_title or fname),
                 url="",
-                source=UPLOAD_SOURCE,  # ✅ 일관성
-                base_meta=by_file_meta.get(fname) or {"kind": UPLOAD_SOURCE, "file_name": fname},
+                source=meta0.get("source") or TEXT_SOURCE,
+                base_meta=meta0,
             )
         if saved_total:
             messages.info(request, f"RagChunk 저장(감사용): {saved_total} 청크")
@@ -357,7 +403,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 {
                     "file_name": display_name,
                     "title": common_title or display_name,
-                    "source": UPLOAD_SOURCE,
+                    "source": info.get("source") or TEXT_SOURCE,
                     "source_name": source_name,
                     "is_pasted": bool(info.get("is_pasted")),
                     "size_bytes": int(info.get("size_bytes") or 0),
@@ -372,11 +418,12 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
         for einfo in error_infos:
             fname = (einfo.get("file_name") or "").strip() or "(알 수 없는 파일)"
             msg = einfo.get("message") or ""
+
             file_rows.append(
                 {
                     "file_name": fname,
                     "title": fname,
-                    "source": UPLOAD_SOURCE,
+                    "source": _source_for_file(fname, is_pasted=False),
                     "source_name": source_name,
                     "is_pasted": False,
                     "size_bytes": 0,
@@ -399,7 +446,7 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             "files": [r.get("file_name") for r in file_rows],
             "file_rows": file_rows,
             "ragchunk_saved": saved_total,
-            "source": UPLOAD_SOURCE,
+            "sources": sorted({str(r.get("source") or "") for r in file_rows if r.get("source")}),
             "source_name": source_name,
         }
 
@@ -416,10 +463,15 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
                 "result": "success",
                 "total_chunks": total_chunks,
                 "failed_files": failed_files,
-                "source": UPLOAD_SOURCE,
+                "sources": sorted({str(r.get("source") or "") for r in file_rows if r.get("source")}),
                 "source_name": source_name,
                 "file_summaries": [
-                    {"file_name": r["file_name"], "chunk_count": r["chunk_count"], "status": r["status"]}
+                    {
+                        "file_name": r["file_name"],
+                        "source": r.get("source"),
+                        "chunk_count": r["chunk_count"],
+                        "status": r["status"],
+                    }
                     for r in file_rows
                 ],
             },
@@ -435,6 +487,6 @@ def handle_upload_doc(request: HttpRequest) -> Dict[str, Any]:
             query_text=common_title or "(upload_doc)",
             err_msg=str(e),
             request=request,
-            extra={"where": "upload_doc_view", "stage": "exception", "source": UPLOAD_SOURCE},
+            extra={"where": "upload_doc_view", "stage": "exception", "kind": UPLOAD_KIND},
         )
         return {"error_msg": f"업서트 실패: {e}", "file_errors": file_errors, "result": None}

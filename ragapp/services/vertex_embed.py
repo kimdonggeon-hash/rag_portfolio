@@ -29,8 +29,31 @@ except Exception:  # pragma: no cover
 # =========================================================
 # 환경 변수 (프로젝트는 VERTEX_PROJECT_ID만 사용)
 # =========================================================
-# ✅ 도쿄 리전: asia-northeast1
+# ✅ 기본 GCP/Vertex 리전: 도쿄 유지
 LOCATION = (os.getenv("VERTEX_LOCATION") or "").strip() or "asia-northeast1"
+
+# ✅ Gemini LLM 전용 리전
+# - gemini-3.5-flash는 asia-northeast1로 호출하면 404가 날 수 있으므로 global 우선
+LLM_LOCATION = (
+    os.getenv("VERTEX_LLM_LOCATION")
+    or "global"
+).strip()
+
+# ✅ 텍스트 임베딩 전용 리전
+# - 없으면 기존 LOCATION(도쿄)을 사용해서 기존 동작 최대한 유지
+EMBED_LOCATION = (
+    os.getenv("VERTEX_EMBED_LOCATION")
+    or os.getenv("EMBED_LOCATION")
+    or LOCATION
+).strip()
+
+# ✅ 멀티모달 임베딩 전용 리전
+# - 없으면 임베딩 리전 사용
+MM_LOCATION = (
+    os.getenv("VERTEX_MM_LOCATION")
+    or os.getenv("VERTEX_MULTIMODAL_LOCATION")
+    or EMBED_LOCATION
+).strip()
 
 # 임베딩 모델 이름 (.env 만 보고 결정)
 MM_MODEL = (os.getenv("VERTEX_MM_EMBED_MODEL", "multimodalembedding@001") or "").strip()
@@ -83,11 +106,11 @@ TABLE_LLM_MODEL = (
     or os.getenv("GEMINI_MODEL")
     or os.getenv("GEMINI_TEXT_MODEL")
     or os.getenv("VERTEX_TEXT_MODEL")
-    or "gemini-2.5-flash"
+    or "gemini-3.5-flash"
 )
 
 # =========================================================
-# Vertex 공통 초기화 (임베딩/LLM 공통)
+# Vertex 공통 초기화
 # =========================================================
 def _get_vertex_project_id() -> str:
     """
@@ -102,17 +125,22 @@ def _get_vertex_project_id() -> str:
     return project
 
 
-def _init_once() -> None:
+def _init_vertex(location: str) -> None:
+    """
+    ✅ 호출 목적에 맞는 Vertex location으로 초기화.
+    - 텍스트 임베딩: EMBED_LOCATION
+    - 멀티모달 임베딩: MM_LOCATION
+    - Gemini LLM: LLM_LOCATION
+    """
     if vertexai is None:
         raise RuntimeError(
             "google-cloud-aiplatform (vertexai) 패키지가 필요합니다. "
             "터미널에서 'pip install google-cloud-aiplatform' 후 다시 실행해 주세요."
         )
 
-    if not getattr(_init_once, "_done", False):
-        project = _get_vertex_project_id()
-        vertexai.init(project=project, location=LOCATION)
-        _init_once._done = True
+    project = _get_vertex_project_id()
+    vertexai.init(project=project, location=location)
+    log.info("Vertex init: project=%s location=%s", project, location)
 
 
 _mm_model: Optional[Any] = None
@@ -123,7 +151,7 @@ _llm_model: Optional[Any] = None
 def _mm() -> Any:
     """멀티모달 임베딩 모델 핸들 (이미지/텍스트 임베딩)."""
     global _mm_model
-    _init_once()
+    _init_vertex(MM_LOCATION)
     if MultiModalEmbeddingModel is None:
         raise RuntimeError(
             "MultiModalEmbeddingModel 클래스를 찾을 수 없습니다. "
@@ -137,7 +165,7 @@ def _mm() -> Any:
 def _txt() -> Any:
     """텍스트 임베딩 모델 핸들 (text-embedding-005)."""
     global _txt_model
-    _init_once()
+    _init_vertex(EMBED_LOCATION)
     if TextEmbeddingModel is None:
         raise RuntimeError(
             "TextEmbeddingModel 클래스를 찾을 수 없습니다. "
@@ -154,7 +182,7 @@ def _llm() -> Any:
     - 서비스 계정 JSON / ADC 로만 동작 (GOOGLE_API_KEY 필요 없음)
     """
     global _llm_model
-    _init_once()
+    _init_vertex(LLM_LOCATION)
     if GenerativeModel is None:
         raise RuntimeError(
             "vertexai.generative_models.GenerativeModel 을 사용할 수 없습니다. "

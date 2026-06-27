@@ -40,6 +40,61 @@ except Exception:  # pragma: no cover
 
 _END_TYPES = {"end", "closed", "close"}
 
+_CLOSED_STATUS_FALLBACKS = {
+    "ended",
+    "closed",
+    "close",
+    "done",
+    "saved",
+    "종료",
+    "ended_need_save",
+}
+
+
+def _status_to_str(v: Any) -> str:
+    try:
+        return str(getattr(v, "value", v) or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def _closed_statuses() -> set[str]:
+    values = set(_CLOSED_STATUS_FALLBACKS)
+
+    try:
+        if LiveChatSession is not None:
+            Status = getattr(LiveChatSession, "Status", None)
+            if Status is not None:
+                for name in ("ENDED", "CLOSED", "DONE", "SAVED", "ENDED_NEED_SAVE"):
+                    if hasattr(Status, name):
+                        values.add(_status_to_str(getattr(Status, name)))
+    except Exception:
+        pass
+
+    return values
+
+
+def _is_session_closed_obj(session: Any) -> bool:
+    """
+    종료된 상담인지 판단.
+    - status가 종료 계열이면 종료
+    - ended_at이 있으면 종료
+    """
+    if session is None:
+        return True
+
+    try:
+        if getattr(session, "ended_at", None):
+            return True
+
+        status = _status_to_str(getattr(session, "status", ""))
+        if status in _closed_statuses():
+            return True
+    except Exception:
+        return False
+
+    return False
+
 # ─────────────────────────────────────
 # settings safe getter (import 시점/초기화 타이밍 이슈 방지)
 # ─────────────────────────────────────
@@ -347,20 +402,27 @@ def _ensure_room_row_async(room: str) -> None:
 #   LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM=3
 #   LIVECHAT_WS_SLOT_TTL=3700
 # ─────────────────────────────────────
+def _lc_limit_enabled() -> bool:
+    """
+    포트폴리오 서비스에서는 기본적으로 WS 접속 수 카운터 제한을 끈다.
+    서버 보호는 Cloud Run 설정 + 메시지 rate limit + 상담 세션 제한으로 처리.
+    """
+    return _boolish(_get_setting("LIVECHAT_WS_LIMIT_ENABLED", False), default=False)
+
+
 def _lc_ttl() -> int:
-    v = _to_int(_get_setting("LIVECHAT_WS_SLOT_TTL", 3700))
-    return int(v or 3700)
+    v = _to_int(_get_setting("LIVECHAT_WS_SLOT_TTL", 300))
+    return int(v or 300)
 
 
 def _lc_max_total() -> int:
-    v = _to_int(_get_setting("LIVECHAT_MAX_WS_CONNECTIONS", 10))
-    return int(v or 10)
+    v = _to_int(_get_setting("LIVECHAT_MAX_WS_CONNECTIONS", 100))
+    return int(v or 100)
 
 
 def _lc_max_per_room() -> int:
-    v = _to_int(_get_setting("LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM", 3))
-    return int(v or 3)
-
+    v = _to_int(_get_setting("LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM", 20))
+    return int(v or 20)
 
 def _cache_get_int(key: str) -> int:
     try:
@@ -406,12 +468,44 @@ def _lc_key_total() -> str:
 def _lc_key_room(room: str) -> str:
     return f"livechat:ws:room:{_safe_group_name(room)}"
 
+def _lc_user_msg_limit_per_min() -> int:
+    """
+    고객 메시지 분당 제한.
+    0 이하이면 제한 비활성화.
+    """
+    v = _to_int(_get_setting("LIVECHAT_USER_MSG_LIMIT_PER_MIN", 20))
+    return int(v or 20)
+
+
+def _lc_user_rate_key(room: str) -> str:
+    return f"livechat:rate:user:{_safe_group_name(room)}"
+
+
+def _check_user_message_rate(room: str) -> Tuple[bool, int, int]:
+    """
+    returns: (ok, current_count, limit)
+    """
+    limit = _lc_user_msg_limit_per_min()
+    if limit <= 0:
+        return True, 0, limit
+
+    key = _lc_user_rate_key(room)
+    count = _cache_incr(key, 60, 1)
+
+    return count <= limit, count, limit
+
 
 def _acquire_ws_slot(room: str) -> Tuple[bool, str]:
     """
     returns (ok, reason)
       reason: "busy_total" | "busy_room" | "ok"
+
+    기본값은 제한 OFF.
+    제한을 끄면 가짜 혼잡 상태가 발생하지 않는다.
     """
+    if not _lc_limit_enabled():
+        return True, "ok"
+
     ttl = _lc_ttl()
 
     total = _cache_incr(_lc_key_total(), ttl, 1)
@@ -430,6 +524,9 @@ def _acquire_ws_slot(room: str) -> Tuple[bool, str]:
 
 
 def _release_ws_slot(room: str) -> None:
+    if not _lc_limit_enabled():
+        return
+
     ttl = _lc_ttl()
     _cache_decr(_lc_key_room(room), ttl, 1)
     _cache_decr(_lc_key_total(), ttl, 1)
@@ -605,44 +702,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # accept는 안내 메시지 보내려면 필요
         await self.accept()
 
-        # ✅ WS 동시 접속 제한 (혼잡 시 안내 후 종료)
-        self._slot_ok = False
-        reason = "ok"
-        try:
-            ok, reason = await database_sync_to_async(_acquire_ws_slot)(str(self.room))
-            self._slot_ok = bool(ok)
-        except Exception:
-            # 카운터 자체가 실패하면 안전하게 "허용"
-            self._slot_ok = True
-            reason = "ok"
+        # ✅ WS 접속 수 카운터 제한은 사용하지 않음
+        # 서버 보호는 Cloud Run 설정 + 상담 세션 제한 + 메시지 rate limit으로 처리
+        self._slot_ok = True
 
-        if not self._slot_ok:
-            msg = (
-                "현재 상담 연결이 혼잡합니다. 잠시 후 다시 시도해 주세요."
-                if reason == "busy_total"
-                else "현재 해당 상담방 연결이 혼잡합니다. 잠시 후 다시 시도해 주세요."
-            )
-            payload = {
-                "type": "end",
-                "code": "BUSY",
-                "sender": "system",
-                "role": "system",
-                "text": msg,
-                "content": msg,
-                "room": self.room,
-                "ts": int(timezone.now().timestamp() * 1000),
-            }
-            try:
-                await self.send(text_data=json.dumps(payload, ensure_ascii=False))
-            except Exception:
-                pass
-            try:
-                await self.close(code=1013)
-            except Exception:
-                pass
-            return
-
-        # ✅ 슬롯 통과한 경우에만 그룹 참가
+        # ✅ 그룹 참가
         try:
             await self.channel_layer.group_add(self.group_name, self.channel_name)
         except Exception:
@@ -663,13 +727,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         try:
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
-        except Exception:
-            pass
-
-        # ✅ 슬롯 반납
-        try:
-            if getattr(self, "_slot_ok", False):
-                await database_sync_to_async(_release_ws_slot)(str(getattr(self, "room", "unknown")))
         except Exception:
             pass
 
@@ -697,6 +754,29 @@ class RoomConsumer(AsyncWebsocketConsumer):
             return int(s.id) if s else None
         except Exception:
             return None
+        
+    @database_sync_to_async
+    def _is_current_session_closed(self, room: str, session_id: Optional[int] = None) -> bool:
+        """
+        현재 room/session_id 기준으로 상담이 종료되었는지 확인.
+        종료된 상담이면 이후 메시지 저장/전송을 막기 위해 사용.
+        """
+        if LiveChatSession is None:
+            return False
+
+        try:
+            session = None
+
+            if session_id:
+                session = LiveChatSession.objects.filter(id=session_id).first()
+
+            if session is None and room:
+                session = LiveChatSession.objects.filter(room=room).order_by("-id").first()
+
+            return _is_session_closed_obj(session)
+        except Exception:
+            log.warning("check livechat closed failed", exc_info=True)
+            return False
 
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:
@@ -721,6 +801,85 @@ class RoomConsumer(AsyncWebsocketConsumer):
         ts = _ts_ms(_pick_first(data, "ts", default=None)) or int(timezone.now().timestamp() * 1000)
 
         sender_norm, _trimmed = _normalize_sender_role(sender_raw, max_len=16)
+
+        # ✅ 이미 종료된 상담이면 메시지 저장/전송 자체를 차단
+        if effective_type not in _END_TYPES:
+            is_closed = await self._is_current_session_closed(room=room, session_id=session_id)
+            if is_closed:
+                msg = "이미 종료된 상담입니다. 새 상담을 요청해 주세요."
+                end_payload = {
+                    "type": "end",
+                    "event": "session_closed",
+                    "closed": True,
+                    "can_send": False,
+                    "sender": "system",
+                    "role": "system",
+                    "text": msg,
+                    "content": msg,
+                    "room": room,
+                    "session_id": session_id,
+                    "ts": int(timezone.now().timestamp() * 1000),
+                }
+
+                try:
+                    await self.send(text_data=json.dumps(end_payload, ensure_ascii=False))
+                except Exception:
+                    pass
+
+                _safe_log(
+                    "ws_block",
+                    reason="session_closed",
+                    room=room,
+                    sid=session_id,
+                    sender=sender_norm,
+                    type=effective_type,
+                    len=len(text),
+                )
+
+                try:
+                    await self.close(code=1000)
+                except Exception:
+                    pass
+
+                return
+            
+        # ✅ 고객 메시지 폭주 방지
+        # 연결 자체는 유지하고, 메시지만 제한한다.
+        if sender_norm == "user" and effective_type not in _END_TYPES:
+            rate_ok, rate_count, rate_limit = await database_sync_to_async(_check_user_message_rate)(str(room))
+
+            if not rate_ok:
+                msg = f"메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요. 현재 제한은 1분에 {rate_limit}개입니다."
+
+                try:
+                    await self.send(
+                        text_data=json.dumps(
+                            {
+                                "type": "blocked",
+                                "code": "RATE_LIMITED",
+                                "sender": "system",
+                                "role": "system",
+                                "text": msg,
+                                "message": msg,
+                                "room": room,
+                                "session_id": session_id,
+                                "ts": int(timezone.now().timestamp() * 1000),
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                except Exception:
+                    pass
+
+                _safe_log(
+                    "ws_block",
+                    reason="rate_limit",
+                    room=room,
+                    sid=session_id,
+                    count=rate_count,
+                    limit=rate_limit,
+                )
+                return
 
         _safe_log(
             "ws_recv",
@@ -1037,7 +1196,27 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
     async def room_message(self, event: Dict[str, Any]):
         payload = event.get("payload") or {}
+
         try:
-            await self.send(text_data=json.dumps(payload))
+            await self.send(text_data=json.dumps(payload, ensure_ascii=False))
         except Exception as e:
             log.warning("RoomConsumer send failed: %s", e)
+            return
+
+        # ✅ 상담 종료 이벤트를 받으면 고객 WebSocket도 닫음
+        try:
+            data = _unwrap_payload(payload)
+            msg_type = _pick_type(data)
+            event_type = str(data.get("event") or "").strip().lower()
+
+            should_close = (
+                msg_type in _END_TYPES
+                or event_type == "session_closed"
+                or data.get("closed") is True
+                or data.get("can_send") is False
+            )
+
+            if should_close:
+                await self.close(code=1000)
+        except Exception:
+            pass

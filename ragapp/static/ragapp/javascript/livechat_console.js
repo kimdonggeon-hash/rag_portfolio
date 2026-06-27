@@ -920,6 +920,22 @@
             };
             if (csrf) headers["X-CSRFToken"] = csrf;
 
+            // ✅ 1) 고객 화면으로 실시간 종료 이벤트 전송
+            if (roomSocket && roomSocket.readyState === WebSocket.OPEN) {
+                try {
+                    roomSocket.send(JSON.stringify({
+                        sender: "operator",
+                        type: "end",
+                        text: reason,
+                        room: connectedRoom,
+                        session_id: connectedSessionId
+                    }));
+                } catch (e) {
+                    console.warn("[livechat] end socket send error", e);
+                }
+            }
+
+            // ✅ 2) 서버 DB 상태 종료 처리
             fetch(CONFIG.endUrl, {
                 method: "POST",
                 headers: headers,
@@ -932,6 +948,7 @@
                 console.warn("[livechat] end api error", err);
             });
 
+            // ✅ 3) 상담사 화면 종료 처리
             markRoomEnded(connectedRoom);
         });
     }

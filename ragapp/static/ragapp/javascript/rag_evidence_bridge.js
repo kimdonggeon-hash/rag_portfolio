@@ -67,17 +67,95 @@
 
     function pickSourcesAny(obj) {
         var j = obj || {};
-        var cand =
-            j.sources ||
-            j.rag_sources ||
-            j.ragSources ||
-            j.hits ||
-            j.docs ||
-            j.documents ||
-            j.contexts ||
-            j.context ||
-            [];
-        return Array.isArray(cand) ? cand : [];
+
+        // ✅ 백엔드 응답 키가 여러 형태로 올 수 있으므로 안전하게 선택
+        // 우선순위:
+        // 1) sources_norm: citation_idx/chunk 형태로 정규화된 근거
+        // 2) hits: 실제 검색 hit
+        // 3) sources: 일반 근거
+        var candidates = [
+            j.sources_norm,
+            j.hits,
+            j.sources,
+            j.used_sources,
+            j.rag_sources,
+            j.ragSources,
+            j.docs,
+            j.documents,
+            j.contexts,
+            j.context
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+            if (Array.isArray(candidates[i]) && candidates[i].length > 0) {
+                return candidates[i];
+            }
+        }
+
+        return [];
+    }
+
+    function pickAnswerAny(obj) {
+        try {
+            var j = obj || {};
+            return String(
+                j.answer_text ||
+                j.answer ||
+                j.text ||
+                j.reply ||
+                j.result ||
+                ""
+            );
+        } catch (_) {
+            return "";
+        }
+    }
+
+
+    function filterSourcesByAnswerCitations(answerText, sources) {
+        try {
+            if (!Array.isArray(sources) || sources.length === 0) return [];
+
+            var answer = String(answerText || "");
+            var used = [];
+            var re = /\[(\d{1,2})\]/g;
+            var m;
+
+            while ((m = re.exec(answer)) !== null) {
+                var n = parseInt(m[1], 10);
+
+                // [2024] 같은 숫자 오인 방지
+                if (n >= 1 && n <= 99 && used.indexOf(n) < 0) {
+                    used.push(n);
+                }
+            }
+
+            // ✅ 답변에 인용번호가 없어도 백엔드가 근거를 보냈다면 일단 보여준다.
+            // 기존에는 여기서 []를 반환해서 "근거 0개"가 됐음.
+            if (!used.length) return sources;
+
+            var selected = sources.filter(function (src, pos) {
+                try {
+                    var idx = parseInt(
+                        src && (src.citation_idx || src.idx)
+                            ? (src.citation_idx || src.idx)
+                            : (pos + 1),
+                        10
+                    );
+
+                    return used.indexOf(idx) >= 0;
+                } catch (_) {
+                    return false;
+                }
+            });
+
+            // ✅ 핵심 수정:
+            // 답변의 [2]와 실제 근거 idx=1처럼 번호가 어긋난 경우에도
+            // 백엔드가 보낸 근거를 0개로 숨기지 않는다.
+            return selected.length ? selected : sources;
+        } catch (_) {
+            return Array.isArray(sources) ? sources : [];
+        }
     }
 
     function normalizeSources(arr) {
@@ -92,7 +170,14 @@
                 var keyS = (urlS || safeText(s) || String(idx)).toLowerCase();
                 if (seen.has(keyS)) return;
                 seen.add(keyS);
-                out.push({ title: safeText(s) || urlS || ("근거 " + (idx + 1)), url: urlS || "", snippet: "", score: null });
+                out.push({
+                    idx: idx + 1,
+                    citation_idx: idx + 1,
+                    title: safeText(s) || urlS || ("근거 " + (idx + 1)),
+                    url: urlS || "",
+                    snippet: "",
+                    score: null
+                });
                 return;
             }
 
@@ -106,8 +191,30 @@
             if (seen.has(key)) return;
             seen.add(key);
 
+            var citationIdx = null;
+
+            try {
+                citationIdx =
+                    s.citation_idx ||
+                    s.idx ||
+                    (s.meta && (s.meta.citation_idx || s.meta.idx)) ||
+                    (idx + 1);
+            } catch (_) {
+                citationIdx = idx + 1;
+            }
+
+            var displayIdx = idx + 1;
+
             out.push({
-                title: title || (urlNorm ? urlNorm : (url ? url : ("근거 " + (idx + 1)))),
+                // ✅ 화면 표시용 번호는 항상 1부터 순서대로 정렬
+                idx: displayIdx,
+                citation_idx: displayIdx,
+
+                // ✅ 원래 백엔드 번호는 디버깅용으로 보존
+                raw_idx: citationIdx,
+                raw_citation_idx: citationIdx,
+
+                title: title || (urlNorm ? urlNorm : (url ? url : ("근거 " + displayIdx))),
                 url: urlNorm || "",
                 snippet: snippet || "",
                 score: score
@@ -172,70 +279,101 @@
         var dock = ensureDockRoot();
 
         var wrap = null;
+
+        // 1) 먼저 dock 안에서 찾기
         try {
             wrap = dock.querySelector('details.mz-evidence--rag, details.mz-evidence[data-evidence="rag"], details.mz-evidence');
-        } catch (_) { wrap = null; }
+        } catch (_) {
+            wrap = null;
+        }
 
+        // 2) dock 밖에 이미 템플릿이 만든 dgRagEvidenceWrap이 있으면 재사용
+        //    → 같은 id 중복 생성 방지
+        if (!wrap) {
+            try {
+                wrap = document.getElementById("dgRagEvidenceWrap") || null;
+                if (wrap && wrap.parentNode !== dock) {
+                    dock.appendChild(wrap);
+                }
+            } catch (_) {
+                wrap = null;
+            }
+        }
+
+        // 3) 그래도 없을 때만 새로 생성
         if (!wrap) {
             dock.innerHTML =
                 '' +
                 '<details id="dgRagEvidenceWrap" class="mz-evidence mz-evidence--rag dg-ev-details" data-evidence="rag">' +
                 '  <summary class="mz-evidence-summary" role="button" aria-controls="dgRagEvidencePanel" aria-expanded="false">' +
-                '    <span class="mz-evidence-title">📎 근거 보기</span>' +
+                '    <span class="mz-evidence-title">📎 사용된 근거 보기</span>' +
                 '    <span class="mz-evidence-actions">' +
                 '      <span class="mz-evidence-count" id="dgRagSourcesCount">0개</span>' +
                 '      <span class="mz-evidence-caret" aria-hidden="true">⌄</span>' +
                 "    </span>" +
                 "  </summary>" +
                 "</details>";
-            wrap = document.getElementById("dgRagEvidenceWrap") || null;
-        } else {
-            try { wrap.id = "dgRagEvidenceWrap"; } catch (_) { }
 
-            var summary = null;
-            try { summary = wrap.querySelector("summary"); } catch (_) { summary = null; }
-            if (!summary) {
-                summary = document.createElement("summary");
-                summary.className = "mz-evidence-summary";
-                summary.setAttribute("role", "button");
-                try { wrap.insertBefore(summary, wrap.firstChild); } catch (_) { }
-            }
-            summary.setAttribute("aria-controls", "dgRagEvidencePanel");
-            summary.setAttribute("aria-expanded", "false");
-
-            try {
-                if (!summary.querySelector(".mz-evidence-title")) {
-                    var t = document.createElement("span");
-                    t.className = "mz-evidence-title";
-                    t.textContent = "📎 근거 보기";
-                    summary.appendChild(t);
-                }
-
-                var act = summary.querySelector(".mz-evidence-actions");
-                if (!act) {
-                    act = document.createElement("span");
-                    act.className = "mz-evidence-actions";
-                    summary.appendChild(act);
-                }
-
-                var cnt = act.querySelector(".mz-evidence-count") || summary.querySelector(".mz-evidence-count");
-                if (!cnt) {
-                    cnt = document.createElement("span");
-                    cnt.className = "mz-evidence-count";
-                    act.appendChild(cnt);
-                }
-                cnt.id = "dgRagSourcesCount";
-                if (!cnt.textContent) cnt.textContent = "0개";
-
-                if (!act.querySelector(".mz-evidence-caret")) {
-                    var c = document.createElement("span");
-                    c.className = "mz-evidence-caret";
-                    c.setAttribute("aria-hidden", "true");
-                    c.textContent = "⌄";
-                    act.appendChild(c);
-                }
-            } catch (_) { }
+            wrap = dock.querySelector("#dgRagEvidenceWrap") || null;
         }
+
+        if (!wrap) return dock;
+
+        try { wrap.id = "dgRagEvidenceWrap"; } catch (_) { }
+        try { wrap.setAttribute("data-evidence", "rag"); } catch (_) { }
+
+        var summary = null;
+        try { summary = wrap.querySelector("summary"); } catch (_) { summary = null; }
+
+        if (!summary) {
+            summary = document.createElement("summary");
+            summary.className = "mz-evidence-summary";
+            summary.setAttribute("role", "button");
+            try { wrap.insertBefore(summary, wrap.firstChild); } catch (_) { }
+        }
+
+        summary.setAttribute("aria-controls", "dgRagEvidencePanel");
+        summary.setAttribute("aria-expanded", "false");
+
+        try {
+            var titleEl = summary.querySelector(".mz-evidence-title");
+            if (!titleEl) {
+                titleEl = document.createElement("span");
+                titleEl.className = "mz-evidence-title";
+                summary.appendChild(titleEl);
+            }
+
+            // ✅ 예전 문구면 새 문구로 교체
+            var titleTxt = safeText(titleEl.textContent || "");
+            if (!titleTxt || titleTxt === "📎 근거 보기" || titleTxt === "근거 보기") {
+                titleEl.textContent = "📎 사용된 근거 보기";
+            }
+
+            var act = summary.querySelector(".mz-evidence-actions");
+            if (!act) {
+                act = document.createElement("span");
+                act.className = "mz-evidence-actions";
+                summary.appendChild(act);
+            }
+
+            var cnt = act.querySelector(".mz-evidence-count") || summary.querySelector(".mz-evidence-count");
+            if (!cnt) {
+                cnt = document.createElement("span");
+                cnt.className = "mz-evidence-count";
+                act.appendChild(cnt);
+            }
+
+            cnt.id = "dgRagSourcesCount";
+            if (!cnt.textContent) cnt.textContent = "0개";
+
+            if (!act.querySelector(".mz-evidence-caret")) {
+                var c = document.createElement("span");
+                c.className = "mz-evidence-caret";
+                c.setAttribute("aria-hidden", "true");
+                c.textContent = "⌄";
+                act.appendChild(c);
+            }
+        } catch (_) { }
 
         return dock;
     }
@@ -468,11 +606,11 @@
             '' +
             '<div class="sources-block answer-evidence" data-sanitize-links="1">' +
             '  <div class="sources-title-row">' +
-            '    <h3 class="sources-title">📎 AI가 참고한 자료 목록</h3>' +
+            '    <h3 class="sources-title">📎 답변에 사용된 근거</h3>' +
             '    <span class="sources-count" id="dgRagSourcesCount2">0개</span>' +
             "  </div>" +
             '  <ul class="sources-list" id="dgRagSourcesList"></ul>' +
-            '  <p class="muted" id="dgRagSourcesEmpty">아직 보여 줄 근거가 없습니다.</p>' +
+            '  <p class="muted" id="dgRagSourcesEmpty">검색을 실행하면 답변에 실제 사용된 근거만 표시됩니다.</p>' +
             "</div>";
 
         try {
@@ -583,13 +721,16 @@
 
         // ✅ bubble은 "host 추정"보다 "dock이 실제 붙은 위치"가 1순위
         var dock = els.dock || document.getElementById("dgRagEvidenceDock");
-        var bubble = resolveBubble(dock) || (host ? resolveBubble(host) : null) || resolveBubble(findLastAssistantNode());
+        var host = resolveHostFromDock();
+
+        var bubble =
+            resolveBubble(dock) ||
+            (host ? resolveBubble(host) : null) ||
+            resolveBubble(findLastAssistantNode());
 
         if (!bubble) {
-            var host = resolveHostFromDock();
-            bubble = host ? resolveBubble(host) : null;
+            bubble = resolveBubble(findLastAssistantNode());
         }
-        if (!bubble) bubble = resolveBubble(findLastAssistantNode());
 
         var row = bubble ? bubble.querySelector(".dg-ev-row") : null;
         var panel = bubble ? ensurePanelForBubble(bubble, row) : document.getElementById("dgRagEvidencePanel");
@@ -734,7 +875,7 @@
                     esc(title) +
                     "</a>" +
                     (s.snippet ? '<span class="src-snippet">' + esc(s.snippet.length > CFG.snippet_max ? (s.snippet.slice(0, CFG.snippet_max) + "…") : s.snippet) + "</span>" : "") +
-                    '<span class="src-meta">' + esc(hostName || href) + " · #" + (i + 1) + "</span>" +
+                    '<span class="src-meta">' + esc(hostName || href) + " · #" + esc(s.citation_idx || s.idx || (i + 1)) + "</span>" +
                     (typeof s.score === "number" ? '<span class="src-meta">유사도 점수: ' + s.score.toFixed(3) + "</span>" : "");
 
                 try {
@@ -748,8 +889,9 @@
             } else {
                 li.innerHTML =
                     '' +
-                    '<span class="src-title">' + esc(s.title || ("근거 " + (i + 1))) + "</span>" +
+                    '<span class="src-title">' + esc(s.title || ("근거 " + (s.citation_idx || s.idx || (i + 1)))) + "</span>" +
                     (s.snippet ? '<span class="src-snippet">' + esc(s.snippet.length > CFG.snippet_max ? (s.snippet.slice(0, CFG.snippet_max) + "…") : s.snippet) + "</span>" : "") +
+                    '<span class="src-meta">#' + esc(s.citation_idx || s.idx || (i + 1)) + "</span>" +
                     (typeof s.score === "number" ? '<span class="src-meta">유사도 점수: ' + s.score.toFixed(3) + "</span>" : "");
             }
 
@@ -771,7 +913,13 @@
 
     function handleRagResponseJson(j) {
         try {
-            var sources = normalizeSources(pickSourcesAny(j));
+            var rawSources = pickSourcesAny(j);
+            var answerText = pickAnswerAny(j);
+
+            // ✅ 답변에 실제 인용된 [1], [2], [3] 근거만 남김
+            rawSources = filterSourcesByAnswerCitations(answerText, rawSources);
+
+            var sources = normalizeSources(rawSources);
             var logId = (j && (j.log_id || j.req_id || j.request_id || "")) ? String(j.log_id || j.req_id || j.request_id || "") : "";
 
             cacheLast(sources, logId);
@@ -802,9 +950,16 @@
         try { handleRagResponseJson(j); } catch (_) { }
     };
 
-    window.DG_RAG_EVIDENCE.syncRagEvidenceWrap = function (sources, logId) {
+    window.DG_RAG_EVIDENCE.syncRagEvidenceWrap = function (sources, logId, answerText) {
         try {
-            var src = normalizeSources(sources || []);
+            var raw = sources || [];
+
+            // ✅ answerText가 넘어온 경우에는 답변 인용번호 기준으로 한 번 더 필터링
+            if (answerText !== undefined && answerText !== null) {
+                raw = filterSourcesByAnswerCitations(answerText, raw);
+            }
+
+            var src = normalizeSources(raw);
             var lid = (logId != null) ? String(logId) : (window.__DG_RAG_LAST_LOG_ID__ || "");
             cacheLast(src, lid);
 

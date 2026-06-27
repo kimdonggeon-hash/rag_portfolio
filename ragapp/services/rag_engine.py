@@ -238,6 +238,56 @@ def _build_source_block(hits: List[Dict]) -> str:
         lines.append(f"[{i}] {title} · {source}\n{snippet}")
     return "\n\n".join(lines)
 
+def _filter_hits_cited_by_answer(answer: str, hits: List[Dict]) -> List[Dict]:
+    """
+    답변에 실제로 인용된 [1], [2], [3] 번호의 근거만 반환한다.
+    인용 번호가 없으면 '사용된 근거'라고 주장하지 않기 위해 빈 리스트를 반환한다.
+    """
+    if not hits:
+        return []
+
+    used_nums: List[int] = []
+
+    for m in re.finditer(r"\[(\d{1,2})\]", answer or ""):
+        try:
+            n = int(m.group(1))
+        except Exception:
+            continue
+
+        # ✅ len(hits) 기준으로 제한하면
+        # citation_idx=2인데 hits가 1개만 남은 경우 매칭이 깨질 수 있음
+        if 1 <= n <= 99 and n not in used_nums:
+            used_nums.append(n)
+
+    if not used_nums:
+        return []
+
+    selected: List[Dict] = []
+
+    for pos, h in enumerate(hits, start=1):
+        if not isinstance(h, dict):
+            continue
+
+        m = h.get("meta") or {}
+        if not isinstance(m, dict):
+            m = {}
+
+        try:
+            citation_idx = int(
+                h.get("citation_idx")
+                or h.get("idx")
+                or m.get("citation_idx")
+                or m.get("idx")
+                or pos
+            )
+        except Exception:
+            citation_idx = pos
+
+        if citation_idx in used_nums:
+            selected.append(h)
+
+    return selected
+
 
 def _make_rag_prompt(question: str, source_block: str, hard: bool = False) -> str:
     if hard:
@@ -250,8 +300,9 @@ def _make_rag_prompt(question: str, source_block: str, hard: bool = False) -> st
         )
     return (
         "아래 '근거 자료'를 최우선으로 참고해 한국어로 4~8문장으로 핵심을 답하세요.\n"
-        "- 가능하면 문장 끝에 [1], [2]처럼 근거 번호를 붙이되, 직접 근거가 없으면 인용은 생략 가능합니다.\n"
-        "- 근거가 부족한 부분은 일반 지식/상식으로 간결히 보완하세요(과도한 추측 금지).\n"
+        "- 근거 자료를 사용한 문장 끝에는 반드시 [1], [2]처럼 근거 번호를 붙이세요.\n"
+        "- 직접적 근거가 부족한 내용은 '자료 내 직접 근거 부족'이라고 표시하세요.\n"
+        "- 근거가 부족한 부분을 일반 지식으로 보완할 수는 있지만, 그 문장에는 근거 번호를 붙이지 마세요.\n"
         "- 불필요한 서론 없이 핵심만.\n\n"
         f"[질문]\n{question}\n\n[근거 자료]\n{source_block}\n\n=== 답변 시작 ===\n"
     )
@@ -277,86 +328,37 @@ def rag_answer_grounded(
     max_sources: int = 8,
 ) -> Tuple[str, List[Dict]]:
     """
-    1) 현재 벡터 스토어에서 유사도 검색
-       - 1차: news_services._chroma_query_with_embeddings (Chroma)
-       - 2차: 에러 시 vector_store.multi_query_by_embedding 폴백
-    2) 근거로 (Vertex 기반) 답 생성
-    3) 부족하면 키워드 확장해서 한 번 더
-    4) 그래도 부족하면(옵션) 일반 지식 fallback
+    ✅ 실제 RAG 구현은 news_services.py 한 곳만 사용한다.
+    rag_engine.py는 호환용 프록시로만 유지한다.
     """
-    where_filter_cfg = getattr(settings, "RAG_SOURCES_FILTER", None)
-
-    # 1차: 직접 질의
-    res = _run_vector_query(question, initial_topk, where_filter_cfg)
-    hits = _rank_and_dedupe_hits(_parse_hits_from_res(res), max_sources)
-    block = _build_source_block(hits)
-    force_answer = getattr(settings, "RAG_FORCE_ANSWER", True)
-    ans = (vertex_generate_text(_make_rag_prompt(question, block, hard=not force_answer)) or "").strip()
-
-    def _weak(a: str) -> bool:
-        t = (a or "").strip()
-        return (not t) or (len(t) < 120)
-
-    # 2차: 부족하면 키워드 확장
-    if _weak(ans):
-        try:
-            kw = (vertex_generate_text(
-                "아래 질문의 한국어 핵심 키워드를 쉼표로 10개만. 설명 없이 키워드만:\n" + question
-            ) or "").strip()
-        except Exception:
-            kw = ""
-        expanded_q = (question + " " + (kw or "")).strip()
-        res2 = _run_vector_query(expanded_q, fallback_topk, None)
-        hits2 = _rank_and_dedupe_hits(_parse_hits_from_res(res2), max_sources)
-        if hits2:
-            block2  = _build_source_block(hits2)
-            ans2 = (vertex_generate_text(_make_rag_prompt(question, block2, hard=not force_answer)) or "").strip()
-            if not _weak(ans2):
-                return ans2, hits2
-            # 아직 약하면 hits2/ans2 유지
-            hits = hits2
-            ans = ans2
-
-    # 3차: 그래도 약하고 force_answer=True 라면 일반 지식 fallback
-    if force_answer and _weak(ans):
-        ans_fb = (vertex_generate_text(
-            "다음 질문에 대해 일반 지식과 상식, 최신 경향을 바탕으로 "
-            "한국어로 4~8문장 핵심 요약 답을 작성하세요. "
-            "군더더기 금지, 안전하고 중립적인 표현 사용:\n\n"
-            f"{question}\n\n=== 답변 시작 ===\n"
-        ) or "").strip()
-        if ans_fb:
-            return ans_fb, hits
-
-    # 최종 폴백 방지
-    if not ans:
-        ans = "API가 답변을 반환하지 않았습니다."
-    return ans, hits
+    return _orig_rag_answer_grounded(
+        question,
+        initial_topk=initial_topk,
+        fallback_topk=fallback_topk,
+        max_sources=max_sources,
+    )
 
 
 def rag_answer_grounded_with_history(
     question: str,
     history: list[dict],
     *,
-    base_retriever_func = rag_answer_grounded,
+    base_retriever_func=rag_answer_grounded,
     initial_topk: int = 5,
     fallback_topk: int = 12,
     max_sources: int = 8,
 ) -> Tuple[str, List[Dict]]:
-    # 최근 turns의 사용자 질문을 단순 결합해 질의 강화
-    hist_q = " ".join(t.get("q", "").strip() for t in (history or [])[-3:] if t.get("q"))
-    aug_question = (question + " " + hist_q).strip() if hist_q else question
-
-    # 지정된 베이스 검색/생성기 사용 (기본 rag_answer_grounded)
-    answer_text, hits = base_retriever_func(
-        aug_question,
+    """
+    ✅ 실제 history RAG 구현도 news_services.py 한 곳만 사용한다.
+    """
+    return _orig_rag_answer_with_history(
+        question,
+        history,
+        base_retriever_func=_orig_rag_answer_grounded,
         initial_topk=initial_topk,
         fallback_topk=fallback_topk,
         max_sources=max_sources,
     )
-    if not answer_text:
-        answer_text = "API가 답변을 반환하지 않았습니다."
-    return answer_text, hits
 
 
 __all__ = [

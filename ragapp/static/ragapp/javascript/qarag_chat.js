@@ -104,7 +104,7 @@
     function _makeAIBadge() {
         const badge = document.createElement("span");
         badge.className = "ai-generated-badge";
-        badge.textContent = "AI 생성";
+        badge.textContent = "검색 결과 기반 답변";
         return badge;
     }
 

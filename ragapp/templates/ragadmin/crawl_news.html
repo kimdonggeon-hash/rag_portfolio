@@ -1,294 +1,39 @@
+{% load static %}
 {# ragapp/templates/ragadmin/crawl_news.html #}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>뉴스 크롤링 & 인덱싱 | RAG Admin</title>
+  <title>뉴스 수집 & 인덱싱 | RAG Admin</title>
 
-  <style>
-    :root {
-      --bg-page: #f5f6fa;
-      --card-bg: #ffffff;
-      --border-card: #e5e7eb;
-      --border-muted: #d1d5db;
-      --text-main: #1f2937;
-      --text-dim: #6b7280;
-      --text-heading: #111827;
-      --accent-grad-a: #4f46e5;
-      --accent-grad-b: #4338ca;
-      --accent-soft-bg: rgba(99,102,241,0.07);
-      --accent-soft-text: #4f46e5;
-      --danger-bg: #fde2e2;
-      --danger-border: #f8b4b4;
-      --danger-text: #b91c1c;
-      --radius-card: 10px;
-      --shadow-card: 0 20px 40px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.06);
-      --shadow-inner: inset 0 1px 2px rgba(0,0,0,0.03);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--bg-page);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
-      color: var(--text-main);
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .page-wrap {
-      max-width: 1100px;
-      margin: 40px auto 80px;
-      padding: 0 16px 80px;
-    }
-
-    .header-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border-card);
-      border-radius: var(--radius-card);
-      box-shadow: var(--shadow-card);
-      padding: 20px 24px 16px;
-      margin-bottom: 24px;
-    }
-
-    .header-top-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .header-titles h1 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-heading);
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      line-height: 1.4;
-    }
-
-    .badge-flow {
-      display: inline-block;
-      background: var(--accent-soft-bg);
-      color: var(--accent-soft-text);
-      font-size: 11px;
-      font-weight: 500;
-      line-height: 1.2;
-      padding: 2px 6px;
-      border-radius: 5px;
-      margin-left: 6px;
-    }
-
-    .header-desc {
-      margin-top: 6px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--text-dim);
-    }
-
-    .header-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .mini-btn {
-      appearance: none;
-      border: 1px solid var(--border-muted);
-      background: #fff;
-      border-radius: 6px;
-      box-shadow: 0 1px 2px rgba(0,0,0,.05);
-      font-size: 12px;
-      line-height: 1.2;
-      font-weight: 500;
-      color: var(--text-main);
-      padding: 6px 8px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      text-decoration: none;
-    }
-    .mini-btn:hover { background: #f9fafb; }
-
-    .section-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border-card);
-      border-radius: var(--radius-card);
-      box-shadow: var(--shadow-card);
-      padding: 20px 24px;
-      margin-bottom: 24px;
-    }
-
-    .section-headline {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-heading);
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      line-height: 1.3;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-
-    .sub-hint {
-      font-size: 12px;
-      color: var(--text-dim);
-      line-height: 1.4;
-      margin-bottom: 16px;
-    }
-
-    .search-form { width: 100%; max-width: 100%; margin-top: 12px; margin-bottom: 16px; }
-
-    .search-label {
-      display: block;
-      font-size: 12px;
-      color: var(--text-dim);
-      font-weight: 500;
-      line-height: 1.3;
-      margin-bottom: 6px;
-    }
-
-    .search-bar-group {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      background: #fff;
-      border: 1px solid #d1d5db;
-      border-radius: 9999px;
-      box-shadow: var(--shadow-inner);
-      height: 48px;
-      padding-left: 16px;
-      overflow: hidden;
-      transition: box-shadow .15s, border-color .15s;
-    }
-    .search-bar-group:focus-within {
-      border-color: #6366f1;
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
-    }
-
-    .search-input {
-      flex: 1; min-width: 0; border: 0; outline: 0;
-      font-size: 14px; line-height: 1.4; color: var(--text-main);
-      background: transparent; font-family: inherit; padding: 0;
-    }
-
-    .search-btn-inbar {
-      appearance: none; border: 0; cursor: pointer;
-      background: linear-gradient(90deg, var(--accent-grad-a) 0%, var(--accent-grad-b) 100%);
-      color: #fff; font-size: 13px; font-weight: 600; line-height: 1;
-      height: 100%; display: inline-flex; align-items: center; gap: 6px;
-      padding: 0 16px; border-radius: 9999px;
-      box-shadow: 0 12px 24px rgba(99,102,241,0.28), 0 2px 4px rgba(0,0,0,0.08);
-      white-space: nowrap;
-    }
-    .search-btn-inbar:hover { filter: brightness(1.07); }
-    .search-btn-emoji { font-size: 15px; line-height: 1; display: inline-block; }
-
-    @media (max-width: 500px) {
-      .search-bar-group { flex-direction: column; align-items: stretch; height: auto; padding: 12px 12px; gap: 12px; }
-      .search-btn-inbar { width: 100%; justify-content: center; height: 40px; }
-    }
-
-    .alert-error {
-      background: var(--danger-bg);
-      border: 1px solid var(--danger-border);
-      color: var(--danger-text);
-      font-size: 13px; line-height: 1.4;
-      border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;
-      display: none; align-items: flex-start; gap: 8px; white-space: pre-line;
-    }
-    .alert-error-icon { font-size: 14px; line-height: 1; flex-shrink: 0; }
-
-    .block-card {
-      background: #fff;
-      border: 1px solid var(--border-card);
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,.03);
-      padding: 16px 18px;
-      margin-bottom: 20px;
-      max-width: 100%;
-    }
-
-    .block-head-row {
-      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
-      margin-bottom: 10px; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-heading);
-    }
-
-    .block-head-right { font-size: 11px; line-height: 1.3; color: var(--text-dim); font-weight: 400; }
-
-    .block-body {
-      font-size: 13px; line-height: 1.5; color: var(--text-main);
-      white-space: pre-line;
-    }
-
-    .news-item { border-top: 1px solid var(--border-card); padding-top: 12px; margin-top: 12px; }
-    .news-item:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
-    .news-title-row { font-size: 13px; font-weight: 600; color: var(--text-heading); line-height: 1.4; margin-bottom: 4px; }
-    .news-meta {
-      font-size: 12px; line-height: 1.4; color: var(--text-dim);
-      margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 8px;
-    }
-    .news-snippet {
-      font-size: 13px; line-height: 1.5; color: var(--text-main);
-      white-space: pre-line;
-    }
-    .news-url { color: #4f46e5; text-decoration: none; word-break: break-all; }
-    .news-url:hover { text-decoration: underline; }
-
-    .ingest-summary-line {
-      font-size: 13px; line-height: 1.5; color: var(--text-main);
-      margin-bottom: 6px; word-break: break-all;
-    }
-    .ingest-summary-line code {
-      background: #f3f4f6; padding: 2px 4px; border-radius: 4px; font-size: 12px; color: #374151;
-    }
-
-    .ingest-items { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-card); }
-    .ingest-item { font-size: 12px; line-height: 1.5; color: var(--text-dim); margin-bottom: 8px; }
-    .ingest-item strong { color: var(--text-main); font-weight: 600; }
-
-    .footer-hint { font-size: 11px; line-height: 1.4; color: var(--text-dim); margin-top: 28px; text-align: right; }
-
-    .block-body,
-    .news-item,
-    .news-title-row,
-    .news-snippet,
-    .ingest-summary-line { overflow-wrap: anywhere; word-break: break-word; line-break: anywhere; }
-
-    .block-body a,
-    .news-url { display: inline-block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
-
-    .block-body pre,
-    .news-snippet pre {
-      white-space: pre-wrap;
-      overflow-x: auto;
-      background: #f8fafc;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 8px 10px;
-    }
-  </style>
+  <link rel="stylesheet" href="{% static 'ragapp/css/crawl_news.css' %}">
+  <script src="{% static 'ragapp/javascript/crawl_news.js' %}" defer></script>
 </head>
-<body>
-<div class="page-wrap">
 
+<body>
+<div
+  class="page-wrap"
+  id="crawlPage"
+  data-default-coll="{{ CHROMA_COLLECTION|default:'' }}"
+  data-default-dir="{{ CHROMA_DB_DIR|default:'' }}"
+  data-vdb-path="{{ VECTOR_DB_PATH|default:'(미설정)' }}"
+  data-api-webqa="{{ WEB_API_PATH|default:'/api/web_qa' }}"
+  data-api-ingest="{{ NEWS_INGEST_API_PATH|default:'/api/news_ingest/' }}"
+>
   <section class="header-card">
     <div class="header-top-row">
       <div class="header-titles">
         <h1>
-          뉴스 크롤링 & 인덱싱
-          <span class="badge-flow">자동: Gemini → 뉴스 → 본문 크롤 → 현재 벡터 DB 업서트</span>
+          뉴스 수집 & 인덱싱
+          <span class="badge-flow">자동: Gemini → 뉴스 메타 수집 → 안전 인덱싱 → 현재 벡터 DB 업서트</span>
         </h1>
+
         <div class="header-desc">
           키워드를 넣고 실행하면 한 번에 돌아갑니다.<br />
-          1) Gemini 요약/답변 생성 → 2) 관련 뉴스 헤드라인/본문 수집 → 3) 본문까지 크롤 → 4) 모든 청크를
+          1) Gemini 요약/답변 생성 → 2) 관련 뉴스 제목·URL·출처·스니펫 수집 → 3) 메타 정보 중심 인덱싱 → 4)
           <b>현재 벡터 DB</b>에 upsert 합니다.<br />
+          뉴스 본문 원문은 기본적으로 저장하지 않습니다.<br />
           저장 경로: <code>{{ VECTOR_DB_PATH|default:"(미설정)" }}</code>
         </div>
       </div>
@@ -303,20 +48,29 @@
   </section>
 
   <section class="section-card">
-
     <div class="section-headline">
       <span>🔎 키워드 기반 실행</span>
     </div>
+
     <div class="sub-hint">
-      아래에 키워드를 넣고 <b>"뉴스 수집 &amp; 인덱싱 실행"</b>을 누르면 Gemini 답변 / 뉴스 본문 / 인덱싱 결과가 아래에 나타납니다.
+      아래에 키워드를 넣고 <b>"뉴스 수집 &amp; 인덱싱 실행"</b>을 누르면
+      Gemini 답변 / 뉴스 메타 정보 / 인덱싱 결과가 아래에 나타납니다.
     </div>
 
     <form method="post" action="" class="search-form" id="crawlForm">
       {% csrf_token %}
       <label class="search-label" for="keyword">키워드</label>
+
       <div class="search-bar-group">
-        <input id="keyword" name="keyword" type="text" class="search-input"
-               placeholder="예: 검색어를 입력해 주세요" value="{{ keyword|default_if_none:'' }}" />
+        <input
+          id="keyword"
+          name="keyword"
+          type="text"
+          class="search-input"
+          placeholder="예: 검색어를 입력해 주세요"
+          value="{{ keyword|default_if_none:'' }}"
+        />
+
         <button class="search-btn-inbar" type="submit">
           <span class="search-btn-emoji">🔍</span>
           <span>뉴스 수집 &amp; 인덱싱 실행</span>
@@ -332,11 +86,14 @@
     <div class="block-card">
       <div class="block-head-row">
         <div>📄 Gemini 생성 답변 / 요약</div>
-        <div class="block-head-right">(질문에 대한 모델 답변 전문)</div>
+        <div class="block-head-right">(질문에 대한 모델 답변)</div>
       </div>
+
       <div class="block-body" id="answerBox">
         {% firstof model_answer gemini_answer answer_text "" as ans %}
-        {% if ans %}{{ ans }}{% else %}
+        {% if ans %}
+          {{ ans }}
+        {% else %}
           아직 결과가 없습니다. 위에 키워드를 넣고 "뉴스 수집 & 인덱싱 실행"을 눌러주세요.
         {% endif %}
       </div>
@@ -344,19 +101,34 @@
 
     <div class="block-card">
       <div class="block-head-row">
-        <div>📰 크롤링된 뉴스</div>
-        <div class="block-head-right">(각 URL 본문까지 크롤한 결과 일부)</div>
+        <div>📰 수집된 뉴스</div>
+        <div class="block-head-right">(제목·URL·출처·스니펫만 표시)</div>
       </div>
+
       <div class="block-body" id="newsBox">
         {% if news_list %}
           {% for n in news_list %}
             <div class="news-item">
               <div class="news-title-row">{{ n.title|default:"(제목 없음)" }}</div>
+
               <div class="news-meta">
-                {% if n.source %}<span>출처: {{ n.source }}</span>{% endif %}
-                {% if n.published_at %}<span>게시: {{ n.published_at }}</span>{% endif %}
-                {% if n.url %}<span><a class="news-url" href="{{ n.url }}" target="_blank" rel="noopener">{{ n.url }}</a></span>{% endif %}
+                {% if n.source %}
+                  <span>출처: {{ n.source }}</span>
+                {% endif %}
+
+                {% if n.published_at %}
+                  <span>게시: {{ n.published_at }}</span>
+                {% endif %}
+
+                {% if n.url %}
+                  <span>
+                    <a class="news-url" href="{{ n.url }}" target="_blank" rel="noopener noreferrer">
+                      {{ n.url }}
+                    </a>
+                  </span>
+                {% endif %}
               </div>
+
               <div class="news-snippet">{{ n.snippet|default:"" }}</div>
             </div>
           {% endfor %}
@@ -371,28 +143,58 @@
         <div>📦 인덱싱 요약</div>
         <div class="block-head-right">(현재 벡터 DB 저장 결과)</div>
       </div>
+
       <div class="block-body" id="ingestBox">
         {% if ingest_summary %}
           {% with s=ingest_summary %}
             <div class="ingest-summary-line">
-              저장된 청크 수:
+              저장된 전체 청크 수:
               <strong>{{ s.inserted|default:0 }}</strong>개
-              (답변 청크 {{ s.answer_chunks|default:0 }}개 / 뉴스 청크 {{ s.news_total_chunks|default:0 }}개)
+              (답변 청크 {{ s.answer_chunks|default:0 }}개 / 뉴스 본문 청크 {{ s.news_total_chunks|default:0 }}개)
             </div>
+
             <div class="ingest-summary-line">
-              엔진: <code>현재 벡터 DB</code><br/>
-              저장 경로: <code>{{ VECTOR_DB_PATH|default:"(미설정)" }}</code><br/>
-              (호환) 컬렉션: <code>{{ s.collection|default:CHROMA_COLLECTION }}</code><br/>
-              (호환) 저장 경로: <code>{{ s.dir|default:CHROMA_DB_DIR }}</code><br/>
+              수집 정책:
+              {% if s.meta_only %}
+                <code>메타 전용</code>
+              {% else %}
+                <code>본문 허용</code>
+              {% endif %}
+              <br />
+
+              본문 저장:
+              {% if s.allow_body %}
+                <code>허용</code>
+              {% else %}
+                <code>차단</code>
+              {% endif %}
+              <br />
+
+              RagChunk 저장:
+              <code>{{ s.ragchunk_saved|default:0 }}</code>개
+            </div>
+
+            <div class="ingest-summary-line">
+              엔진: <code>현재 벡터 DB</code><br />
+              저장 경로: <code>{{ VECTOR_DB_PATH|default:"(미설정)" }}</code><br />
+              (호환) 컬렉션: <code>{{ s.collection|default:CHROMA_COLLECTION }}</code><br />
+              (호환) 저장 경로: <code>{{ s.dir|default:CHROMA_DB_DIR }}</code><br />
               시각: <code>{{ s.ingested_at|default:"-" }}</code>
             </div>
+
             {% if s.news_items %}
               <div class="ingest-items">
                 {% for it in s.news_items %}
                   <div class="ingest-item">
-                    <strong>{{ it.title|default:"(제목 없음)" }}</strong><br/>
-                    URL: {{ it.url|default:"(없음)" }}<br/>
-                    청크 수: {{ it.chunks|default:"-" }}{% if it.meta_only %} (메타 전용){% endif %}
+                    <strong>{{ it.title|default:"(제목 없음)" }}</strong><br />
+                    URL: {{ it.url|default:"(없음)" }}<br />
+                    청크 수: {{ it.chunks|default:"-" }}
+                    {% if it.meta_only %}
+                      (메타 전용)
+                    {% endif %}
+                    {% if it.body_chunks %}
+                      / 본문 청크 {{ it.body_chunks }}개
+                    {% endif %}
                   </div>
                 {% endfor %}
               </div>
@@ -404,215 +206,10 @@
       </div>
     </div>
 
-    <div class="footer-hint">❤️ 인덱싱은 현재 화면의 답변/뉴스 내용을 그대로 저장(upsert)합니다.</div>
-
+    <div class="footer-hint">
+      ❤️ 뉴스 본문 원문은 기본 저장하지 않고, 제목·URL·출처·스니펫 중심으로 인덱싱합니다.
+    </div>
   </section>
 </div>
-
-<script>
-(function () {
-  // ✅ Django 변수: JS 깨짐 방지(윈도우 경로 \ 포함 대비)
-  const DEFAULT_COLL = "{{ CHROMA_COLLECTION|default:''|escapejs }}";
-  const DEFAULT_DIR  = "{{ CHROMA_DB_DIR|default:''|escapejs }}";
-  const VDB_PATH     = "{{ VECTOR_DB_PATH|default:'(미설정)'|escapejs }}";
-  const API_WEB_QA   = "{{ WEB_API_PATH|default:'/api/web_qa'|escapejs }}";
-  const API_INGEST   = "{{ NEWS_INGEST_API_PATH|default:'/api/news_ingest/'|escapejs }}";
-
-  const form = document.getElementById('crawlForm');
-  const input = document.getElementById('keyword');
-  const errBox = document.getElementById('errorBox');
-  const errText = document.getElementById('errorText');
-  const answerBox = document.getElementById('answerBox');
-  const newsBox = document.getElementById('newsBox');
-  const ingestBox = document.getElementById('ingestBox');
-  const runBtn = form.querySelector('.search-btn-inbar');
-
-  function escHtml(s) {
-    return (s ?? "").toString()
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#39;");
-  }
-
-  function safeHref(u) {
-    const s = (u ?? "").toString().trim();
-    if (!s) return "";
-    try {
-      const url = new URL(s, window.location.origin);
-      return (url.protocol === "http:" || url.protocol === "https:") ? url.href : "";
-    } catch {
-      return "";
-    }
-  }
-
-  function showError(msg) {
-    errText.textContent = msg;
-    errBox.style.display = 'flex';
-  }
-  function clearError() {
-    errText.textContent = '';
-    errBox.style.display = 'none';
-  }
-  function getCookie(name) {
-    const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return m ? decodeURIComponent(m.pop()) : '';
-  }
-  function setRunning(on) {
-    if (!runBtn) return;
-    runBtn.disabled = !!on;
-    if (on) {
-      runBtn.dataset.prev = runBtn.innerHTML;
-      runBtn.innerHTML = '실행 중…';
-    } else {
-      runBtn.innerHTML = runBtn.dataset.prev || '뉴스 수집 & 인덱싱 실행';
-    }
-  }
-
-  function renderAnswer(text) {
-    const t = (text || '').toString().trim();
-    answerBox.textContent = t || '(API가 답변을 반환하지 않았습니다.)';
-  }
-
-  // ✅ XSS 방지: 외부 데이터는 escHtml + safeHref 후 innerHTML 구성
-  function renderNews(list) {
-    const items = Array.isArray(list) ? list : [];
-    if (!items.length) {
-      newsBox.textContent = '아직 뉴스 데이터가 없습니다.';
-      return;
-    }
-    newsBox.innerHTML = items.map(n => {
-      const t = escHtml(n.title || '(제목 없음)');
-      const s = escHtml(n.source || '');
-      const p = escHtml(n.published_at || '');
-      const sn = escHtml(n.snippet || '');
-      const href = safeHref(n.url);
-
-      return `
-        <div class="news-item">
-          <div class="news-title-row">${t}</div>
-          <div class="news-meta">
-            ${s ? `<span>출처: ${s}</span>` : '' }
-            ${p ? `<span>게시: ${p}</span>` : '' }
-            ${href ? `<span><a class="news-url" href="${href}" target="_blank" rel="noopener noreferrer">${escHtml(href)}</a></span>` : '' }
-          </div>
-          <div class="news-snippet">${sn}</div>
-        </div>`;
-    }).join('');
-  }
-
-  function renderIngest(sum) {
-    const s = sum || {};
-    const inserted = s.inserted ?? 0;
-    const aChunks = s.answer_chunks ?? 0;
-    const nChunks = s.news_total_chunks ?? 0;
-    const at = escHtml(s.ingested_at || '-');
-    const coll = escHtml(s.collection || DEFAULT_COLL);
-    const dir = escHtml(s.dir || DEFAULT_DIR);
-    const vdb = escHtml(VDB_PATH);
-
-    let itemsHtml = '';
-    if (Array.isArray(s.news_items) && s.news_items.length) {
-      itemsHtml = `
-        <div class="ingest-items">
-          ${s.news_items.map(it => {
-            const title = escHtml(it.title || '(제목 없음)');
-            const url = escHtml(it.url || '(없음)');
-            const chunks = escHtml((it.chunks ?? '-'));
-            const metaOnly = it.meta_only ? ' (메타 전용)' : '';
-            return `
-              <div class="ingest-item">
-                <strong>${title}</strong><br />
-                URL: ${url}<br />
-                청크 수: ${chunks}${metaOnly}
-              </div>`;
-          }).join('')}
-        </div>`;
-    }
-
-    ingestBox.innerHTML = `
-      <div class="ingest-summary-line">
-        저장된 청크 수:
-        <strong>${inserted}</strong>개
-        (답변 청크 ${aChunks}개 / 뉴스 청크 ${nChunks}개)
-      </div>
-      <div class="ingest-summary-line">
-        엔진: <code>현재 벡터 DB</code><br/>
-        저장 경로: <code>${vdb}</code><br/>
-        (호환) 컬렉션: <code>${coll}</code><br/>
-        (호환) 저장 경로: <code>${dir}</code><br/>
-        시각: <code>${at}</code>
-      </div>
-      ${itemsHtml}
-    `;
-  }
-
-  // ✅ JSON이 아닌 응답(로그인/에러 HTML)도 확실히 잡기
-  async function postJSON(url, payload) {
-    const csrf = getCookie('csrftoken') ||
-      document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '';
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrf
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(payload || {})
-    });
-
-    const ct = (resp.headers.get('content-type') || '').toLowerCase();
-    if (!ct.includes('application/json')) {
-      throw new Error(`JSON이 아닌 응답을 받았습니다. (status=${resp.status})`);
-    }
-
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || data.ok === false) {
-      const msg = (data && (data.error || data.detail)) || `${resp.status} ${resp.statusText}`;
-      throw new Error(msg);
-    }
-    return data;
-  }
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    clearError();
-
-    const q = (input.value || '').trim();
-    if (!q) { showError('키워드를 입력해 주세요.'); return; }
-
-    setRunning(true);
-    answerBox.textContent = '실행 중…';
-    newsBox.textContent = '실행 중…';
-    ingestBox.textContent = '실행 중…';
-
-    try {
-      // ① 모델 답변 먼저
-      let qa = {};
-      try {
-        qa = await postJSON(API_WEB_QA, { q });
-      } catch (e1) {
-        qa = {};
-      }
-      const ans = (qa && (qa.answer_text || qa.answer || qa.model_answer)) || '';
-      renderAnswer(ans);
-
-      // ② 뉴스 크롤 & 인덱싱 (✅ answer도 같이 전달)
-      const ing = await postJSON(API_INGEST, { q, answer: ans });
-      renderNews(ing.news || ing.headlines || []);
-      renderIngest(ing.indexto_chroma || ing.ingest || ing.ingest_summary || {});
-    } catch (err) {
-      showError(`요청 실패: ${err && err.message ? err.message : err}`);
-      answerBox.textContent = '—';
-      newsBox.textContent = '—';
-      ingestBox.textContent = '—';
-    } finally {
-      setRunning(false);
-    }
-  });
-})();
-</script>
-
 </body>
 </html>

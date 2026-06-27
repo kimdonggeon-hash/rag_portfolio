@@ -96,7 +96,15 @@ def _genai_client():
         ) from e
 
     project = getattr(settings, "VERTEX_PROJECT_ID", None) or os.environ.get("VERTEX_PROJECT_ID")
-    location = getattr(settings, "VERTEX_LOCATION", None) or os.environ.get("VERTEX_LOCATION") or "us-central1"
+
+    # ✅ Gemini 생성 모델 전용 location
+    # - VERTEX_LOCATION은 도쿄 유지
+    # - gemini-3.5-flash 호출은 VERTEX_LLM_LOCATION=global 사용
+    location = (
+        getattr(settings, "VERTEX_LLM_LOCATION", None)
+        or os.environ.get("VERTEX_LLM_LOCATION")
+        or "global"
+    )
 
     _check_adc_env(project, location)
 
@@ -253,7 +261,18 @@ def _vertex_project_location() -> Tuple[str, str]:
         or getattr(settings, "VERTEX_PROJECT", None)
         or os.environ.get("VERTEX_PROJECT")
     )
-    location = getattr(settings, "VERTEX_LOCATION", None) or os.environ.get("VERTEX_LOCATION") or "us-central1"
+
+    # ✅ 임베딩 전용 location
+    # - 없으면 기존 VERTEX_LOCATION으로 fallback
+    location = (
+        getattr(settings, "VERTEX_EMBED_LOCATION", None)
+        or os.environ.get("VERTEX_EMBED_LOCATION")
+        or os.environ.get("EMBED_LOCATION")
+        or getattr(settings, "VERTEX_LOCATION", None)
+        or os.environ.get("VERTEX_LOCATION")
+        or "asia-northeast3"
+    )
+
     if not project:
         raise RuntimeError("VERTEX_PROJECT_ID/PROJECT 미설정")
     return str(project), str(location)
@@ -1334,16 +1353,40 @@ def _build_source_block(hits: List[Dict[str, Any]]) -> str:
     out: List[str] = []
 
     for i, h in enumerate(hits, start=1):
+        if not isinstance(h, dict):
+            continue
+
+        # ✅ 모델에게 실제로 보여준 근거 번호를 hit 자체에 보존
+        # 답변의 [3]과 화면의 #3을 맞추기 위한 핵심 값
+        h["citation_idx"] = i
+        h["idx"] = i
+
         m = h.get("meta") or {}
+        if not isinstance(m, dict):
+            m = {}
 
-        title = (m.get("title") or m.get("file_name") or m.get("url") or "문서").strip()
+        title = (
+            m.get("title")
+            or m.get("file_name")
+            or m.get("url")
+            or h.get("title")
+            or h.get("url")
+            or "문서"
+        )
+        title = str(title or "문서").strip()
 
-        url = (m.get("url") or "").strip()
+        url = str(m.get("url") or h.get("url") or "").strip()
         netloc = urlparse(url).netloc if url else ""
 
         source_name = (
-            (m.get("source_name") or m.get("source") or netloc or m.get("file_name") or "").strip()
+            m.get("source_name")
+            or m.get("source")
+            or h.get("source")
+            or netloc
+            or m.get("file_name")
+            or ""
         )
+        source_name = str(source_name or "").strip()
 
         base_head = f"[{i}] {title} · {source_name}\n"
         base_len = len(base_head) + 2
@@ -1356,7 +1399,15 @@ def _build_source_block(hits: List[Dict[str, Any]]) -> str:
             int(RAG_SOURCE_SNIPPET_MAX_CHARS),
             max(RAG_SOURCE_SNIPPET_MIN_CHARS, remaining - base_len - 2),
         )
-        snippet = (h.get("snippet") or "").strip().replace("\n", " ")
+
+        snippet = (
+            h.get("snippet")
+            or h.get("text")
+            or h.get("chunk")
+            or h.get("content")
+            or ""
+        )
+        snippet = str(snippet or "").strip().replace("\n", " ")
         snippet = snippet[:max_snip].rstrip()
 
         out.append(f"{base_head}{snippet}")
@@ -1365,6 +1416,96 @@ def _build_source_block(hits: List[Dict[str, Any]]) -> str:
             break
 
     return "\n\n".join(out).strip()
+
+_CITATION_RE = re.compile(r"\[(\d{1,2})\]")
+
+
+def _filter_hits_cited_by_answer(answer: str, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    답변에 실제로 인용된 [1], [2], [3] 번호의 근거만 반환한다.
+    인용 번호가 없으면 '답변에 사용된 근거'라고 볼 수 없으므로 빈 리스트를 반환한다.
+    """
+    if not hits:
+        return []
+
+    used_nums: List[int] = []
+
+    for m in _CITATION_RE.finditer(answer or ""):
+        try:
+            n = int(m.group(1))
+        except Exception:
+            continue
+
+        # [2024] 같은 숫자 오인 방지
+        if 1 <= n <= 99 and n not in used_nums:
+            used_nums.append(n)
+
+    if not used_nums:
+        fallback_n = int(getattr(settings, "RAG_EVIDENCE_FALLBACK_COUNT", 1))
+        return hits[:max(0, fallback_n)]
+
+    selected: List[Dict[str, Any]] = []
+
+    for pos, h in enumerate(hits, start=1):
+        if not isinstance(h, dict):
+            continue
+
+        try:
+            citation_idx = int(
+                h.get("citation_idx")
+                or h.get("idx")
+                or ((h.get("meta") or {}).get("citation_idx") if isinstance(h.get("meta"), dict) else None)
+                or ((h.get("meta") or {}).get("idx") if isinstance(h.get("meta"), dict) else None)
+                or pos
+            )
+        except Exception:
+            citation_idx = pos
+
+        if citation_idx in used_nums:
+            selected.append(h)
+
+    return selected
+
+def _fix_invalid_citations(answer: str, hits: List[Dict[str, Any]]) -> str:
+    """
+    LLM이 실제 존재하지 않는 근거 번호([2], [3] 등)를 붙인 경우
+    실제 존재하는 첫 번째 근거 번호로 보정한다.
+    """
+    clean_hits = [h for h in (hits or []) if isinstance(h, dict)]
+
+    if not clean_hits:
+        return _CITATION_RE.sub("", answer or "").strip()
+
+    valid_nums: set[int] = set()
+
+    for pos, h in enumerate(clean_hits, start=1):
+        try:
+            valid_nums.add(
+                int(
+                    h.get("citation_idx")
+                    or h.get("idx")
+                    or ((h.get("meta") or {}).get("citation_idx") if isinstance(h.get("meta"), dict) else None)
+                    or ((h.get("meta") or {}).get("idx") if isinstance(h.get("meta"), dict) else None)
+                    or pos
+                )
+            )
+        except Exception:
+            valid_nums.add(pos)
+
+    first_num = min(valid_nums) if valid_nums else 1
+
+    def repl(m):
+        try:
+            n = int(m.group(1))
+        except Exception:
+            return f"[{first_num}]"
+
+        if n in valid_nums:
+            return f"[{n}]"
+
+        return f"[{first_num}]"
+
+    return _CITATION_RE.sub(repl, answer or "")
 
 
 def _make_rag_prompt(question: str, source_block: str, hard: bool = False, history_block: str = "") -> str:
@@ -1382,8 +1523,9 @@ def _make_rag_prompt(question: str, source_block: str, hard: bool = False, histo
         )
     return (
         "아래 '근거 자료'를 최우선으로 참고해 한국어로 4~8문장으로 핵심을 답하세요.\n"
-        "- 가능하면 문장 끝에 [1], [2]처럼 근거 번호를 붙이되, 직접 근거가 없으면 인용은 생략 가능합니다.\n"
-        "- 근거가 부족한 부분은 일반 지식/상식으로 간결히 보완하세요(과도한 추측 금지).\n"
+        "- 근거 자료를 사용한 문장 끝에는 반드시 [1], [2]처럼 근거 번호를 붙이세요.\n"
+        "- 직접적 근거가 부족한 내용은 '자료 내 직접 근거 부족'이라고 표시하세요.\n"
+        "- 일반 지식으로 보완한 문장에는 근거 번호를 붙이지 마세요.\n"
         "- 불필요한 서론 없이 핵심만.\n\n"
         f"{hist}"
         f"[질문]\n{question}\n\n[근거 자료]\n{source_block}\n\n=== 답변 시작 ===\n"
@@ -1552,9 +1694,10 @@ def rag_answer_grounded(
         return (not t) or (len(t) < 120) or (t == _EMPTY_FALLBACK)
 
     if not _weak(ans1):
-        ans1_fixed = _maybe_override_with_faq_answer(question, ans1)
         hits1_fixed = _attach_faq_hits(question, hits1)
-        return ans1_fixed, hits1_fixed
+        ans1_fixed = _maybe_override_with_faq_answer(question, ans1)
+        ans1_fixed = _fix_invalid_citations(ans1_fixed, hits1_fixed)
+        return ans1_fixed, _filter_hits_cited_by_answer(ans1_fixed, hits1_fixed)
 
     # 2차: 키워드 확장(모델 1회 추가 호출)
     try:
@@ -1576,9 +1719,10 @@ def rag_answer_grounded(
     ans2 = ask_gemini(_make_rag_prompt(question, block2, hard=not rag_force_answer), model=None)
 
     if not _weak(ans2):
-        ans2_fixed = _maybe_override_with_faq_answer(question, ans2)
         hits2_fixed = _attach_faq_hits(question, hits2)
-        return ans2_fixed, hits2_fixed
+        ans2_fixed = _maybe_override_with_faq_answer(question, ans2)
+        ans2_fixed = _fix_invalid_citations(ans2_fixed, hits2_fixed)
+        return ans2_fixed, _filter_hits_cited_by_answer(ans2_fixed, hits2_fixed)
 
     # 3차: 강제 답변(설정 ON일 때만)
     if rag_force_answer and _weak(ans2):
@@ -1590,14 +1734,16 @@ def rag_answer_grounded(
         )
         if (ans_fallback or "").strip():
             ans_fb_fixed = _maybe_override_with_faq_answer(question, ans_fallback.strip())
-            hits_fb_fixed = _attach_faq_hits(question, hits2 or hits1)
-            return ans_fb_fixed, hits_fb_fixed
+            return ans_fb_fixed, []
 
     final_ans = (ans2 or ans1 or _EMPTY_FALLBACK)
     final_hits = (hits2 or hits1)
-    final_ans = _maybe_override_with_faq_answer(question, final_ans)
+
     final_hits = _attach_faq_hits(question, final_hits)
-    return final_ans, final_hits
+    final_ans = _maybe_override_with_faq_answer(question, final_ans)
+    final_ans = _fix_invalid_citations(final_ans, final_hits)
+
+    return final_ans, _filter_hits_cited_by_answer(final_ans, final_hits)
 
 
 def _rerank_hits_by_relevance(question: str, hits: List[Dict[str, Any]], topn: int = 5):
@@ -1636,8 +1782,9 @@ def rag_answer_grounded_with_history(
             fallback_topk=fallback_topk,
             max_sources=max_sources,
         )
-        final_hits = _rerank_hits_by_relevance(question, used_hits, topn=5)
-        return answer_text, final_hits
+        # ✅ 답변 생성 당시 근거 번호(citation_idx)를 유지해야 하므로
+        # 여기서 다시 정렬하지 않는다.
+        return answer_text, used_hits
 
     history_block = _format_history_for_prompt(history)
     answer_text, used_hits = base_retriever_func(
@@ -1646,7 +1793,11 @@ def rag_answer_grounded_with_history(
         fallback_topk=fallback_topk,
         max_sources=max_sources,
     )
-    final_hits = _rerank_hits_by_relevance(question, used_hits, topn=5)
+
+    # ✅ 답변 생성 후 근거 순서를 다시 정렬하면
+    # 답변의 [1], [2], [3] 번호와 화면의 #번호가 어긋날 수 있음
+    # ✅ 원본 used_hits의 citation_idx를 직접 덮어쓰지 않도록 복사
+    final_hits = [dict(h) if isinstance(h, dict) else h for h in (used_hits or [])]
 
     try:
         block = _build_source_block(final_hits)
@@ -1661,10 +1812,11 @@ def rag_answer_grounded_with_history(
         )
         if refined and refined.strip():
             answer_text = refined.strip()
+            return answer_text, _filter_hits_cited_by_answer(answer_text, final_hits)
     except Exception:
         pass
 
-    return answer_text, final_hits
+    return answer_text, used_hits
 
 
 def run_rag_qa(
@@ -1720,15 +1872,35 @@ def run_rag_qa(
     for i, h in enumerate(used_hits or [], start=1):
         if isinstance(h, dict):
             m = h.get("meta") or {}
+            if not isinstance(m, dict):
+                m = {}
+
+            try:
+                citation_idx = int(
+                    h.get("citation_idx")
+                    or h.get("idx")
+                    or m.get("citation_idx")
+                    or m.get("idx")
+                    or i
+                )
+            except Exception:
+                citation_idx = i
+
             hits_payload.append(
                 {
-                    "idx": i,
+                    "idx": citation_idx,
+                    "citation_idx": citation_idx,
                     "title": (
                         m.get("title")
                         or m.get("url")
                         or h.get("title")
                         or h.get("url")
                         or "문서"
+                    ),
+                    "source_type": (
+                        m.get("source")
+                        or h.get("source")
+                        or ""
                     ),
                     "source": (
                         m.get("source_name")
@@ -1745,6 +1917,7 @@ def run_rag_qa(
             hits_payload.append(
                 {
                     "idx": i,
+                    "citation_idx": i,
                     "title": str(h),
                     "source": "",
                     "url": "",

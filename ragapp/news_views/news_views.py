@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import secrets
 import logging
 from datetime import datetime
@@ -120,7 +121,30 @@ def _normalize_rag_sources(raw_sources: Any) -> List[Dict[str, Any]]:
             chunk = ""
             score = None
 
-        norm.append({"title": title, "url": url, "chunk": chunk, "score": score})
+        citation_idx = None
+        source = ""
+
+        if isinstance(s, dict):
+            citation_idx = (
+                s.get("citation_idx")
+                or s.get("idx")
+                or ((s.get("meta") or {}).get("citation_idx") if isinstance(s.get("meta"), dict) else None)
+                or ((s.get("meta") or {}).get("idx") if isinstance(s.get("meta"), dict) else None)
+            )
+            source = s.get("source") or ""
+
+        norm.append(
+            {
+                "idx": citation_idx or (i + 1),
+                "citation_idx": citation_idx or (i + 1),
+                "title": title,
+                "url": url,
+                "source": source,
+                "chunk": chunk,
+                "snippet": chunk,
+                "score": score,
+            }
+        )
 
     return norm
 
@@ -143,6 +167,112 @@ def _hit_text(h: dict) -> str:
             return v.strip()
 
     return ""
+
+
+_CITATION_NO_RE = re.compile(r"\[(\d{1,2})\]")
+
+
+def _filter_hits_used_in_answer(
+    answer: str,
+    hits: list[dict],
+    *,
+    fallback_count: int = 0,
+) -> list[dict]:
+    """
+    답변에 실제 인용된 근거 번호만 UI에 노출한다.
+
+    예)
+    답변: "... 영향을 줍니다 [3]."
+    hits: 1,2,3,4,5
+    결과: 3번 근거만 반환
+
+    답변에 [1], [2] 같은 인용 번호가 없으면
+    "답변에 사용된 근거"라고 볼 수 없으므로 근거를 숨긴다.
+    """
+    clean_hits = [h for h in (hits or []) if isinstance(h, dict)]
+    if not clean_hits:
+        return []
+
+    used_nums: list[int] = []
+
+    for m in _CITATION_NO_RE.finditer(answer or ""):
+        try:
+            n = int(m.group(1))
+        except Exception:
+            continue
+
+        # 실제 근거 개수 범위 안의 번호만 인정
+        # 예: [2024] 같은 숫자는 무시
+        if 1 <= n <= 99 and n not in used_nums:
+            used_nums.append(n)
+
+    if used_nums:
+        selected: list[dict] = []
+
+        for pos, h in enumerate(clean_hits, start=1):
+            try:
+                m = h.get("meta") or {}
+                if not isinstance(m, dict):
+                    m = {}
+
+                original_idx = int(
+                    h.get("citation_idx")
+                    or h.get("idx")
+                    or m.get("citation_idx")
+                    or m.get("idx")
+                    or pos
+                )
+            except Exception:
+                original_idx = pos
+
+            if original_idx in used_nums:
+                selected.append(h)
+
+        if selected:
+            return selected
+
+    # 답변에 인용 번호가 없으면 "답변에 사용된 근거"라고 볼 수 없으므로 숨긴다.
+    try:
+        n = int(fallback_count or 0)
+    except Exception:
+        n = 0
+
+    if n <= 0:
+        return []
+
+    return clean_hits[:n]
+
+def _fix_invalid_citations(answer: str, hits: list[dict]) -> str:
+    """
+    답변 안의 [2], [3] 같은 인용 번호가 실제 hits에 없으면
+    존재하는 첫 번째 근거 번호로 보정한다.
+    """
+    clean_hits = [h for h in (hits or []) if isinstance(h, dict)]
+    if not clean_hits:
+        return re.sub(r"\s*\[\d{1,2}\]", "", answer or "")
+
+    valid_nums = set()
+
+    for pos, h in enumerate(clean_hits, start=1):
+        try:
+            valid_nums.add(int(h.get("citation_idx") or h.get("idx") or pos))
+        except Exception:
+            valid_nums.add(pos)
+
+    first_num = min(valid_nums) if valid_nums else 1
+
+    def repl(m):
+        try:
+            n = int(m.group(1))
+        except Exception:
+            return f"[{first_num}]"
+
+        if n in valid_nums:
+            return f"[{n}]"
+
+        return f"[{first_num}]"
+
+    return _CITATION_NO_RE.sub(repl, answer or "")
 
 def _pii_block_msg(kind: str | None) -> str:
     k = kind or "개인정보"
@@ -565,15 +695,29 @@ def home(request: HttpRequest):
             if isinstance(s, dict):
                 out.append(
                     {
+                        "idx": s.get("idx"),
+                        "citation_idx": s.get("citation_idx") or s.get("idx"),
                         "title": _trim_text(s.get("title", ""), 160),
                         "url": _trim_text(s.get("url", ""), 500),
                         "source": _trim_text(s.get("source", ""), 80),
                         "snippet": _trim_text(s.get("snippet") or s.get("chunk") or "", max_text),
+                        "chunk": _trim_text(s.get("chunk") or s.get("snippet") or "", max_text),
                         "score": s.get("score", None),
                     }
                 )
             else:
-                out.append({"title": _trim_text(s, 160), "url": "", "source": "", "snippet": "", "score": None})
+                out.append(
+                    {
+                        "idx": None,
+                        "citation_idx": None,
+                        "title": _trim_text(s, 160),
+                        "url": "",
+                        "source": "",
+                        "snippet": "",
+                        "chunk": "",
+                        "score": None,
+                    }
+                )
         return out
 
     def save_web_state(new_state):
@@ -993,8 +1137,21 @@ def home(request: HttpRequest):
                                                     else h.get("score")
                                                 )
 
+                                                try:
+                                                    citation_idx = int(
+                                                        h.get("citation_idx")
+                                                        or h.get("idx")
+                                                        or (meta.get("citation_idx") if isinstance(meta, dict) else None)
+                                                        or (meta.get("idx") if isinstance(meta, dict) else None)
+                                                        or i
+                                                    )
+                                                except Exception:
+                                                    citation_idx = i
+
                                                 hits_payload.append(
                                                     {
+                                                        "idx": citation_idx,
+                                                        "citation_idx": citation_idx,
                                                         "title": title,
                                                         "source": source,
                                                         "url": url,
@@ -1004,23 +1161,29 @@ def home(request: HttpRequest):
                                                 )
                                             else:
                                                 hits_payload.append(
-                                                    {"title": str(h), "source": "", "url": "", "snippet": "", "score": None}
+                                                    {
+                                                        "idx": i,
+                                                        "citation_idx": i,
+                                                        "title": str(h),
+                                                        "source": "",
+                                                        "url": "",
+                                                        "snippet": "",
+                                                        "score": None,
+                                                    }
                                                 )
 
                                         ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
-                                        ui_min_score = getattr(settings, "RAG_EVIDENCE_MIN_SCORE", None)
-                                        try:
-                                            ui_min_score = float(ui_min_score) if ui_min_score is not None else None
-                                        except Exception:
-                                            ui_min_score = None
+                                        
+                                        rag_answer_text = _fix_invalid_citations(rag_answer_text, hits_payload)
 
-                                        hits_payload_ui = filter_source_cards_dicts(
+                                        ui_seed_hits = _filter_hits_used_in_answer(
+                                            rag_answer_text,
                                             hits_payload,
-                                            max_cards=ui_max_cards,
-                                            min_score=ui_min_score,
-                                            drop_boilerplate=True,
-                                            dedupe=True,
+                                            fallback_count=1,
                                         )
+
+                                        # ✅ 답변에 실제 인용된 근거만 남긴 뒤에는 다시 품질 필터로 버리지 않는다.
+                                        hits_payload_ui = ui_seed_hits[:ui_max_cards]
 
                                         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 
@@ -1747,9 +1910,25 @@ def rag_qa_view(request: HttpRequest):
         for i, h in enumerate(used_hits or [], start=1):
             if isinstance(h, dict):
                 m = h.get("meta") or {}
+                if not isinstance(m, dict):
+                    m = {}
+
+                try:
+                    citation_idx = int(
+                        h.get("citation_idx")
+                        or h.get("idx")
+                        or m.get("citation_idx")
+                        or m.get("idx")
+                        or i
+                    )
+                except Exception:
+                    citation_idx = i
+
                 hits_payload.append(
                     {
-                        "idx": i,
+                        # ✅ 화면 번호가 아니라, 답변 생성 당시 근거 번호를 유지
+                        "idx": citation_idx,
+                        "citation_idx": citation_idx,
                         "title": m.get("title") or m.get("url") or h.get("title") or h.get("url") or "문서",
                         "source": m.get("source_name") or m.get("source") or h.get("source") or "",
                         "url": m.get("url") or h.get("url") or "",
@@ -1758,7 +1937,20 @@ def rag_qa_view(request: HttpRequest):
                     }
                 )
             else:
-                hits_payload.append({"idx": i, "title": str(h), "source": "", "url": "", "snippet": "", "score": None})
+                hits_payload.append(
+                    {
+                        "idx": i,
+                        "citation_idx": i,
+                        "title": str(h),
+                        "source": "",
+                        "url": "",
+                        "snippet": "",
+                        "score": None,
+                    }
+                )
+
+        # ✅ LLM이 실제 근거 개수와 다른 번호를 붙인 경우 보정
+        rag_text = _fix_invalid_citations(rag_text, hits_payload)
 
         user_log.mode = "rag"
         user_log.save(update_fields=["mode"])
@@ -1788,19 +1980,49 @@ def rag_qa_view(request: HttpRequest):
         _append_chat_history(request, q, rag_text)
 
         ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
-        ui_min_score = getattr(settings, "RAG_EVIDENCE_MIN_SCORE", None)
-        try:
-            ui_min_score = float(ui_min_score) if ui_min_score is not None else None
-        except Exception:
-            ui_min_score = None
-
-        hits_payload_ui = filter_source_cards_dicts(
+        
+        ui_seed_hits = _filter_hits_used_in_answer(
+            rag_text,
             hits_payload,
-            max_cards=ui_max_cards,
-            min_score=ui_min_score,
-            drop_boilerplate=True,
-            dedupe=True,
+            fallback_count=1,
         )
+
+        # ✅ LLM이 존재하지 않는 번호([2], [3] 등)를 붙인 경우에도
+        # 실제 검색된 근거가 있으면 최소 1개는 참고자료에 표시한다.
+        hits_payload_ui = ui_seed_hits[:ui_max_cards]
+
+        sources_norm = _normalize_rag_sources(hits_payload_ui)
+
+        # ✅ 디버그용: 크롤링 뉴스가 RAG 후보에 들어왔는지 Network Response에서 확인
+        debug_payload = {
+            "hit_count": len(hits_payload),
+            "ui_hit_count": len(hits_payload_ui),
+            "hit_sources": [
+                (h.get("source") or "")
+                for h in hits_payload
+                if isinstance(h, dict)
+            ],
+            "ui_hit_sources": [
+                (h.get("source") or "")
+                for h in hits_payload_ui
+                if isinstance(h, dict)
+            ],
+            "hit_titles": [
+                (h.get("title") or "")
+                for h in hits_payload[:5]
+                if isinstance(h, dict)
+            ],
+            "has_news_hit": any(
+                (h.get("source") or "") == "news"
+                for h in hits_payload
+                if isinstance(h, dict)
+            ),
+            "has_news_ui_hit": any(
+                (h.get("source") or "") == "news"
+                for h in hits_payload_ui
+                if isinstance(h, dict)
+            ),
+        }
 
         return _ok(
             {
@@ -1810,11 +2032,19 @@ def rag_qa_view(request: HttpRequest):
                 "answer_text": rag_text,
                 "answer": rag_text,
                 "answer_html": "",
+
+                # ✅ 근거
                 "hits": hits_payload_ui,
                 "sources": hits_payload_ui,
+                "sources_norm": sources_norm,
+
+                # ✅ 로그/세션
                 "log_id": answer_log.id,
                 "session_id": session_id,
                 "messages": [_serialize_log_entry(user_log), _serialize_log_entry(answer_log)],
+
+                # ✅ 디버그
+                "debug": debug_payload,
             }
         )
 
@@ -1998,18 +2228,43 @@ def qa_rag_chat(request: HttpRequest):
         for i, h in enumerate(used_hits or [], start=1):
             if isinstance(h, dict):
                 m = h.get("meta") or {}
+                if not isinstance(m, dict):
+                    m = {}
+
+                try:
+                    citation_idx = int(
+                        h.get("citation_idx")
+                        or h.get("idx")
+                        or m.get("citation_idx")
+                        or m.get("idx")
+                        or i
+                    )
+                except Exception:
+                    citation_idx = i
+
                 hits_payload.append(
                     {
-                        "idx": i,
+                        "idx": citation_idx,
+                        "citation_idx": citation_idx,
                         "title": m.get("title") or m.get("url") or h.get("title") or h.get("url") or "문서",
                         "source": m.get("source_name") or m.get("source") or h.get("source") or "",
                         "url": m.get("url") or h.get("url") or "",
                         "snippet": (_hit_text(h))[:500],
-                        "score": h.get("score"),
+                        "score": m.get("score") if "score" in m else h.get("score"),
                     }
                 )
             else:
-                hits_payload.append({"idx": i, "title": str(h), "source": "", "url": "", "snippet": "", "score": None})
+                hits_payload.append(
+                    {
+                        "idx": i,
+                        "citation_idx": i,
+                        "title": str(h),
+                        "source": "",
+                        "url": "",
+                        "snippet": "",
+                        "score": None,
+                    }
+                )
 
         _create_simple_log(
             request=request,
@@ -2033,19 +2288,16 @@ def qa_rag_chat(request: HttpRequest):
         _append_chat_history(request, q, rag_answer_text, max_items=15)
 
         ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
-        ui_min_score = getattr(settings, "RAG_EVIDENCE_MIN_SCORE", None)
-        try:
-            ui_min_score = float(ui_min_score) if ui_min_score is not None else None
-        except Exception:
-            ui_min_score = None
 
-        hits_payload_ui = filter_source_cards_dicts(
+        ui_seed_hits = _filter_hits_used_in_answer(
+            rag_answer_text,
             hits_payload,
-            max_cards=ui_max_cards,
-            min_score=ui_min_score,
-            drop_boilerplate=True,
-            dedupe=True,
+            fallback_count=0,
         )
+
+        # ✅ 이미 "답변에 실제 인용된 근거"만 남긴 상태이므로
+        # 여기서 min_score / boilerplate / dedupe 필터로 다시 제거하지 않는다.
+        hits_payload_ui = ui_seed_hits[:ui_max_cards]
 
         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 

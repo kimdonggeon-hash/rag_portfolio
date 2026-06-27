@@ -281,7 +281,7 @@
         if (mode !== "web" && mode !== "rag") return false;
         const t = safeText(answerText);
         if (!t || t.length < 30) return false;
-        if (/요청을 실행하지 못|폼\/버튼|PDF 파일을 먼저|동의가 필요/i.test(t)) return false;
+        if (/요청을 실행하지 못|폼\/버튼|PDF 파일을 먼저/i.test(t)) return false;
         if (/생각중|정리하는 중|처리 중|만드는 중|채워 넣는 중/i.test(t)) return false;
         return true;
     }
@@ -418,58 +418,6 @@
         hidden.value = actionValue;
     }
 
-    const CONSENT_LS_KEY = "dg_consent_ok_v1";
-    let pendingAfterConsent = null;
-
-    function guessConsentCookieName() {
-        try {
-            if (typeof window.ensureConsentGate !== "function") return "";
-            const s = String(window.ensureConsentGate);
-            let m = s.match(/setCookie\(\s*["']([^"']+)["']\s*,/);
-            if (m && m[1]) return m[1];
-            m = s.match(/getCookie\(\s*["']([^"']+)["']\s*\)/);
-            if (m && m[1]) return m[1];
-        } catch (_) { }
-        return "";
-    }
-
-    function markConsentOk() {
-        try {
-            localStorage.setItem(CONSENT_LS_KEY, "1");
-        } catch (_) { }
-
-        const cname = guessConsentCookieName();
-        if (!cname) return;
-
-        try {
-            if (typeof window.setCookie === "function") {
-                window.setCookie(cname, "1", 365);
-                return;
-            }
-        } catch (_) { }
-
-        try {
-            const maxAge = 365 * 24 * 60 * 60;
-            document.cookie = `${encodeURIComponent(cname)}=1; path=/; max-age=${maxAge}`;
-        } catch (_) { }
-    }
-
-    function isConsentOkFast() {
-        try {
-            if (localStorage.getItem(CONSENT_LS_KEY) === "1") return true;
-        } catch (_) { }
-
-        try {
-            const cname = guessConsentCookieName();
-            if (cname && typeof window.getCookie === "function") {
-                const v = window.getCookie(cname);
-                if (v) return true;
-            }
-        } catch (_) { }
-
-        return false;
-    }
-
     function dispatchComposerSubmit() {
         try {
             if (composer && typeof composer.requestSubmit === "function") {
@@ -480,56 +428,6 @@
         try {
             if (composer) composer.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         } catch (_) { }
-    }
-
-    function wireConsentAutoResume() {
-        const overlay = document.getElementById("consentOverlay");
-        if (!overlay) return;
-
-        overlay.addEventListener(
-            "click",
-            (e) => {
-                try {
-                    const btn = e.target && e.target.closest ? e.target.closest("button, a") : null;
-                    if (!btn) return;
-
-                    const t = (btn.textContent || "").trim();
-                    if (/거부|취소|닫기|나중/i.test(t)) return;
-                    if (!/동의|확인|계속/i.test(t)) return;
-
-                    markConsentOk();
-
-                    if (pendingAfterConsent && pendingAfterConsent.q) {
-                        setTimeout(() => {
-                            try {
-                                dispatchComposerSubmit();
-                            } catch (_) { }
-                        }, 50);
-                    }
-                } catch (_) { }
-            },
-            true
-        );
-    }
-
-    try {
-        wireConsentAutoResume();
-    } catch (_) { }
-
-    function ensureConsent(mode) {
-        try {
-            if (isConsentOkFast()) return true;
-
-            const form = findForm(mode);
-            if (!form) return true;
-
-            if (typeof window.ensureConsentGate === "function") {
-                const ok = window.ensureConsentGate(form) !== false;
-                if (ok) markConsentOk();
-                return ok;
-            }
-        } catch (_) { }
-        return true;
     }
 
     function clickSubmit(mode) {
@@ -802,13 +700,6 @@
         const mode = currentMode();
         const q = safeText(input.value);
         if (!q) return;
-
-        if (!ensureConsent(mode)) {
-            pendingAfterConsent = { mode, q };
-            input.focus();
-            return;
-        }
-        pendingAfterConsent = null;
 
         const user = makeMsg("user", `<div>${escapeHtml(q)}</div>`, nowHM());
         addLogItem(q, user.el);

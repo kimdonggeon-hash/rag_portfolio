@@ -648,7 +648,7 @@ def _ai_caption_tags_for_storage_key(
         or (os.getenv("IMAGE_META_MODEL") or "").strip()
         or (os.getenv("VERTEX_GEMINI_VISION_MODEL") or "").strip()
         or (os.getenv("VERTEX_GEMINI_MODEL") or "").strip()
-        or "gemini-2.5-flash"
+        or "gemini-3.5-flash"
     )
 
     # vertexai import 경로 호환
@@ -841,7 +841,7 @@ def add_image_item(
         or (os.getenv("IMAGE_META_MODEL") or "").strip()
         or (os.getenv("VERTEX_GEMINI_VISION_MODEL") or "").strip()
         or (os.getenv("VERTEX_GEMINI_MODEL") or "").strip()
-        or "gemini-2.5-flash"
+        or "gemini-3.5-flash"
     )
 
     need_ai = bool(ai_on) and (ai_force or (not caption_s) or (not tags_str))
@@ -1004,7 +1004,7 @@ def upsert_image_tags_caption(
         or (os.getenv("IMAGE_META_MODEL") or "").strip()
         or (os.getenv("VERTEX_GEMINI_VISION_MODEL") or "").strip()
         or (os.getenv("VERTEX_GEMINI_MODEL") or "").strip()
-        or "gemini-2.5-flash"
+        or "gemini-3.5-flash"
     )
 
     need_ai = bool(ai_on) and (ai_force or (not caption_s) or (not tags_str))

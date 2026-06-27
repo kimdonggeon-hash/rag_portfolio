@@ -302,7 +302,7 @@
 
                 if (tableHtml) {
                     a.bubble.innerHTML =
-                        '<div class="answer-meta-row"><span class="ai-generated-badge">AI 생성</span></div>' +
+                        '<div class="answer-meta-row"><span class="ai-generated-badge">검색 결과 기반 답변</span></div>' +
                         '<div class="answer-body">' + tableHtml + "</div>";
                 } else {
                     a.bubble.textContent = t;

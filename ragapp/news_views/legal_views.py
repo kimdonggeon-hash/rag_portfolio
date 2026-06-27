@@ -171,7 +171,7 @@ def _build_cfg_dict() -> Tuple[Dict[str, Any], Any]:
 
     if not str(cfg.get("model_name") or "").strip():
         cfg["model_name"] = getattr(
-            settings, "GEN_MODEL_NAME", os.environ.get("GEN_MODEL_NAME", "gemini-2.5-flash")
+            settings, "GEN_MODEL_NAME", os.environ.get("GEN_MODEL_NAME", "gemini-3.5-flash")
         )
 
     # 2-1) 자주 쓰는 내부 링크 기본값(템플릿 안정화)

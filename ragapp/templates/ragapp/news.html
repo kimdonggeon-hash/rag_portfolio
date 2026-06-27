@@ -59,8 +59,6 @@
     </div>
   </noscript>
 
-  {% include "ragapp/partials/consent_overlay.html" %}
-
   <div class="page-wrap app-shell mz-shell" data-mode="rag">
 
     <aside class="mz-sidebar" aria-label="사이드바"></aside>
@@ -71,10 +69,10 @@
         <div class="mz-hero-head">
           <div class="mz-hero-text">
             <h1 class="mz-hero-title">
-              <span class="mz-hero-accent">무엇이든</span> 물어봐!
+              <span class="mz-hero-accent">문서에서</span> 근거를 찾아 답변합니다
             </h1>
             <p class="mz-hero-sub">
-              AI 검색부터 PDF 분석까지 전부 해결
+              뉴스와 PDF를 검색해 관련 근거 기반 답변을 생성합니다
             </p>
           </div>
 
@@ -120,7 +118,7 @@
             <textarea id="chatInput"
                       class="mz-chat-input"
                       rows="1"
-                      placeholder="궁금한 거 다 적어봐..."
+                      placeholder="문서에서 확인하고 싶은 질문을 입력하세요"
                       aria-label="질문 입력"></textarea>
 
             <button type="submit" id="chatSendBtn" class="mz-send-btn" aria-label="전송">
@@ -235,7 +233,7 @@
             <details class="manual-item">
               <summary>웹 검색 / 결과 저장하기</summary>
               <div class="manual-body">
-                웹 검색 결과를 보고 “저장” 기능을 사용할 때는 동의가 필요할 수 있어요.
+                웹 검색 결과를 확인한 뒤 필요한 내용은 저장 기능으로 자료에 추가할 수 있어요.
               </div>
             </details>
 
@@ -381,9 +379,6 @@
   <script src="{% versioned_static 'ragapp/javascript/news_chat_adapter.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
   <script src="{% versioned_static 'ragapp/javascript/rag_evidence_bridge.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
   <script src="{% versioned_static 'ragapp/javascript/news.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
-
-  {# ✅ consent gate 로직은 이제 legal-bundle.js로 이동 #}
-  <script src="{% versioned_static 'ragapp/javascript/legal-bundle.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
 
   <script src="{% versioned_static 'ragapp/javascript/qarag_chat.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>
   <script src="{% versioned_static 'ragapp/javascript/guide_cards_modal.js' %}"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %} defer></script>

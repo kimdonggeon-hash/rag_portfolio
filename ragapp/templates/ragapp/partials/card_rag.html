@@ -5,7 +5,8 @@
          data-sanitize-links="1"
          aria-labelledby="rag-card-title">
 
-  {% firstof rag_sources hits.results hits.hits hits as rag_evidence %}
+  {# ✅ 정제된 hits를 우선 사용하고, 없을 때만 rag_sources로 fallback #}
+  {% firstof hits.hits hits.results hits rag_sources as rag_evidence %}
 
   <div class="card-header">
     <div class="card-title-row">
@@ -51,7 +52,7 @@
 
         <label class="opt-line">
           <input type="checkbox" name="opt_rag_save_hits" value="1" />
-          {{ RAG_OPT_SAVE_HITS|default:"AI가 참고한 문서 목록도 함께 저장하기 (추천)" }}
+          {{ RAG_OPT_SAVE_HITS|default:"답변에 사용된 근거도 함께 저장하기 (추천)" }}
         </label>
       </div>
 
@@ -79,18 +80,28 @@
 
   <div class="card-body card-body--rag">
     <div class="msg-row" id="rag-msg-block">
-      {% if rag_msg %}<div class="msg-ok" role="status">✅ {{ rag_msg }}</div>{% endif %}
-      {% if rag_error %}<div class="msg-err" role="alert">❌ {{ rag_error }}</div>{% endif %}
+      {% if rag_msg %}
+        <div class="msg-ok" role="status">✅ {{ rag_msg }}</div>
+      {% endif %}
+
+      {% if rag_error %}
+        <div class="msg-err" role="alert">❌ {{ rag_error }}</div>
+      {% endif %}
     </div>
 
     <div class="answer-block" id="rag-answer-wrap">
       <div id="ragChatMount" class="chat-mount" aria-label="RAG 대화"></div>
 
-      {# ✅ 근거 UI: (중요) ragChatMount 바로 아래로 이동해서 레이아웃 붕괴/오프스크린 방지 #}
-      <details id="dgRagEvidenceWrap" class="mz-evidence mz-evidence--rag dg-ev-details" {% if rag_evidence %}open{% endif %} data-evidence="rag">
-        <summary class="mz-evidence-summary" role="button" aria-controls="ragEvidenceBody">
+      {# ✅ 근거 UI: 자동 open 제거. 사용자가 눌렀을 때만 열리게 함 #}
+      <details id="dgRagEvidenceWrap"
+               class="mz-evidence mz-evidence--rag dg-ev-details"
+               data-evidence="rag">
+        <summary class="mz-evidence-summary"
+                 role="button"
+                 aria-controls="ragEvidenceBody"
+                 aria-expanded="false">
           <span class="mz-evidence-title">
-            {{ RAG_EVIDENCE_BTN|default:"📎 근거 보기" }}
+            {{ RAG_EVIDENCE_BTN|default:"📎 사용된 근거 보기" }}
           </span>
 
           <span class="mz-evidence-actions">
@@ -105,7 +116,7 @@
           <div class="sources-block answer-evidence" data-sanitize-links="1">
             <div class="sources-title-row">
               <h3 class="sources-title">
-                {{ RAG_EVIDENCE_TITLE|default:"📎 AI가 참고한 자료 목록" }}
+                {{ RAG_EVIDENCE_TITLE|default:"📎 답변에 사용된 근거" }}
               </h3>
 
               <span class="sources-count">
@@ -116,7 +127,8 @@
             <ul class="sources-list" id="ragSourcesList">
               {% if rag_evidence %}
                 {% for s in rag_evidence %}
-                  <li class="src-item">
+                  <li class="src-item"
+                      data-source-idx="{{ s.idx|default:forloop.counter }}">
                     {% if s.url %}
                       <a href="{{ s.url }}"
                          class="src-title"
@@ -126,7 +138,15 @@
                         {{ s.title|default:s.url }}
                       </a>
                     {% else %}
-                      <span class="src-title">{{ s.title|default:s.id|default:"근거 "|add:forloop.counter }}</span>
+                      <span class="src-title">
+                        {% if s.title %}
+                          {{ s.title }}
+                        {% elif s.id %}
+                          {{ s.id }}
+                        {% else %}
+                          근거 {{ s.idx|default:forloop.counter }}
+                        {% endif %}
+                      </span>
                     {% endif %}
 
                     {% if s.chunk or s.snippet or s.text %}
@@ -135,8 +155,14 @@
                       </span>
                     {% endif %}
 
+                    <span class="src-meta">
+                      #{{ s.idx|default:forloop.counter }}
+                    </span>
+
                     {% if s.score %}
-                      <span class="src-meta">유사도 점수: {{ s.score|floatformat:3 }}</span>
+                      <span class="src-meta">
+                        유사도 점수: {{ s.score|floatformat:3 }}
+                      </span>
                     {% endif %}
                   </li>
                 {% endfor %}
@@ -145,7 +171,7 @@
 
             <p class="muted" id="ragSourcesEmpty" {% if rag_evidence %}hidden{% endif %}>
               아직 보여 줄 근거가 없습니다.<br />
-              먼저 한 번 검색을 실행하거나, 결과 저장하기를 마친 뒤 다시 확인해 주세요.
+              검색을 실행하면 답변에 실제 사용된 근거만 표시됩니다.
             </p>
           </div>
         </div>

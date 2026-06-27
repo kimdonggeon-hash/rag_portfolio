@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import timedelta
 from typing import Any, Dict, Optional, Tuple, Set, List
 
 from django.conf import settings
@@ -40,6 +41,53 @@ END_MESSAGE = (
 )
 
 _END_TYPES = {"end", "closed", "close"}
+
+_CLOSED_STATUS_FALLBACKS = {
+    "ended",
+    "closed",
+    "close",
+    "done",
+    "saved",
+    "종료",
+    "ended_need_save",
+}
+
+
+def _status_to_str(v: Any) -> str:
+    try:
+        return str(getattr(v, "value", v) or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def _closed_statuses() -> Set[str]:
+    values = set(_CLOSED_STATUS_FALLBACKS)
+
+    try:
+        Status = getattr(LiveChatSession, "Status", None)
+        if Status is not None:
+            for name in ("ENDED", "CLOSED", "DONE", "SAVED", "ENDED_NEED_SAVE"):
+                if hasattr(Status, name):
+                    values.add(_status_to_str(getattr(Status, name)))
+    except Exception:
+        pass
+
+    return values
+
+
+def _is_livechat_closed(session: Optional[LiveChatSession]) -> bool:
+    if session is None:
+        return True
+
+    status = _status_to_str(getattr(session, "status", ""))
+
+    if status in _closed_statuses():
+        return True
+
+    if getattr(session, "ended_at", None):
+        return True
+
+    return False
 
 
 # ─────────────────────────────────────
@@ -197,6 +245,173 @@ def _has_unlogged_session(user) -> bool:
 
     return qs.exists()
 
+def _status_value(name: str, fallback: str) -> str:
+    """
+    LiveChatSession.Status가 있으면 Enum 값을 사용하고,
+    없으면 fallback 문자열을 사용.
+    """
+    try:
+        Status = getattr(LiveChatSession, "Status", None)
+        if Status is not None and hasattr(Status, name):
+            v = getattr(Status, name)
+            return str(getattr(v, "value", v))
+    except Exception:
+        pass
+    return fallback
+
+
+def _waiting_statuses() -> List[str]:
+    """
+    상담 요청 대기 상태로 인정할 값들.
+    """
+    return list(
+        {
+            "waiting",
+            "pending",
+            "대기",
+            _status_value("WAITING", "waiting"),
+        }
+    )
+
+
+def _visible_console_statuses() -> List[str]:
+    """
+    상담자 콘솔 왼쪽 목록에 보여줄 상태만 허용.
+    waiting: 상담 요청 들어옴
+    active: 상담 진행 중
+    """
+    return list(
+        {
+            "waiting",
+            "pending",
+            "대기",
+            "active",
+            "진행",
+            _status_value("WAITING", "waiting"),
+            _status_value("ACTIVE", "active"),
+        }
+    )
+
+
+def _active_statuses() -> List[str]:
+    """
+    상담 진행 중 상태로 인정할 값들.
+    """
+    return list(
+        {
+            "active",
+            "진행",
+            _status_value("ACTIVE", "active"),
+        }
+    )
+
+
+def _int_setting(name: str, default: int) -> int:
+    """
+    settings 값이 문자열이어도 안전하게 int로 변환.
+    """
+    try:
+        return int(getattr(settings, name, default))
+    except Exception:
+        return default
+
+
+def _open_sessions_queryset(statuses: List[str]):
+    """
+    종료되지 않은 특정 상태의 상담 세션 queryset.
+    """
+    fields = _model_fields(LiveChatSession)
+
+    qs = LiveChatSession.objects.all()
+
+    if "status" in fields:
+        qs = qs.filter(status__in=statuses)
+    else:
+        return LiveChatSession.objects.none()
+
+    if "ended_at" in fields:
+        qs = qs.filter(ended_at__isnull=True)
+
+    return qs
+
+
+def _open_session_count(statuses: List[str]) -> int:
+    try:
+        return _open_sessions_queryset(statuses).count()
+    except Exception:
+        return 0
+
+
+def _expire_stale_waiting_sessions(minutes: int = 5) -> None:
+    """
+    오래된 대기 상담 자동 종료 처리.
+    테스트 중 남은 waiting 세션이 계속 상담 요청 목록에 뜨는 문제를 막음.
+    """
+    fields = _model_fields(LiveChatSession)
+
+    if "status" not in fields:
+        return
+
+    now = timezone.now()
+    cutoff = now - timedelta(minutes=minutes)
+
+    qs = LiveChatSession.objects.filter(status__in=_waiting_statuses())
+
+    # 이미 종료 시간이 찍힌 세션은 건드리지 않음
+    if "ended_at" in fields:
+        qs = qs.filter(ended_at__isnull=True)
+
+    if "created_at" in fields:
+        qs = qs.filter(created_at__lt=cutoff)
+    elif "requested_at" in fields:
+        qs = qs.filter(requested_at__lt=cutoff)
+    else:
+        # 시간 기준 컬럼이 없으면 잘못해서 전체 waiting을 종료할 수 있으니 중단
+        return
+
+    update_kwargs: Dict[str, Any] = {
+        "status": _status_value("ENDED", "ended"),
+    }
+
+    if "ended_at" in fields:
+        update_kwargs["ended_at"] = now
+
+    if "updated_at" in fields:
+        update_kwargs["updated_at"] = now
+
+    try:
+        qs.update(**update_kwargs)
+    except Exception:
+        log.warning("expire stale waiting sessions failed", exc_info=True)
+
+
+def _console_sessions_queryset():
+    """
+    상담자 콘솔 왼쪽 목록용 queryset.
+    전체 상담 세션이 아니라 현재 볼 필요가 있는 세션만 가져온다.
+    """
+    fields = _model_fields(LiveChatSession)
+
+    qs = LiveChatSession.objects.all()
+
+    if "status" in fields:
+        qs = qs.filter(status__in=_visible_console_statuses())
+
+    if "room" in fields:
+        qs = qs.exclude(room__isnull=True).exclude(room__exact="")
+
+    if "ended_at" in fields:
+        qs = qs.filter(ended_at__isnull=True)
+
+    if "created_at" in fields:
+        qs = qs.order_by("-created_at")
+    elif "started_at" in fields:
+        qs = qs.order_by("-started_at")
+    else:
+        qs = qs.order_by("-id")
+
+    return qs
+
 
 # ─────────────────────────────────────
 #  상담사 콘솔 화면 (어드민용)
@@ -210,21 +425,20 @@ def live_chat_view(request: HttpRequest) -> HttpResponse:
     fields = _model_fields(LiveChatSession)
     initial_room = request.GET.get("room") or "master"
 
-    qs = LiveChatSession.objects.all()
-    if "created_at" in fields:
-        qs = qs.order_by("-created_at")
-    elif "started_at" in fields:
-        qs = qs.order_by("-started_at")
-    else:
-        qs = qs.order_by("-id")
+    # 오래된 waiting 세션 먼저 정리
+    _expire_stale_waiting_sessions(
+        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 5)
+    )
 
+    # 전체 세션이 아니라 상담 콘솔에 보여줄 세션만 조회
+    qs = _console_sessions_queryset()
     sessions = list(qs[:30])
 
     room_cnt = 0
     if "room" in fields:
         try:
             room_cnt = (
-                LiveChatSession.objects.exclude(room__isnull=True)
+                qs.exclude(room__isnull=True)
                 .exclude(room__exact="")
                 .values("room")
                 .distinct()
@@ -259,6 +473,20 @@ def api_livechat_next_session(request: HttpRequest) -> JsonResponse:
                 "message": "이전 상담에 대한 상담 기록을 먼저 저장해야 다음 상담을 받을 수 있어요.",
             },
             status=400,
+        )
+
+    # ✅ 레거시 next API에서도 동시에 진행 중인 상담 수 제한
+    max_active = _int_setting("LIVECHAT_MAX_ACTIVE_SESSIONS", 1)
+    active_count = _open_session_count(_active_statuses())
+
+    if max_active > 0 and active_count >= max_active:
+        return JsonResponse(
+            {
+                "ok": False,
+                "reason": "ACTIVE_LIMIT",
+                "message": "이미 진행 중인 상담이 있습니다. 기존 상담을 종료한 뒤 다음 상담을 받을 수 있어요.",
+            },
+            status=200,
         )
 
     fields = _model_fields(LiveChatSession)
@@ -326,6 +554,12 @@ def api_livechat_next(request: HttpRequest) -> JsonResponse:
     """
     (메인) Enum Status 기반 WAITING → ACTIVE 전환 버전
     """
+
+    # 오래된 waiting 세션 먼저 정리
+    _expire_stale_waiting_sessions(
+        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 5)
+    )
+
     # 1) ENDED_NEED_SAVE가 남아있으면 막기(가능하면)
     try:
         need_note_exists = LiveChatSession.objects.filter(status=LiveChatSession.Status.ENDED_NEED_SAVE).exists()  # type: ignore[attr-defined]
@@ -338,15 +572,36 @@ def api_livechat_next(request: HttpRequest) -> JsonResponse:
             status=200,
         )
 
-    # 2) WAITING 중 가장 오래된 것
-    try:
-        session = (
-            LiveChatSession.objects.filter(status=LiveChatSession.Status.WAITING)  # type: ignore[attr-defined]
-            .order_by("created_at")
-            .first()
+    # ✅ 동시에 진행 가능한 active 상담 수 제한
+    max_active = _int_setting("LIVECHAT_MAX_ACTIVE_SESSIONS", 1)
+    active_count = _open_session_count(_active_statuses())
+
+    if max_active > 0 and active_count >= max_active:
+        return JsonResponse(
+            {
+                "ok": False,
+                "reason": "ACTIVE_LIMIT",
+                "message": "이미 진행 중인 상담이 있습니다. 기존 상담을 종료한 뒤 다음 상담을 받을 수 있어요.",
+            },
+            status=200,
         )
-    except Exception:
-        session = LiveChatSession.objects.order_by("created_at").first()
+
+    # 2) WAITING 중 가장 오래된 것
+    qs = _open_sessions_queryset(_waiting_statuses())
+
+    fields = _model_fields(LiveChatSession)
+
+    if "room" in fields:
+        qs = qs.exclude(room__isnull=True).exclude(room__exact="")
+
+    if "created_at" in fields:
+        qs = qs.order_by("created_at")
+    elif "requested_at" in fields:
+        qs = qs.order_by("requested_at")
+    else:
+        qs = qs.order_by("id")
+
+    session = qs.first()
 
     if not session:
         return JsonResponse({"ok": False, "reason": "NO_WAITING", "message": "현재 대기 중인 상담이 없습니다."}, status=200)
@@ -391,6 +646,24 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
     """
     data = _json_body(request)
     fields = _model_fields(LiveChatSession)
+
+    # ✅ 오래된 waiting 세션 정리 후, 대기열 제한 확인
+    _expire_stale_waiting_sessions(
+        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 30)
+    )
+
+    max_waiting = _int_setting("LIVECHAT_MAX_WAITING_SESSIONS", 3)
+    waiting_count = _open_session_count(_waiting_statuses())
+
+    if max_waiting > 0 and waiting_count >= max_waiting:
+        return JsonResponse(
+            {
+                "ok": False,
+                "reason": "WAITING_FULL",
+                "message": "현재 상담 대기 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            },
+            status=200,
+        )
 
     room = (data.get("room") or "").strip()
     if not room:
@@ -566,6 +839,8 @@ def api_livechat_history(request: HttpRequest) -> JsonResponse:
 
         messages.append(payload)
 
+    closed = _is_livechat_closed(sess)
+
     return JsonResponse(
         {
             "ok": True,
@@ -574,6 +849,8 @@ def api_livechat_history(request: HttpRequest) -> JsonResponse:
             "status": getattr(sess, "status", None),
             "started_at": getattr(sess, "started_at", None).isoformat() if getattr(sess, "started_at", None) else None,
             "ended_at": getattr(sess, "ended_at", None).isoformat() if getattr(sess, "ended_at", None) else None,
+            "closed": closed,
+            "can_send": not closed,
             "messages": messages,
         }
     )
@@ -709,9 +986,12 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
     changed_fields: List[str] = []
 
     try:
+        used_mark_method = False
+
         mark_ended_need_save = getattr(obj, "mark_ended_need_save", None)
         if callable(mark_ended_need_save):
             mark_ended_need_save()
+            used_mark_method = True
         else:
             if "status" in fields:
                 Status = getattr(LiveChatSession, "Status", None)
@@ -721,16 +1001,15 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
                     obj.status = "ended"
                 changed_fields.append("status")
 
-            if "ended_at" in fields and not getattr(obj, "ended_at", None):
-                obj.ended_at = now
-                changed_fields.append("ended_at")
-
         if "ended_at" in fields and not getattr(obj, "ended_at", None):
             obj.ended_at = now
-            if "ended_at" not in changed_fields:
-                changed_fields.append("ended_at")
+            changed_fields.append("ended_at")
 
-        obj.save(update_fields=changed_fields) if changed_fields else obj.save()
+        if used_mark_method:
+            obj.save()
+        else:
+            obj.save(update_fields=changed_fields) if changed_fields else obj.save()
+
     except Exception:
         log.exception("api_livechat_end: session status update failed")
 
@@ -742,7 +1021,17 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
     try:
         _send_room(
             room_name,
-            {"type": "end", "sender": "operator", "text": end_text, "ts": ts, "room": room_name, "session_id": getattr(obj, "id", None)},
+            {
+                "type": "end",
+                "event": "session_closed",
+                "closed": True,
+                "can_send": False,
+                "sender": "operator",
+                "text": end_text,
+                "ts": ts,
+                "room": room_name,
+                "session_id": getattr(obj, "id", None),
+            },
         )
     except Exception:
         log.exception("api_livechat_end: room broadcast failed")
@@ -791,9 +1080,12 @@ def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
     changed_fields: List[str] = []
 
     try:
+        used_mark_method = False
+
         mark_ended_need_save = getattr(obj, "mark_ended_need_save", None)
         if callable(mark_ended_need_save):
             mark_ended_need_save()
+            used_mark_method = True
         else:
             if "status" in fields:
                 Status = getattr(LiveChatSession, "Status", None)
@@ -803,18 +1095,17 @@ def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
                     obj.status = "ended"
                 changed_fields.append("status")
 
-            if "ended_at" in fields and not getattr(obj, "ended_at", None):
-                obj.ended_at = now
-                changed_fields.append("ended_at")
-
         if "ended_at" in fields and not getattr(obj, "ended_at", None):
             obj.ended_at = now
-            if "ended_at" not in changed_fields:
-                changed_fields.append("ended_at")
+            changed_fields.append("ended_at")
 
-        obj.save(update_fields=changed_fields) if changed_fields else obj.save()
+        if used_mark_method:
+            obj.save()
+        else:
+            obj.save(update_fields=changed_fields) if changed_fields else obj.save()
+
     except Exception:
-        log.exception("api_livechat_client_end: session status update failed")
+        log.exception("api_livechat_end: session status update failed")
 
     ts = int(now.timestamp() * 1000)
     room_name = getattr(obj, "room", room)
@@ -824,7 +1115,17 @@ def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
     try:
         _send_room(
             room_name,
-            {"type": "end", "sender": "client", "text": end_text, "ts": ts, "room": room_name, "session_id": getattr(obj, "id", None)},
+            {
+                "type": "end",
+                "event": "session_closed",
+                "closed": True,
+                "can_send": False,
+                "sender": "client",
+                "text": end_text,
+                "ts": ts,
+                "room": room_name,
+                "session_id": getattr(obj, "id", None),
+            },
         )
     except Exception:
         log.exception("api_livechat_client_end: room broadcast failed")
@@ -861,18 +1162,21 @@ def api_livechat_recent_sessions(request: HttpRequest) -> HttpResponse:
     """
     /api/livechat/recent-sessions/
     """
-    fields = _model_fields(LiveChatSession)
-    qs = LiveChatSession.objects.all()
+    # 오래된 waiting 세션 먼저 정리
+    _expire_stale_waiting_sessions(
+        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 5)
+    )
 
-    if "created_at" in fields:
-        qs = qs.order_by("-created_at")
-    else:
-        qs = qs.order_by("-id")
-
+    # 전체 세션이 아니라 상담 콘솔에 보여줄 세션만 조회
+    qs = _console_sessions_queryset()
     sessions = list(qs[:30])
 
     cleanup_url = "/ragadmin/live-chat/cleanup/"
-    html = render_to_string("ragadmin/_live_chat_session_items.html", {"sessions": sessions, "cleanup_url": cleanup_url}, request=request)
+    html = render_to_string(
+        "ragadmin/_live_chat_session_items.html",
+        {"sessions": sessions, "cleanup_url": cleanup_url},
+        request=request,
+    )
 
     accept = (request.headers.get("Accept") or "").lower()
     want_json = ("application/json" in accept) or (request.GET.get("format") == "json")

@@ -658,7 +658,31 @@ else:
         ["VERTEX_PROJECT_ID", "vertex_id", "GCP_PROJECT", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"]
     )
 
-VERTEX_LOCATION = _env_first(["VERTEX_LOCATION", "GCP_LOCATION"], default="asia-northeast1") or "asia-northeast1"
+# ─────────────────────────────────────────────────────────────────────────────
+# Vertex / Gemini 설정
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ✅ Gemini 생성 모델 전용 위치
+# - gemini-3.5-flash는 global로 호출
+# - GOOGLE_CLOUD_LOCATION / GCP_LOCATION은 기본 GCP 리전이라 여기서 읽지 않음
+VERTEX_LLM_LOCATION = _env_first(
+    ["VERTEX_LLM_LOCATION"],
+    default="global",
+) or "global"
+
+# ✅ 임베딩 모델은 생성 모델과 리전을 분리
+VERTEX_EMBED_LOCATION = _env_first(
+    ["VERTEX_EMBED_LOCATION", "EMBED_LOCATION"],
+    default="asia-northeast1",
+) or "asia-northeast1"
+
+# ✅ 기본 GCP/Vertex 리전: 도쿄 유지
+# - Cloud Run / GCP 기본 위치용
+# - Gemini 3.5 Flash 생성 호출은 VERTEX_LLM_LOCATION을 따로 사용
+VERTEX_LOCATION = _env_first(
+    ["VERTEX_LOCATION", "GCP_LOCATION", "GOOGLE_CLOUD_LOCATION"],
+    default="asia-northeast1",
+) or "asia-northeast1"
 
 _gac = _env_first(["GOOGLE_APPLICATION_CREDENTIALS"], default="") or ""
 GOOGLE_APPLICATION_CREDENTIALS = (
@@ -677,27 +701,59 @@ os.environ.setdefault("GCP_PROJECT", VERTEX_PROJECT_ID)
 os.environ.setdefault("GOOGLE_CLOUD_PROJECT", VERTEX_PROJECT_ID)
 os.environ.setdefault("GCLOUD_PROJECT", VERTEX_PROJECT_ID)
 
+# ✅ Gemini 생성 모델용 위치
+os.environ.setdefault("VERTEX_LLM_LOCATION", VERTEX_LLM_LOCATION)
+os.environ.setdefault("GEMINI_LOCATION", VERTEX_LLM_LOCATION)
+
+# ✅ 기본 GCP/Vertex 위치
 os.environ.setdefault("VERTEX_LOCATION", VERTEX_LOCATION)
 os.environ.setdefault("GCP_LOCATION", VERTEX_LOCATION)
-os.environ.setdefault("GOOGLE_CLOUD_LOCATION", VERTEX_LOCATION)
+
+# 주의:
+# GOOGLE_CLOUD_LOCATION은 일부 Gemini SDK가 기본 location으로 읽을 수 있음.
+# gemini-3.5-flash는 global 호출이 안전하므로 LLM 위치로 맞춤.
+os.environ.setdefault("GOOGLE_CLOUD_LOCATION", VERTEX_LLM_LOCATION)
+
+# ✅ 임베딩용 위치
+os.environ.setdefault("VERTEX_EMBED_LOCATION", VERTEX_EMBED_LOCATION)
 
 GENAI_API_VERSION = _env_first(["GENAI_API_VERSION"], default="v1") or "v1"
 
+# ✅ Gemini 생성 모델
 GEMINI_MODEL = _env_first(
     ["GEMINI_MODEL", "GEMINI_MODEL_DIRECT", "GEMINI_TEXT_MODEL", "VERTEX_TEXT_MODEL"],
-    default="gemini-2.5-flash",
-) or "gemini-2.5-flash"
+    default="gemini-3.5-flash",
+) or "gemini-3.5-flash"
 
 GEMINI_TEXT_MODEL = _env_first(["GEMINI_TEXT_MODEL"], default=GEMINI_MODEL) or GEMINI_MODEL
 VERTEX_TEXT_MODEL = _env_first(["VERTEX_TEXT_MODEL"], default=GEMINI_MODEL) or GEMINI_MODEL
 GEMINI_MODEL_DIRECT = _env_first(["GEMINI_MODEL_DIRECT"], default=GEMINI_MODEL) or GEMINI_MODEL
 GEMINI_MODEL_RAG = _env_first(["GEMINI_MODEL_RAG"], default=GEMINI_MODEL) or GEMINI_MODEL
 
+# ✅ PDF Gemini 전용 설정
+# - PDF 검색/분석 쪽에서 모델과 location을 따로 읽게 하기 위함
+# - gemini-3.5-flash는 global 호출이 안전
+GEMINI_MODEL_PDF = _env_first(
+    ["GEMINI_MODEL_PDF", "PDF_GEMINI_MODEL", "PDF_VERTEX_MODEL"],
+    default=GEMINI_MODEL,
+) or GEMINI_MODEL
+
+PDF_VERTEX_LOCATION = _env_first(
+    ["PDF_VERTEX_LOCATION", "PDF_GEMINI_LOCATION"],
+    default=VERTEX_LLM_LOCATION,
+) or VERTEX_LLM_LOCATION
+
+os.environ.setdefault("GEMINI_MODEL_PDF", GEMINI_MODEL_PDF)
+os.environ.setdefault("PDF_VERTEX_LOCATION", PDF_VERTEX_LOCATION)
+
+# ✅ 텍스트 임베딩 모델
 _embed_src = _env_first(
     ["EMBED_MODEL", "GEMINI_EMBED_MODEL", "GEMINI_EMBED_MODELS"],
     default="text-embedding-005",
 ) or "text-embedding-005"
+
 GEMINI_EMBED_MODELS = [m.strip() for m in _embed_src.split(",") if m.strip()]
+
 VERTEX_EMBED_MODEL = _env_first(
     ["VERTEX_EMBED_MODEL", "EMBED_MODEL", "GEMINI_EMBED_MODEL"],
     default=(GEMINI_EMBED_MODELS[0] if GEMINI_EMBED_MODELS else "text-embedding-005"),
@@ -705,7 +761,9 @@ VERTEX_EMBED_MODEL = _env_first(
 
 WEB_INGEST_TO_CHROMA = _env_bool(["WEB_INGEST_TO_CHROMA"], default=True)
 AUTO_INGEST_AFTER_GEMINI = _env_bool(["AUTO_INGEST_AFTER_GEMINI"], default=True)
-CRAWL_ANSWER_LINKS = _env_bool(["CRAWL_ANSWER_LINKS"], default=True)
+
+# ✅ 안전 정책상 답변 링크 본문 크롤링은 기본 OFF
+CRAWL_ANSWER_LINKS = _env_bool(["CRAWL_ANSWER_LINKS"], default=False)
 
 ANSWER_LINK_MAX = _env_int(["ANSWER_LINK_MAX"], default=5)
 ANSWER_LINK_TIMEOUT = _env_int(["ANSWER_LINK_TIMEOUT"], default=12)
@@ -714,13 +772,26 @@ EMBED_CHUNK_SIZE = _env_int(["EMBED_CHUNK_SIZE"], default=1600)
 EMBED_CHUNK_OVERLAP = _env_int(["EMBED_CHUNK_OVERLAP"], default=200)
 NEWS_TOPK = _env_int(["NEWS_TOPK"], default=5)
 
+# ✅ 뉴스 크롤링/인덱싱 안전 정책
+WEB_INGEST_META_ONLY = _env_bool(["WEB_INGEST_META_ONLY"], default=True)
+ALLOW_STORE_NEWS_BODY = _env_bool(["ALLOW_STORE_NEWS_BODY"], default=False)
+NEWS_SNIPPET_INDEX_CHARS = _env_int(["NEWS_SNIPPET_INDEX_CHARS"], default=300)
+
 RAG_FORCE_ANSWER = _env_bool(["RAG_FORCE_ANSWER"], default=True)
 RAG_QUERY_TOPK = _env_int(["RAG_QUERY_TOPK"], default=5)
 RAG_FALLBACK_TOPK = _env_int(["RAG_FALLBACK_TOPK"], default=12)
 RAG_MAX_SOURCES = _env_int(["RAG_MAX_SOURCES"], default=8)
-RAG_SOURCES_FILTER = _env_first(["RAG_SOURCES_FILTER"], default="upload_doc,web_answer,news,answer_link") or "upload_doc,web_answer,news,answer_link"
+
+# ✅ RAG 검색 대상 정규화
+# 테스트: RAG_SOURCES_FILTER=news
+# 전체검색: RAG_SOURCES_FILTER=all
+# 기본값에서는 AI 생성 답변(web_answer)을 제외해서 뉴스/업로드 근거가 우선 잡히게 함
+RAG_SOURCES_FILTER = _rag_sources_where_from_env(
+    default_csv="upload_doc,news,answer_link"
+)
+
 RAG_EVIDENCE_MAX_CARDS = 5
-RAG_EVIDENCE_MIN_SCORE = None  # 예: 0.2
+RAG_EVIDENCE_MIN_SCORE = None
 
 NEWS_RSS_QUERY_TEMPLATE = _env_first(
     ["NEWS_RSS_QUERY_TEMPLATE"],
@@ -750,7 +821,7 @@ CRAWL_USER_AGENT = _env_first(
     default="ragapp-bot/1.0 (+contact@example.com)",
 ) or "ragapp-bot/1.0 (+contact@example.com)"
 
-ALLOWLIST_DOMAINS = _env_csv(["ALLOWLIST_DOMAINS"], default="")
+ALLOWLIST_DOMAINS = _env_csv(["ALLOWLIST_DOMAINS"], default="news.google.com")
 ALLOWED_NEWS_DOMAINS = _env_csv(["ALLOWED_NEWS_DOMAINS"], default="")
 
 LOG_IP_HASHED = _env_bool(["LOG_IP_HASHED"], default=True)
@@ -972,12 +1043,28 @@ LIVECHAT_PERSIST_MESSAGES = _env_bool(["LIVECHAT_PERSIST_MESSAGES"], default=Tru
 LIVECHAT_PERSIST_DEBUG = _env_bool(["LIVECHAT_PERSIST_DEBUG"], default=False)
 
 # ─────────────────────────────────────────────
-# ✅ LiveChat WS 동시접속 제한(consumer에서 cache로 카운트)
-# - 전체 동시 WS 연결 수 / 룸당 동시 연결 수 / 슬롯 TTL
+# ✅ LiveChat 보호 설정
+# - WS 접속 수 카운터 제한은 기본 OFF
+# - 서버 보호는 Cloud Run 설정 + 상담 세션 제한 + 메시지 rate limit으로 처리
 # ─────────────────────────────────────────────
-LIVECHAT_MAX_WS_CONNECTIONS = _env_int(["LIVECHAT_MAX_WS_CONNECTIONS"], default=20)
-LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM = _env_int(["LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM"], default=4)
-LIVECHAT_WS_SLOT_TTL = _env_int(["LIVECHAT_WS_SLOT_TTL"], default=3700)
+LIVECHAT_WS_LIMIT_ENABLED = _env_bool(["LIVECHAT_WS_LIMIT_ENABLED"], default=False)
+
+# WS 카운터 제한을 다시 켤 경우를 위한 예비값
+LIVECHAT_MAX_WS_CONNECTIONS = _env_int(["LIVECHAT_MAX_WS_CONNECTIONS"], default=100)
+LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM = _env_int(["LIVECHAT_MAX_WS_CONNECTIONS_PER_ROOM"], default=20)
+LIVECHAT_WS_SLOT_TTL = _env_int(["LIVECHAT_WS_SLOT_TTL"], default=300)
+
+# 상담 요청 대기열 제한
+LIVECHAT_MAX_WAITING_SESSIONS = _env_int(["LIVECHAT_MAX_WAITING_SESSIONS"], default=3)
+
+# 동시에 진행 가능한 상담 수
+LIVECHAT_MAX_ACTIVE_SESSIONS = _env_int(["LIVECHAT_MAX_ACTIVE_SESSIONS"], default=1)
+
+# 오래된 waiting 상담 자동 종료 기준
+LIVECHAT_WAITING_EXPIRE_MINUTES = _env_int(["LIVECHAT_WAITING_EXPIRE_MINUTES"], default=30)
+
+# 고객 메시지 도배 방지
+LIVECHAT_USER_MSG_LIMIT_PER_MIN = _env_int(["LIVECHAT_USER_MSG_LIMIT_PER_MIN"], default=20)
 
 # ─────────────────────────────────────────────
 # ✅ 정책 위반 시 즉시 종료 여부(consumer의 _end_on()에서 사용)

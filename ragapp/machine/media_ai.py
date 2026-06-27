@@ -13,7 +13,7 @@ from .feature_config import truthy_env
 # =========================================================
 PUBLIC_IMAGE_UPLOAD_AI = truthy_env("PUBLIC_IMAGE_UPLOAD_AI", "0")
 
-IMAGE_AI_MODEL = (os.getenv("IMAGE_AI_MODEL") or "gemini-2.5-flash").strip()
+IMAGE_AI_MODEL = (os.getenv("IMAGE_AI_MODEL") or "gemini-3.5-flash").strip()
 IMAGE_AI_LANG = (os.getenv("IMAGE_AI_LANG") or "ko").strip()  # "ko" / "en"
 IMAGE_AI_MAX_TAGS = int((os.getenv("IMAGE_AI_MAX_TAGS") or "12").strip() or 12)
 IMAGE_AI_FALLBACK_PLAIN_CAPTION = truthy_env("IMAGE_AI_FALLBACK_PLAIN_CAPTION", "1")

@@ -105,7 +105,7 @@ def enrich_meta_with_ai(
     gcs_uri: str,
     filename_hint: str = "",
     force: bool = False,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.5-flash",
 ) -> Dict[str, Any]:
     """
     meta에 caption/tags/search_text/ai_captioned를 채움.

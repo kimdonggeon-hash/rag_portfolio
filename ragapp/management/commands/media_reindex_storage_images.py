@@ -225,7 +225,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--ai-model",
             type=str,
-            default=os.getenv("IMAGE_META_MODEL") or "gemini-2.5-flash",
+            default=os.getenv("IMAGE_META_MODEL") or "gemini-3.5-flash",
             help="Gemini model name.",
         )
         parser.add_argument("--ai-force", action="store_true", help="Force regenerate AI meta even if already exists.")
@@ -248,7 +248,7 @@ class Command(BaseCommand):
         caption_from_name = bool(opts["caption_from_name"])
 
         ai_enabled = bool(opts["ai"])
-        ai_model = str(opts["ai_model"] or "gemini-2.5-flash")
+        ai_model = str(opts["ai_model"] or "gemini-3.5-flash")
         ai_force = bool(opts["ai_force"])
         meta_only = bool(opts["meta_only"])
         sleep_sec = float(opts["sleep"] or 0.0)

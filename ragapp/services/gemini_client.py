@@ -41,21 +41,13 @@ def _want_vertex_ai() -> bool:
     return True  # 안전하게 Vertex 고정
 
 
-def _vertex_params():
+def _vertex_params(kind: str = "llm"):
     """
     Vertex 파라미터 (settings/env만 사용; API Key는 사용하지 않음, ADC/서비스 계정 JSON 전용)
-    - project:
-        settings.VERTEX_PROJECT_ID
-        > env.VERTEX_PROJECT_ID
-        > env.GCP_PROJECT / GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT
-    - location:
-        settings.VERTEX_LOCATION
-        > env.VERTEX_LOCATION / GCP_LOCATION / GOOGLE_CLOUD_LOCATION
-        > 'us-central1'
-    - api_version:
-        settings.GENAI_API_VERSION
-        > env.GENAI_API_VERSION / GEMINI_API_VERSION
-        > 'v1'
+
+    kind:
+      - "llm"   : Gemini 생성 모델 호출용 → VERTEX_LLM_LOCATION 우선, 기본 global
+      - "embed" : 임베딩 호출용 → VERTEX_EMBED_LOCATION 우선, 없으면 VERTEX_LOCATION
     """
     project = (
         getattr(settings, "VERTEX_PROJECT_ID", None)
@@ -64,13 +56,23 @@ def _vertex_params():
         or os.environ.get("GOOGLE_CLOUD_PROJECT")
         or os.environ.get("GCLOUD_PROJECT")
     )
-    location = (
-        getattr(settings, "VERTEX_LOCATION", None)
-        or os.environ.get("VERTEX_LOCATION")
-        or os.environ.get("GCP_LOCATION")
-        or os.environ.get("GOOGLE_CLOUD_LOCATION")
-        or "us-central1"
-    )
+
+    if kind == "embed":
+        location = (
+            getattr(settings, "VERTEX_EMBED_LOCATION", None)
+            or os.environ.get("VERTEX_EMBED_LOCATION")
+            or os.environ.get("EMBED_LOCATION")
+            or getattr(settings, "VERTEX_LOCATION", None)
+            or os.environ.get("VERTEX_LOCATION")
+            or "asia-northeast3"
+        )
+    else:
+        location = (
+            getattr(settings, "VERTEX_LLM_LOCATION", None)
+            or os.environ.get("VERTEX_LLM_LOCATION")
+            or "global"
+        )
+
     api_version = (
         getattr(settings, "GENAI_API_VERSION", None)
         or os.environ.get("GENAI_API_VERSION")
@@ -104,10 +106,12 @@ def _http_options_or_none():
             return None
 
 
-def _gemini_client():
+def _gemini_client(kind: str = "llm"):
     """
     Vertex + ADC(서비스 계정 JSON / gcloud 로그인 등) 전용 클라이언트 생성.
 
+    - kind="llm"   : Gemini 생성 모델 호출용
+    - kind="embed" : 임베딩 호출용
     - API Key 는 전혀 사용하지 않는다.
     - 인증은 GOOGLE_APPLICATION_CREDENTIALS, gcloud auth, GCE 메타데이터 등
       표준 ADC(Application Default Credentials)를 따른다.
@@ -118,7 +122,7 @@ def _gemini_client():
     if not _want_vertex_ai():
         raise RuntimeError("Vertex-only 모드인데 USE_VERTEX_AI 플래그가 비활성화되어 있습니다. 환경변수를 확인하세요.")
 
-    project, location, api_version = _vertex_params()
+    project, location, api_version = _vertex_params(kind)
     HttpOptions = _http_options_or_none()
 
     if HttpOptions:
@@ -154,7 +158,7 @@ def _require_env_model_text() -> str:
         if isinstance(v, str) and v.strip():
             return v.strip()
     raise RuntimeError(
-        "텍스트 모델이 없습니다. .env에 GEMINI_MODEL=gemini-2.5-flash 등 원하는 모델명을 설정하세요."
+        "텍스트 모델이 없습니다. .env에 GEMINI_MODEL=gemini-3.5-flash 등 원하는 모델명을 설정하세요."
     )
 
 
@@ -195,7 +199,7 @@ def ask_gemini(prompt: str, model: Optional[str] = None) -> str:
     - generate_content 파라미터명(contents/content/input) 자동 호환
     """
     try:
-        c = _gemini_client()
+        c = _gemini_client("llm")
         mdl = _require_env_model_text()  # ★ env 강제
 
         # 파라미터명 호환
@@ -306,7 +310,7 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []
 
-    c = _gemini_client()
+    c = _gemini_client("embed")
     models = _embed_models_from_env()  # ★ env 강제
 
     errors: list[str] = []

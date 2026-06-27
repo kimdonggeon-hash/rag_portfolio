@@ -525,7 +525,7 @@
    *  3) Markdown → Safe HTML (렌더)
    * ============================================================ */
 
-  var AI_BADGE_HTML = '<p class="answer-meta-row"><b class="ai-generated-badge">AI 생성</b></p>';
+  var AI_BADGE_HTML = '<p class="answer-meta-row"><b class="ai-generated-badge">검색 결과 기반 답변</b></p>';
 
   function wrapWithAIBadge(html) {
     return AI_BADGE_HTML + (html || "");
@@ -769,98 +769,7 @@
     try { target.classList.add("answer-prose"); } catch (_) { }
   }
 
-  /* ============================================================
-   *  4) 동의 게이트(견고화)
-   *   - news.js / chat_adapter.js 공통 키로 통일
-   *   - “동의” 클릭을 잡아 로컬 기록
-   *   - 동의가 막아서 return 된 액션은 1회 자동 재시도(웹/패널도 포함)
-   * ============================================================ */
 
-  var CONSENT_OK_KEY = "dg_consent_ok_v1"; // ✅ 통일 키
-  var pendingConsentResume = null;        // function()
-
-  function _hasConsentLocal() {
-    try { if (typeof window !== "undefined" && window.__DG_CONSENT_OK__ === true) return true; } catch (_) { }
-
-    try {
-      if (typeof localStorage !== "undefined") {
-        if (localStorage.getItem(CONSENT_OK_KEY) === "1") return true;
-      }
-    } catch (_) { }
-
-    try {
-      var v = getCookie(CONSENT_OK_KEY);
-      if (v === "1" || v === "true") return true;
-    } catch (_) { }
-
-    return false;
-  }
-
-  function _markConsentLocal() {
-    try { if (typeof window !== "undefined") window.__DG_CONSENT_OK__ = true; } catch (_) { }
-    try { if (typeof localStorage !== "undefined") localStorage.setItem(CONSENT_OK_KEY, "1"); } catch (_) { }
-    try { setCookie(CONSENT_OK_KEY, "1", 365); } catch (_) { }
-  }
-
-  // ✅ 동의 모달의 “동의/확인” 버튼 클릭을 잡아서 로컬 동의 마킹 + pending 재시도
-  document.addEventListener("click", function (e) {
-    try {
-      var overlay = document.getElementById("consentOverlay");
-      if (!overlay || overlay.hidden) return;
-
-      var btn = e.target && e.target.closest ? e.target.closest("button, a, [role='button']") : null;
-      if (!btn) return;
-      if (!overlay.contains(btn)) return;
-
-      var t = String(btn.textContent || "").trim();
-
-      if (/거절|취소|닫기|나가기|decline|cancel|close/i.test(t)) return;
-      if (!/동의|확인|계속|agree|accept|confirm/i.test(t)) return;
-
-      _markConsentLocal();
-
-      if (typeof pendingConsentResume === "function") {
-        var fn = pendingConsentResume;
-        pendingConsentResume = null;
-        setTimeout(function () {
-          try { fn(); } catch (_) { }
-        }, 50);
-      }
-    } catch (_) { }
-  }, true);
-
-  function passConsentGate(formEl, onResumeOnce) {
-    try {
-      if (_hasConsentLocal()) return true;
-
-      // chat_adapter.js가 이미 기록해둔 경우도 즉시 통과
-      try {
-        if (typeof localStorage !== "undefined" && localStorage.getItem(CONSENT_OK_KEY) === "1") {
-          _markConsentLocal();
-          return true;
-        }
-      } catch (_) { }
-
-      if (!formEl) return true;
-
-      if (typeof window !== "undefined" && typeof window.ensureConsentGate === "function") {
-        var ok = window.ensureConsentGate(formEl) !== false;
-        if (ok) {
-          _markConsentLocal();
-          return true;
-        }
-
-        // 막혔고(모달 뜸), 콜백이 있으면 1회 재시도 예약
-        if (window.__CONSENT_QUEUE__ && typeof window.__CONSENT_QUEUE__.resume === "function") {
-          // 여기서는 예약하지 않음
-        } else {
-          if (typeof onResumeOnce === "function") pendingConsentResume = onResumeOnce;
-        }
-        return false;
-      }
-    } catch (_) { }
-    return true;
-  }
 
   /* ============================================================
    *  5) 구형 SSR 텍스트 정리(web-answer)
@@ -990,11 +899,10 @@
   });
 
   /* ============================================================
-   *  6) AJAX + Web/RAG 실행 (견고화)
-   *   - 중복 요청은 AbortController로 취소
-   *   - setLoading 자체 구현(없어도 안전)
-   *   - Consent 막힘은 1회 자동 재시도
-   * ============================================================ */
+  *  6) AJAX + Web/RAG 실행 (견고화)
+  *   - 중복 요청은 AbortController로 취소
+  *   - setLoading 자체 구현(없어도 안전)
+  * ============================================================ */
 
   (function () {
     var log = function (tag, data) {
@@ -1242,14 +1150,77 @@
     function pickSources(j) {
       try {
         if (!j) return [];
-        var cand =
-          j.sources || j.web_sources ||
-          j.refs || j.citations || j.evidence || j.contexts ||
-          j.results || j.items ||
-          j.hits || j.docs || j.references || [];
-        return Array.isArray(cand) ? cand : [];
+
+        var candidates = [
+          j.sources_norm,   // ✅ 정규화된 근거 우선
+          j.hits,           // ✅ 실제 검색 hit
+          j.sources,
+          j.used_sources,
+          j.rag_sources,
+          j.ragSources,
+          j.web_sources,
+          j.refs,
+          j.citations,
+          j.evidence,
+          j.contexts,
+          j.results,
+          j.items,
+          j.docs,
+          j.references
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+          if (Array.isArray(candidates[i]) && candidates[i].length > 0) {
+            return candidates[i];
+          }
+        }
+
+        return [];
       } catch (_) { }
       return [];
+    }
+
+    function filterSourcesByAnswerCitations(answerText, sources) {
+      try {
+        if (!Array.isArray(sources) || sources.length === 0) return [];
+
+        var answer = String(answerText || "");
+        var used = [];
+        var re = /\[(\d{1,2})\]/g;
+        var m;
+
+        while ((m = re.exec(answer)) !== null) {
+          var n = parseInt(m[1], 10);
+
+          // [2024] 같은 숫자 오인 방지
+          if (n >= 1 && n <= 99 && used.indexOf(n) < 0) {
+            used.push(n);
+          }
+        }
+
+        // ✅ 답변에 인용번호가 없어도 백엔드가 근거를 줬으면 보여준다.
+        if (!used.length) return sources;
+
+        var selected = sources.filter(function (src, pos) {
+          try {
+            var idx = parseInt(
+              src && (src.citation_idx || src.idx)
+                ? (src.citation_idx || src.idx)
+                : (pos + 1),
+              10
+            );
+
+            return used.indexOf(idx) >= 0;
+          } catch (_) {
+            return false;
+          }
+        });
+
+        // ✅ 답변 번호와 근거 번호가 어긋난 경우에도 근거를 0개로 만들지 않는다.
+        return selected.length ? selected : sources;
+      } catch (_) {
+        return Array.isArray(sources) ? sources : [];
+      }
     }
 
     // ✅ (추가) "RSS 근거 없음 → 직답" 판정 + UI placeholder 렌더
@@ -1395,15 +1366,42 @@
         var isList = (container.tagName === "UL" || container.tagName === "OL" || container.tagName === "MENU");
 
         // src 표준화
-        var normalize = function (src) {
-          if (!src) return { title: "", url: "", snippet: "" };
-          if (typeof src === "string") return { title: src, url: src, snippet: "" };
+        var normalize = function (src, pos) {
+          if (!src) return { title: "", url: "", snippet: "", citation_idx: pos + 1 };
+          if (typeof src === "string") {
+            return {
+              title: src,
+              url: src,
+              snippet: "",
+              citation_idx: pos + 1
+            };
+          }
 
           var url = src.url || src.link || src.href || "";
           var title = src.title || src.name || src.site_name || url || "(제목 없음)";
-          var snippet = src.snippet || src.summary || src.desc || src.description || "";
+          var snippet = src.chunk || src.snippet || src.summary || src.desc || src.description || src.text || src.content || "";
 
-          return { title: String(title || ""), url: String(url || ""), snippet: String(snippet || "") };
+          // ✅ [META ONLY] 표시는 숨김 처리하지 말고 화면에서만 제거
+          title = String(title || "").replace(/\[META ONLY\]\s*/gi, "").trim();
+          snippet = String(snippet || "").replace(/\[META ONLY\]\s*/gi, "").trim();
+
+          var citationIdx = null;
+          try {
+            citationIdx =
+              src.citation_idx ||
+              src.idx ||
+              (src.meta && (src.meta.citation_idx || src.meta.idx)) ||
+              (pos + 1);
+          } catch (_) {
+            citationIdx = pos + 1;
+          }
+
+          return {
+            title: String(title || ""),
+            url: String(url || ""),
+            snippet: String(snippet || ""),
+            citation_idx: citationIdx
+          };
         };
 
         function safeHost(u) {
@@ -1437,18 +1435,14 @@
           return "https://" + u;
         }
 
-        function shouldHide(src) {
-          var it = normalize(src);
+        function shouldHide(src, pos) {
+          var it = normalize(src, pos);
           var title = (it.title || "").trim();
           var rawUrl = (it.url || "").trim();
           var snippet = (it.snippet || "").trim();
 
           var tUp = title.toUpperCase();
           var sUp = snippet.toUpperCase();
-
-          // META ONLY 숨김
-          if (tUp.indexOf("[META ONLY]") >= 0) return true;
-          if (sUp.indexOf("[META ONLY]") >= 0) return true;
 
           // (아주 보수적으로) rag 소개 페이지 계열만 숨김
           var tLow = title.toLowerCase();
@@ -1461,8 +1455,8 @@
           return false;
         }
 
-        var filtered = sources.filter(function (s) {
-          try { return !shouldHide(s); } catch (_) { return true; }
+        var filtered = sources.filter(function (s, idx) {
+          try { return !shouldHide(s, idx); } catch (_) { return true; }
         });
 
         if (!filtered.length) {
@@ -1477,7 +1471,7 @@
         // 렌더
         filtered.forEach(function (src, idx) {
           try {
-            var it = normalize(src);
+            var it = normalize(src, idx);
             var title = it.title || it.url || "(제목 없음)";
 
             var rawUrl = (it.url || "").trim();
@@ -1518,7 +1512,7 @@
 
             var badge = document.createElement("span");
             badge.className = "src-badge";
-            badge.textContent = "#" + (idx + 1);
+            badge.textContent = "#" + (it.citation_idx || idx + 1);
             meta.appendChild(badge);
 
             var hostEl = document.createElement("span");
@@ -1651,12 +1645,6 @@
             // ✅ PII 차단(검색 질문도 차단)
             if (blockIfPII(query, msgRow, "질문", ansBlock)) {
               try { if (ansBlock) ansBlock.dataset.latestQuestionText = String(storeQ || query || "").trim(); } catch (_) { }
-              if (ev) restoreSubmitter(ev, form);
-              return;
-            }
-
-            // ✅ 동의 게이트(막히면 1회 자동 재시도 예약)
-            if (!passConsentGate(form, function () { runWeb(null); })) {
               if (ev) restoreSubmitter(ev, form);
               return;
             }
@@ -2017,12 +2005,6 @@
               }
             } catch (_) { }
 
-            // ✅ 동의 게이트(막히면 1회 자동 재시도 예약)
-            if (!passConsentGate(form, function () { runWebIngest(null); })) {
-              if (ev) restoreSubmitter(ev, form);
-              return;
-            }
-
             var ansBlock = document.getElementById("web-answer-block");
 
             // ✅ [추가] policy blocked면 저장 금지(여지 없음)
@@ -2281,12 +2263,6 @@
               return;
             }
 
-            // ✅ 그 다음에 동의 게이트(막히면 1회 자동 재시도 예약)
-            if (!passConsentGate(form, function () { runRag(null); })) {
-              if (ev) restoreSubmitter(ev, form);
-              return;
-            }
-
             if (msgRow) msgRow.innerHTML = "";
 
             if (ansBlock) {
@@ -2304,7 +2280,9 @@
             apiPostQAWithInsurance("rag", sendQ, { controller: controller, timeoutMs: 90000 })
               .then(function (j) {
 
-                window.__DG_RAG_LAST_SOURCES__ = { sources: (j && (j.sources || j.rag_sources || j.hits || [])) || [] };
+                window.__DG_RAG_LAST_SOURCES__ = {
+                  sources: pickSources(j)
+                };
 
                 // ✅ 서버가 PII 차단을 200(ok:true)로 내려주는 경우: 여기서 처리하고 성공 플로우 중단
                 var code = String((j && (j.code || j.error_code || j.err_code)) || "").toUpperCase();
@@ -2418,6 +2396,10 @@
                 }
 
                 var srcs = pickSources(j);
+
+                // ✅ 답변 인용번호와 매칭 시도하되, 실패해도 백엔드 근거는 유지
+                srcs = filterSourcesByAnswerCitations(ansRaw, srcs);
+
                 var msg = pickMsg(j);
 
                 if (msgRow) {
@@ -2440,7 +2422,7 @@
 
                 try {
                   if (window.DG_RAG_EVIDENCE && typeof window.DG_RAG_EVIDENCE.syncRagEvidenceWrap === "function") {
-                    window.DG_RAG_EVIDENCE.syncRagEvidenceWrap(srcs);
+                    window.DG_RAG_EVIDENCE.syncRagEvidenceWrap(srcs, j && j.log_id, ansRaw);
                   }
                 } catch (_) { }
 
@@ -2624,12 +2606,6 @@
               if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
             }
 
-            // ✅ 동의 게이트(막히면 1회 자동 재시도 예약)
-            if (!passConsentGate(form, function () { runRagSeed(null); })) {
-              if (ev) restoreSubmitter(ev, form);
-              return;
-            }
-
             var query = String(input.value || "").trim();
             var msgRow = document.getElementById("rag-msg-block");
             if (guardRagClarify(msgRow)) { if (ev) restoreSubmitter(ev, form); return; }
@@ -2736,12 +2712,6 @@
               if (hidden) hidden.value = "rag_reset";
             } catch (_) { }
 
-            // ✅ 동의 게이트(막히면 1회 자동 재시도)
-            if (!passConsentGate(form, function () { try { resetBtn.click(); } catch (_) { } })) {
-              try { restoreSubmitter(ev, form); } catch (_) { }
-              return;
-            }
-
             setLoading(form, resetBtn, "초기화 중…");
 
             try {
@@ -2776,12 +2746,6 @@
       try {
         setupWebForm();
         setupRagForm();
-
-        // ✅ 페이지 진입 시점에 1회만 동의 상태를 로컬에 미러링(가능하면)
-        try {
-          var anyForm = document.querySelector("form");
-          if (anyForm) passConsentGate(anyForm);
-        } catch (_) { }
 
         log("INIT_DONE", { readyState: document.readyState });
       } catch (e) {
@@ -2861,7 +2825,6 @@
     sanitizeHTML: sanitizeHTML,
     trimReferencesSection: trimReferencesSection,
     renderAnswerRich: renderAnswerRich,
-    passConsentGate: passConsentGate,
     bumpUsage: bumpUsage,
   });
 })();

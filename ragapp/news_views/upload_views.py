@@ -13,6 +13,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.contrib.admin.views.decorators import staff_member_required
+from django.core.cache import cache
 
 from ragapp.services.upload_doc_service import handle_upload_doc
 
@@ -101,6 +102,10 @@ def upload_doc_view(request: HttpRequest) -> HttpResponse:
 
         rawtext = (request.POST.get("rawtext") or "").strip()
         has_text = len(rawtext) > 0
+
+        # ✅ handle_upload_doc 내부 파일 key 차이 방지용 보조 속성
+        request._upload_doc_files = files  # type: ignore[attr-defined]
+        request._upload_doc_rawtext = rawtext  # type: ignore[attr-defined]
 
         _applog(
             component="upload",
@@ -215,6 +220,20 @@ def upload_doc_view(request: HttpRequest) -> HttpResponse:
             file_errors = ctx.get("file_errors") or []
             has_error = bool(error_msg) or bool(file_errors)
 
+            # ✅ 업로드/인덱싱 성공 시 RAG 관련 캐시 무효화
+            if not has_error:
+                for ck in [
+                    "rag_recent_results",
+                    "rag_sources",
+                    "rag_chunks",
+                    "admin_rag_stats",
+                    "upload_doc_stats",
+                ]:
+                    try:
+                        cache.delete(ck)
+                    except Exception:
+                        pass
+
             _applog(
                 component="upload",
                 message="업로드/인덱싱 완료" if not has_error else "업로드/인덱싱 에러",
@@ -223,6 +242,9 @@ def upload_doc_view(request: HttpRequest) -> HttpResponse:
                 meta={
                     "error_msg": str(error_msg) if error_msg else "",
                     "file_errors_count": len(file_errors),
+                    "result": ctx.get("result"),
+                    "vector_db_path": vector_db,
+                    "cache_invalidated": not has_error,
                 },
             )
 
@@ -232,6 +254,7 @@ def upload_doc_view(request: HttpRequest) -> HttpResponse:
         "VECTOR_DB_PATH": vector_db,
         "CHROMA_COLLECTION": getattr(settings, "CHROMA_COLLECTION", ""),
         "CHROMA_DB_DIR": getattr(settings, "CHROMA_DB_DIR", ""),
+        "RAG_SOURCES_FILTER": os.environ.get("RAG_SOURCES_FILTER") or getattr(settings, "RAG_SOURCES_FILTER", ""),
         "TRACE_ID": trace_id or "",
     }
     ctx.update(base_ctx)

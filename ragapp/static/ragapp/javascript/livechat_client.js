@@ -397,19 +397,71 @@
 
                 const reason =
                     reasonText ||
+                    (LC && LC.closedText) ||
                     "상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요.";
 
-                if (inputBox) {
-                    inputBox.disabled = true;
-                    inputBox.placeholder = reason;
-                }
-                if (sendBtn) sendBtn.disabled = true;
-                if (endBtn) endBtn.disabled = true;
+                // ✅ HTML 쪽에 공통 잠금 함수가 있으면 우선 사용
+                if (typeof window.lockLiveChatClient === "function") {
+                    window.lockLiveChatClient((opts && opts.silent) ? "" : reason);
+                } else {
+                    if (inputBox) {
+                        inputBox.disabled = true;
+                        inputBox.value = "";
+                        inputBox.placeholder = reason;
+                    }
+                    if (sendBtn) sendBtn.disabled = true;
+                    if (endBtn) endBtn.disabled = true;
 
-                // ✅ 이미 end 메시지를 화면에 그린 뒤라면 silent로 중복 출력 방지
-                if (!(opts && opts.silent)) {
-                    pushMsg("bot", reason);
+                    if (!(opts && opts.silent)) {
+                        pushMsg("bot", reason);
+                    }
                 }
+
+                // ✅ 종료 후 WebSocket도 확실히 닫기
+                try {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.close(1000, "ended");
+                    }
+                } catch (_) { }
+            }
+
+            function isTruthy(v) {
+                return v === true || String(v).toLowerCase() === "true";
+            }
+
+            function isFalseValue(v) {
+                return v === false || String(v).toLowerCase() === "false";
+            }
+
+            function isClosedPayload(data) {
+                const pType = String(data.type || "message").toLowerCase();
+                const eventType = String(data.event || "").toLowerCase();
+
+                return (
+                    pType === "end" ||
+                    pType === "close" ||
+                    pType === "closed" ||
+                    pType === "session_ended" ||
+                    pType === "session_closed" ||
+                    eventType === "session_ended" ||
+                    eventType === "session_closed" ||
+                    isTruthy(data.closed) ||
+                    isFalseValue(data.can_send)
+                );
+            }
+
+            function isClosedStatus(status) {
+                const s = String(status || "").toLowerCase();
+
+                return [
+                    "ended",
+                    "closed",
+                    "close",
+                    "done",
+                    "saved",
+                    "ended_need_save",
+                    "종료",
+                ].includes(s);
             }
 
             function connect() {
@@ -434,11 +486,11 @@
 
                         const pType = String(data.type || "message").toLowerCase();
                         const sender = String(data.role || data.sender || "").toLowerCase();
-                        const text = String(data.text || data.message || data.msg || "");
+                        const text = String(data.text || data.message || data.msg || data.content || "");
+                        const closedPayload = isClosedPayload(data);
 
-                        // ✅ 1) blocked 먼저 처리 (서버가 user 메시지 브로드캐스트를 안 하는 케이스)
+                        // ✅ 1) blocked 먼저 처리
                         if (pType === "blocked") {
-                            // 입력값 복구(최근에 보낸 문장이라면)
                             if (inputBox && lastDraft && Date.now() - lastDraftAt < 8000) {
                                 inputBox.value = lastDraft;
                                 try { inputBox.focus(); } catch (_) { }
@@ -450,15 +502,14 @@
                             return;
                         }
 
-                        // ✅ 2) end 타입이면(텍스트 없어도) 종료 처리
-                        const isEndType = (pType === "end" || pType === "close" || pType === "closed");
-                        if (ended && isEndType) {
-                            // 이미 종료 잠금 상태면 중복 출력/처리 방지
+                        // ✅ 2) 종료 이벤트면 중복 처리 방지
+                        if (ended && closedPayload) {
                             return;
                         }
 
-                        // 텍스트 없으면 일반 메시지는 무시(단, end는 위에서 처리)
-                        if (!text && !isEndType) return;
+                        // 텍스트 없으면 일반 메시지는 무시
+                        // 단, 종료 이벤트는 텍스트 없어도 처리해야 함
+                        if (!text && !closedPayload) return;
 
                         // 일반 렌더
                         if (text) {
@@ -474,17 +525,12 @@
                             text.includes("[사용자]가 상담을 종료했습니다") ||
                             text.includes("[상담사]가 상담을 종료했습니다");
 
-                        if (!ended && (isEndType || isEndText)) {
-                            // 방금 end 메시지를 이미 그렸으니 silent로 잠금만
+                        if (!ended && (closedPayload || isEndText)) {
+                            // 종료 메시지가 이미 화면에 표시된 경우 중복 출력 방지
                             lockEnded(
-                                "상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요.",
-                                { silent: true }
+                                text || "상담이 종료되었습니다. 새 상담이 필요하면 다시 요청해 주세요.",
+                                { silent: !!text }
                             );
-                            try {
-                                if (ws && ws.readyState === WebSocket.OPEN) {
-                                    ws.close(1000, "ended");
-                                }
-                            } catch (_) { }
                         }
                     } catch (e) {
                         log("CLIENT_WS_MSG_ERR", e);
@@ -512,7 +558,7 @@
                 if (!msg) return false;
 
                 if (ended) {
-                    pushMsg("bot", "이미 종료된 상담입니다. 새 상담이 필요하면 다시 요청해 주세요.");
+                    lockEnded("이미 종료된 상담입니다. 새 상담이 필요하면 다시 요청해 주세요.", { silent: true });
                     return false;
                 }
 
@@ -541,7 +587,74 @@
                 }
             }
 
-            connect();
+            function lockIfAlreadyClosedFromTemplate() {
+                const status = LC.status || "";
+                const endedAt = LC.endedAt || "";
+
+                if (endedAt || isClosedStatus(status)) {
+                    lockEnded(
+                        LC.closedText || "이미 종료된 상담입니다. 새 상담을 요청해 주세요.",
+                        { silent: false }
+                    );
+                    return true;
+                }
+
+                return false;
+            }
+
+            async function checkClosedFromHistory() {
+                if (!LC.apiHistory) {
+                    return;
+                }
+
+                try {
+                    const res = await fetch(LC.apiHistory, {
+                        method: "GET",
+                        credentials: "same-origin",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest",
+                        },
+                    });
+
+                    if (!res.ok) {
+                        return;
+                    }
+
+                    const data = await res.json().catch(() => null);
+                    if (!data) {
+                        return;
+                    }
+
+                    if (
+                        data.closed === true ||
+                        data.can_send === false ||
+                        data.ended_at ||
+                        isClosedStatus(data.status)
+                    ) {
+                        lockEnded(
+                            LC.closedText || "이미 종료된 상담입니다. 새 상담을 요청해 주세요.",
+                            { silent: false }
+                        );
+                    }
+                } catch (e) {
+                    log("CLIENT_HISTORY_CLOSED_CHECK_ERR", e);
+                }
+            }
+
+            // ✅ 이미 종료된 상담이면 WebSocket 연결하지 않고 바로 잠금
+            async function bootClientConnection() {
+                if (lockIfAlreadyClosedFromTemplate()) {
+                    return;
+                }
+
+                await checkClosedFromHistory();
+
+                if (!ended) {
+                    connect();
+                }
+            }
+
+            bootClientConnection();
 
             if (sendBtn && inputBox) {
                 sendBtn.addEventListener("click", function () {

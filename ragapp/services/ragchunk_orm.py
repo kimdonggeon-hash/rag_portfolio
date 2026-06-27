@@ -1,3 +1,5 @@
+# ragapp/services/ragchunk_orm.py
+
 from __future__ import annotations
 
 import hashlib
@@ -43,20 +45,39 @@ def save_ragchunks(
         if not isinstance(text, str) or not text.strip():
             continue
 
+        meta = meta or {}
+
+        # ✅ 너무 얇은 청크 / 메타 전용 청크는 RagChunk 저장 제외
+        # 검색 후보 품질 저하 방지용
+        text_clean = text.strip()
+        title_raw = str(meta.get("title") or "")
+        source_raw = str(meta.get("source") or meta.get("source_name") or "")
+
+        if "[META ONLY]" in text_clean.upper():
+            continue
+        if "[META ONLY]" in title_raw.upper():
+            continue
+        if len(text_clean) < 30:
+            continue
+
         h = hashlib.sha256((doc_id or "").encode("utf-8")).hexdigest()
 
-        meta = meta or {}
         title = (meta.get("title") or meta.get("source") or "")[:500]
         url = _safe_url(meta.get("url") or "")
 
         vec = np.asarray(emb, dtype=np.float32)
+
+        # ✅ 비정상 임베딩은 저장 제외
+        if vec.size <= 0:
+            continue
+
         rows.append(
             RagChunk(
                 unique_hash=h,
                 doc_id=(doc_id or "")[:191],
                 url=url,
                 title=title,
-                text=text,
+                text=text_clean,
                 meta=meta,
                 embedding=vec.tobytes(),
                 dim=int(vec.size),

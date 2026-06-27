@@ -1,6 +1,7 @@
 # ragapp/livechat/admin_chat_views.py
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.apps import apps
@@ -43,6 +44,58 @@ def _get_models():
         M = apps.get_model("ragapp", "LiveChatMessage")
     return S, M
 
+def _expire_stale_waiting_sessions(S, minutes: int = 30) -> None:
+    """
+    오래 방치된 대기 상담을 자동 만료 처리한다.
+    - waiting/pending 상태가 오래 남아 있으면 상담 요청 목록에 계속 뜨는 문제 방지
+    """
+    sf = _model_fields(S)
+
+    if "status" not in sf or "created_at" not in sf:
+        return
+
+    stale_before = timezone.now() - timedelta(minutes=minutes)
+
+    qs = S.objects.filter(
+        status__in=["waiting", "pending"],
+        created_at__lt=stale_before,
+    )
+
+    if "ended_at" in sf:
+        qs = qs.filter(ended_at__isnull=True)
+
+    update_data = {
+        "status": "expired",
+    }
+
+    if "ended_at" in sf:
+        update_data["ended_at"] = timezone.now()
+
+    if "updated_at" in sf:
+        update_data["updated_at"] = timezone.now()
+
+    qs.update(**update_data)
+
+
+def _active_sessions_queryset(S):
+    """
+    상담 요청 목록에 보여줄 살아있는 상담만 필터링한다.
+    """
+    sf = _model_fields(S)
+
+    qs = S.objects.all()
+
+    if "status" in sf:
+        qs = qs.filter(status__in=["waiting", "pending", "active"])
+
+    if "ended_at" in sf:
+        qs = qs.filter(ended_at__isnull=True)
+
+    if "created_at" in sf:
+        alive_from = timezone.now() - timedelta(hours=2)
+        qs = qs.filter(created_at__gte=alive_from)
+
+    return qs
 
 @staff_member_required
 def admin_livechat_rooms(request: HttpRequest) -> HttpResponse:
@@ -56,9 +109,15 @@ def admin_livechat_rooms(request: HttpRequest) -> HttpResponse:
     if not room_field:
         raise Http404("LiveChatSession.room field not found")
 
+    # 오래 방치된 waiting 상담은 먼저 만료 처리
+    _expire_stale_waiting_sessions(S, minutes=30)
+
+    # 살아있는 상담만 목록에 표시
+    active_qs = _active_sessions_queryset(S)
+
     # 최근 room 목록 (세션 id 기준)
     rows = (
-        S.objects.values(room_field)
+        active_qs.values(room_field)
         .annotate(last_sid=Max("id"))
         .order_by("-last_sid")[:300]
     )

@@ -520,7 +520,7 @@ console.log("[pdf_tab] script loaded from file");
                     if (chat && chat.stream && assistantMsg) {
                         if (outIsHtml) {
                             var html =
-                                '<div class="answer-meta-row"><span class="ai-generated-badge">AI 생성</span></div>' +
+                                '<div class="answer-meta-row"><span class="ai-generated-badge">검색 결과 기반 답변</span></div>' +
                                 '<div class="answer-body">' + out + "</div>";
                             setAssistantMessage(assistantMsg, html, true);
                         } else {
