@@ -19,9 +19,12 @@ from ragapp.log_utils import log_success, log_error
 
 log = logging.getLogger(__name__)
 
-# ✅ RAG 검색 필터에 걸리는 source
-# PDF 업로드가 RAG 검색에서 잡히려면 source="pdf"가 가장 안전하다.
-PDF_SOURCE = "pdf"
+# ✅ RAG 검색 필터(RAG_SOURCES_FILTER, 기본값 "upload_doc,news,answer_link")에
+# 걸리는 source. PDF/TXT/직접입력 모두 "이 관리자 업로드 화면에서 들어온 자료"라는
+# 점은 동일하므로 파일 종류와 상관없이 같은 값을 써야 검색/근거자료에 잡힌다.
+# (예전에는 PDF만 source="pdf"로 저장해서 필터 화이트리스트에 없는 값이 되어
+#  인덱싱은 되지만 검색에는 절대 안 잡히는 버그가 있었다.)
+PDF_SOURCE = "upload_doc"
 
 # TXT/직접 입력 텍스트용
 TEXT_SOURCE = "upload_doc"
