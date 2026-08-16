@@ -249,6 +249,20 @@
           </div>
         </section>
 
+        <!-- ✅ 휴지통(복구/영구삭제) -->
+        <section class="card">
+          <h3>🗑 휴지통</h3>
+          <p>어드민에서 삭제한 항목이 즉시 지워지지 않고 여기로 옮겨집니다. 복구하거나, 확실하면 영구 삭제하세요.</p>
+          <div class="btn-row">
+            <a class="btn btn-accent" href="{% url 'ragadmin:trash' %}">휴지통 열기</a>
+          </div>
+          <div class="rows">
+            <span class="pill">복구 가능</span>
+            <span class="pill">영구삭제 시 파일까지 완전 삭제</span>
+            <span class="pill">담긴 항목 {{ trash_active_count|default_if_none:"-" }}건</span>
+          </div>
+        </section>
+
         <section class="card">
           <h3>데이터 목록 (Admin)</h3>
           <p>벡터 청크·로그·FAQ·표 스키마를 기본 Admin 리스트에서 바로 확인합니다.</p>

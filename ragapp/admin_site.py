@@ -68,6 +68,15 @@ class RagAdminSite(AdminSite):
         except Exception:
             context["media_penalty_count"] = 0
 
+        try:
+            from ragapp.models_trash import TrashedRecord
+
+            context["trash_active_count"] = TrashedRecord.objects.filter(
+                purged=False, restored=False
+            ).count()
+        except Exception:
+            context["trash_active_count"] = 0
+
         request.current_app = self.name
         return render(request, self.index_template, context)
 
