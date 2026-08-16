@@ -5,6 +5,7 @@
 
 # venv / cache
 .venv/
+.venv-local/
 venv/
 ENV/
 portfolio/
@@ -16,6 +17,11 @@ portfolio/
 # git
 .git/
 .gitignore
+
+# 테스트 코드: 로컬/CI에서만 필요, 운영 컨테이너 실행에는 불필요
+**/test_*.py
+**/tests.py
+**/tests/
 
 # local db / vector store / logs
 *.sqlite3
@@ -35,14 +41,28 @@ node_modules/
 Thumbs.db
 .vscode/
 
-# secrets (배포에 포함 금지)
+# secrets / 자격증명 (배포에 포함 금지)
 .env
 .env.*
 # !.env.example   # (원하면 샘플만 포함)
 job.env
+env.yaml
+job.yaml
 env/
 secrets/
 **/secrets/**
+keys/
+
+# collectstatic 결과물: Procfile의 web 프로세스가 컨테이너 시작마다
+# 다시 만들어서 로컬 사본을 올릴 필요가 없음
+staticfiles/
+
+# 로컬 전용 데이터/도구 (운영 컨테이너에 불필요)
+.local-server/
+.history/
+.claude/
+consent_logs/
+feedback_logs/
 
 # uploads: 기본은 전부 제외, 필요한 것만 예외 포함
 uploads/**
