@@ -194,6 +194,10 @@ def _list_rejected_ids(limit: int = 200) -> list[str]:
     return _list_meta_ids(REJECTED_UPLOAD_META_PREFIX, limit=limit)
 
 
+def _list_approved_ids(limit: int = 200) -> list[str]:
+    return _list_meta_ids(APPROVED_UPLOAD_META_PREFIX, limit=limit)
+
+
 def _promote_pending_object(*, src_key: str, dest_prefix: str) -> tuple[str, bytes]:
     """
     pending/... -> images/... 로 복사 후 pending 삭제(가능하면)

@@ -46,6 +46,7 @@ from .media_helpers import (
     _write_json_to_storage,
     _list_pending_ids,
     _list_rejected_ids,
+    _list_approved_ids,
     _promote_pending_object,
     _approve_public_storage_key,
     PENDING_UPLOAD_META_PREFIX,
@@ -75,6 +76,13 @@ def _pending_preview_url(req: HttpRequest, pending_id: str) -> str:
 def _rejected_preview_url(req: HttpRequest, rejected_id: str) -> str:
     rel = reverse("ragadmin_media_rejected_raw", kwargs={"item_id": rejected_id})
     return req.build_absolute_uri(rel) + "?raw=1"
+
+
+def _approved_preview_url(req: HttpRequest, storage_key: str) -> str:
+    # 승인된 이미지는 이미 공개 허용목록에 등록돼 있어서, pending/rejected와
+    # 달리 별도 staff 전용 raw 프록시 없이 일반 업로드 서빙 경로를 그대로 쓴다.
+    rel = reverse("uploads_proxy", kwargs={"key": storage_key})
+    return req.build_absolute_uri(rel)
 
 
 # ────────────────────────────────────────────────
@@ -1923,6 +1931,92 @@ def api_media_rejected_delete(request: HttpRequest) -> JsonResponse:
             "record_deleted": bool(record_deleted),
         }
     )
+
+
+# ────────────────────────────────────────────────
+# (D-2) 승인된 이미지 목록(검색에 잡히는 것들) + 제거
+# ────────────────────────────────────────────────
+@never_cache
+@staff_member_required
+@require_GET
+def media_approved_admin_view(request: HttpRequest) -> HttpResponse:
+    """승인되어 실제로 이미지 검색에 노출되는 이미지 목록."""
+    limit = max(1, min(_int(request.GET.get("limit"), 100), 200))
+    deleted_ids = _load_deleted_image_ids()
+    items: list[dict[str, Any]] = []
+
+    for approved_id in _list_approved_ids(limit=limit):
+        meta_key = f"{APPROVED_UPLOAD_META_PREFIX}/{approved_id}.json"
+        meta = _read_json_from_storage(meta_key) or {}
+        storage_key = str(meta.get("approved_storage_key") or meta.get("storage_key") or "").strip()
+        try:
+            storage_key = _normalize_storage_key(storage_key) if storage_key else ""
+            file_exists = bool(storage_key and default_storage.exists(storage_key))
+        except Exception:
+            file_exists = False
+
+        pid = str(meta.get("approved_pid") or "").strip()
+
+        items.append(
+            {
+                "approved_id": approved_id,
+                "pid": pid,
+                "storage_key": storage_key,
+                "orig_name": meta.get("orig_name") or "",
+                "caption": meta.get("caption") or "",
+                "tags": meta.get("tags") or "",
+                "mime": meta.get("mime") or "",
+                "size": meta.get("size") or 0,
+                "approved_at": meta.get("approved_at"),
+                "file_exists": file_exists,
+                "removed_from_search": bool(pid and pid in deleted_ids),
+                "preview_url": _approved_preview_url(request, storage_key) if file_exists else "",
+            }
+        )
+
+    return render(
+        request,
+        "ragadmin/media_approved_admin.html",
+        {
+            "limit": limit,
+            "count": len(items),
+            "items": items,
+            "remove_url": reverse("api_media_approved_remove"),
+            "pending_url": reverse("ragadmin_media_pending"),
+            "rejected_url": reverse("ragadmin_media_rejected"),
+            "admin_upload_url": reverse("ragadmin_media_upload"),
+        },
+    )
+
+
+@require_POST
+@csrf_protect
+@staff_member_required
+def api_media_approved_remove(request: HttpRequest) -> JsonResponse:
+    """승인된 이미지를 검색 결과에서 제거한다(기존 미디어 검색이 이미 참조하는
+    삭제 id 블록리스트에 추가하는 방식 — media_search_view/media_index_view와
+    동일한 매커니즘). 파일/승인 기록 자체는 감사를 위해 남긴다."""
+    try:
+        payload = json.loads((request.body or b"{}").decode("utf-8")) if "application/json" in (request.content_type or "") else request.POST
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        payload = {}
+
+    approved_id = _safe_review_id(payload.get("approved_id", ""))
+    if not approved_id:
+        return JsonResponse({"ok": False, "error": "invalid_approved_id"}, status=400)
+
+    meta_key = f"{APPROVED_UPLOAD_META_PREFIX}/{approved_id}.json"
+    meta = _read_json_from_storage(meta_key) or {}
+    if not meta:
+        return JsonResponse({"ok": False, "error": "approved_meta_not_found"}, status=404)
+
+    pid = str(meta.get("approved_pid") or "").strip()
+    if not pid:
+        return JsonResponse({"ok": False, "error": "missing_pid"}, status=400)
+
+    _delete_image_from_index(pid)
+
+    return JsonResponse({"ok": True, "approved_id": approved_id, "pid": pid})
 
 
 # ────────────────────────────────────────────────

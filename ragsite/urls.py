@@ -47,6 +47,7 @@ from ragapp.feature_views import (
     media_search_view,
     media_pending_admin_view,
     media_rejected_admin_view,
+    media_approved_admin_view,
     media_upload_admin_view,
     media_penalties_admin_view,
     api_media_upsert_tags_caption,
@@ -55,6 +56,7 @@ from ragapp.feature_views import (
     api_media_pending_approve,
     api_media_pending_reject,
     api_media_rejected_delete,
+    api_media_approved_remove,
     api_user_penalty_list,
     api_user_penalty_lift,
 
@@ -166,6 +168,9 @@ urlpatterns = [
     path("ragadmin/media/rejected/raw/<str:item_id>", rejected_raw_proxy, name="ragadmin_media_rejected_raw"),
     path("ragadmin/media/rejected/raw/<str:item_id>/", rejected_raw_proxy),
 
+    # ✅ (추가) 승인되어 검색에 노출 중인 이미지 목록 + 제거
+    path("ragadmin/media/approved/", media_approved_admin_view, name="ragadmin_media_approved"),
+
     # pending 목록
     path("api/media/pending", api_media_pending_list, name="api_media_pending_list"),
     path("api/media/pending/", api_media_pending_list),
@@ -179,6 +184,9 @@ urlpatterns = [
 
     path("api/media/rejected/delete", api_media_rejected_delete, name="api_media_rejected_delete"),
     path("api/media/rejected/delete/", api_media_rejected_delete),
+
+    path("api/media/approved/remove", api_media_approved_remove, name="api_media_approved_remove"),
+    path("api/media/approved/remove/", api_media_approved_remove),
 
     # ✅ (추가) 선처(정지/제재 해제) 화면 + API
     path("ragadmin/media/penalties/", media_penalties_admin_view, name="ragadmin_media_penalties"),

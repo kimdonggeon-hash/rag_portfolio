@@ -135,6 +135,7 @@
           <p>업로드된 이미지를 대기 상태로 쌓아두고, 운영자가 승인/거절(사유 기록) 처리합니다.</p>
           <div class="btn-row">
             <a class="btn btn-accent" href="{{ ragadmin_media_pending_url }}">검수 열기</a>
+            <a class="btn btn-ghost" href="{% url 'ragadmin_media_approved' %}">승인된 이미지</a>
             <a class="btn btn-ghost" href="{{ ragadmin_media_penalties_url }}">차단자 관리</a>
           </div>
           <div class="rows">

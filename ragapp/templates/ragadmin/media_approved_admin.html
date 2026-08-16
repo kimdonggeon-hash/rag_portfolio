@@ -1,0 +1,72 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>승인된 이미지</title>
+  <link rel="stylesheet" href="{% static 'ragapp/css/ragadmin_media_approved.css' %}?v={{ STATIC_VERSION }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-head">
+      <p class="eyebrow">IMAGE MODERATION</p>
+      <h1>승인된 이미지 <span id="itemCount">{{ count }}</span></h1>
+      <p>승인되어 실제로 이미지 검색에 노출 중인 이미지 목록입니다. 제거하면 검색 결과에서 즉시 빠집니다.</p>
+    </div>
+    <div class="topbar-actions">
+      <a class="back-btn" href="{% url 'ragadmin:index' %}">
+        <span>←</span><span>ragadmin으로 돌아가기</span>
+      </a>
+      <nav aria-label="이미지 관리 메뉴">
+        <a href="{{ pending_url }}">검수 대기</a>
+        <a href="{{ rejected_url }}">거절 보관함</a>
+        <a href="{{ admin_upload_url }}">관리자 업로드</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="approvedGrid" data-remove-url="{{ remove_url }}">
+    <form class="limit" method="get">
+      <label for="limit">표시 개수</label>
+      <input id="limit" name="limit" type="number" min="1" max="200" value="{{ limit }}">
+      <button type="submit">적용</button>
+    </form>
+
+    <div id="toast" class="toast" hidden></div>
+    <section id="cardGrid" class="grid">
+      {% for item in items %}
+      <article class="card {% if item.removed_from_search %}is-removed{% endif %}" data-approved-id="{{ item.approved_id }}" data-pid="{{ item.pid }}">
+        <div class="preview">
+          {% if item.file_exists %}
+            <img src="{{ item.preview_url }}" alt="{{ item.orig_name|default:'승인 이미지' }}" loading="lazy">
+          {% else %}
+            <div class="missing">원본 파일 없음</div>
+          {% endif %}
+        </div>
+        <div class="content">
+          {% if item.removed_from_search %}
+            <div class="status is-removed-chip">검색에서 제거됨</div>
+          {% else %}
+            <div class="status">검색 노출 중</div>
+          {% endif %}
+          <h2>{{ item.orig_name|default:item.approved_id }}</h2>
+          <dl>
+            <div><dt>승인 일시</dt><dd>{{ item.approved_at|default:'-' }}</dd></div>
+            <div><dt>캡션</dt><dd>{{ item.caption|default:'-' }}</dd></div>
+            <div><dt>태그</dt><dd>{{ item.tags|default:'-' }}</dd></div>
+            <div><dt>경로</dt><dd class="mono">{{ item.storage_key|default:'-' }}</dd></div>
+          </dl>
+          <button class="remove" type="button" {% if item.removed_from_search %}disabled{% endif %}>
+            {% if item.removed_from_search %}이미 제거됨{% else %}검색에서 이미지 제거{% endif %}
+          </button>
+        </div>
+      </article>
+      {% empty %}
+      <div class="empty">승인된 이미지가 아직 없습니다.</div>
+      {% endfor %}
+    </section>
+  </main>
+  <script src="{% static 'ragapp/javascript/ragadmin_media_approved.js' %}?v={{ STATIC_VERSION }}"></script>
+</body>
+</html>

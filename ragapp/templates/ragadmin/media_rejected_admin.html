@@ -16,6 +16,7 @@
     </div>
     <nav aria-label="이미지 관리 메뉴">
       <a href="{{ pending_url }}">검수 대기</a>
+      <a href="{% url 'ragadmin_media_approved' %}">승인된 이미지</a>
       <a href="{{ admin_upload_url }}">관리자 업로드</a>
     </nav>
   </header>
