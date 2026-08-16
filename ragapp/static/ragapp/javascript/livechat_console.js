@@ -851,9 +851,8 @@
                 setChatLocked(true, msg);
             }
             updateConnectButtonState();
-            if (!endedRooms.has(selectedRoom)) {
-                connectSelectedRoom();
-            }
+            // ✅ 방 선택만으로는 자동 연결하지 않는다. 실제 연결은 '연결하기' 버튼을
+            //    눌렀을 때만(connectSelectedRoom 직접 호출) 이루어진다.
         });
     }
 
