@@ -9,7 +9,7 @@ from typing import Any
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin.sites import AlreadyRegistered, NotRegistered
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.urls import path, reverse
@@ -793,11 +793,82 @@ class TableSearchRuleAdmin(admin.ModelAdmin):
 # ─────────────────────────────
 if _HAS_MEDIA_MODELS:
 
+    class MediaKindFilter(admin.SimpleListFilter):
+        """raw MIME 문자열(image/png, application/pdf, ...) 대신
+        사람이 바로 알아볼 수 있는 몇 가지 형식으로 묶어서 보여준다."""
+
+        title = "파일 형식"
+        parameter_name = "kind"
+
+        # "문서"로 취급할 MIME prefix 화이트리스트.
+        # application/*를 통째로 문서로 묶으면 zip/octet-stream 같은 일반 바이너리까지
+        # 딸려 들어와 "기타"와 겹치므로, 실제 문서류만 명시적으로 나열한다.
+        _DOC_PREFIXES = (
+            "text/",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument",
+            "application/vnd.ms-excel",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.oasis.opendocument",
+            "application/rtf",
+            "application/json",
+            "application/csv",
+        )
+
+        def lookups(self, request, model_admin):
+            return (
+                ("image", "🖼️ 이미지"),
+                ("pdf", "📄 PDF"),
+                ("doc", "📁 문서"),
+                ("other", "📦 기타"),
+            )
+
+        def _doc_q(self) -> Q:
+            q = Q()
+            for prefix in self._DOC_PREFIXES:
+                q |= Q(mime__startswith=prefix)
+            return q
+
+        def queryset(self, request, queryset):
+            v = self.value()
+            if v == "image":
+                return queryset.filter(mime__startswith="image/")
+            if v == "pdf":
+                return queryset.filter(mime="application/pdf")
+            if v == "doc":
+                return queryset.filter(self._doc_q())
+            if v == "other":
+                known = Q(mime__startswith="image/") | Q(mime="application/pdf") | self._doc_q()
+                return queryset.exclude(known)
+            return queryset
+
+    class MediaIndexedFilter(admin.SimpleListFilter):
+        """AI 유사 검색에 등록됐는지(=벡터DB에 인덱싱됐는지) 여부만 딱 두 가지로 보여준다."""
+
+        title = "AI 검색 상태"
+        parameter_name = "indexed"
+
+        def lookups(self, request, model_admin):
+            return (
+                ("yes", "✅ 등록됨"),
+                ("no", "⏳ 미등록"),
+            )
+
+        def queryset(self, request, queryset):
+            v = self.value()
+            if v == "yes":
+                return queryset.exclude(chroma_id="").exclude(indexed_at__isnull=True)
+            if v == "no":
+                return queryset.filter(Q(chroma_id="") | Q(indexed_at__isnull=True))
+            return queryset
+
     class MediaAssetAdmin(admin.ModelAdmin):
         change_list_template = "admin/ragapp/mediaasset/change_list.html"
         list_display = ("id", "file", "caption", "mime", "size_display", "index_status", "created_at")
         search_fields = ("caption", "file")
-        list_filter = ("mime", "created_at", "indexed_at")
+        # 등록일은 상단 date_hierarchy("‹ 2026년 8월" 같은 이동 막대)로 이미 다룰 수 있어서
+        # 오른쪽 필터에는 실제로 결과를 좁히는 데 의미 있는 두 가지만 남긴다.
+        list_filter = (MediaKindFilter, MediaIndexedFilter)
         readonly_fields = ("mime", "size", "sha256", "chroma_id", "indexed_at", "created_at", "updated_at")
         date_hierarchy = "created_at"
         ordering = ("-created_at",)
