@@ -12,7 +12,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ─── .env 로드 ───────────────────────────────────────────────────────────────
 try:
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv(BASE_DIR / ".env")
+    # override=True: 이 저장소의 .env 값이 셸/OS에 남아있을 수 있는 다른 프로젝트의
+    # 환경변수(User/Machine 레벨)보다 항상 우선하도록 한다. .env는 배포 환경에는
+    # 존재하지 않으므로(gcloudignore로 제외) 운영에는 영향이 없다.
+    load_dotenv(BASE_DIR / ".env", override=True)
 except Exception:
     pass
 
