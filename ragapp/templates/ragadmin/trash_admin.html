@@ -10,11 +10,15 @@
     @media(prefers-color-scheme:dark){:root{--bg:#0b1020;--panel:#151c2d;--text:#edf2ff;--muted:#9aa8c3;--line:#2a3750;--accent:#818cf8;--danger:#fb7185;--ok:#4ade80;--shadow:0 18px 50px rgba(0,0,0,.3)}}
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif}
-    .topbar{max-width:1400px;margin:auto;padding:42px 28px 20px}
+    .topbar{max-width:1400px;margin:auto;padding:42px 28px 20px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
     .eyebrow{color:var(--accent);font-size:.76rem;font-weight:800;letter-spacing:.18em}
     .topbar h1{margin:.25rem 0;font-size:clamp(1.6rem,3vw,2.3rem)}
     .topbar h1 span{display:inline-grid;place-items:center;min-width:2rem;padding:.15rem .5rem;border-radius:999px;background:var(--accent);color:#fff;font-size:.95rem;vertical-align:middle}
     .topbar p{color:var(--muted);margin:.3rem 0 0}
+    .topbar-actions{flex-shrink:0}
+    .back-btn{display:inline-flex;align-items:center;gap:6px;padding:.55rem 1.1rem;border-radius:999px;border:1px solid var(--line);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 30%,transparent),color-mix(in srgb,var(--accent) 12%,transparent));color:var(--accent);font-size:.85rem;font-weight:800;white-space:nowrap;text-decoration:none;box-shadow:var(--shadow);transition:filter .15s ease,transform .15s ease}
+    .back-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+    @media(max-width:720px){.topbar{flex-direction:column}}
     main{max-width:1400px;margin:auto;padding:0 28px 60px}
     .tabs{display:flex;gap:.5rem;margin:18px 0;flex-wrap:wrap}
     .tabs a{border:1px solid var(--line);border-radius:999px;padding:.5rem 1rem;text-decoration:none;color:var(--muted);font-weight:700;background:var(--panel)}
@@ -49,9 +53,16 @@
 </head>
 <body>
   <header class="topbar">
-    <p class="eyebrow">RAGADMIN</p>
-    <h1>휴지통 <span>{{ active_count }}</span></h1>
-    <p>어드민에서 삭제한 항목은 여기로 옮겨집니다. 실수로 지웠다면 복구하고, 확실하면 영구 삭제하세요.</p>
+    <div class="topbar-main">
+      <p class="eyebrow">RAGADMIN</p>
+      <h1>휴지통 <span>{{ active_count }}</span></h1>
+      <p>어드민에서 삭제한 항목은 여기로 옮겨집니다. 실수로 지웠다면 복구하고, 확실하면 영구 삭제하세요.</p>
+    </div>
+    <div class="topbar-actions">
+      <a class="back-btn" href="{% url 'ragadmin:index' %}">
+        <span>←</span><span>ragadmin으로 돌아가기</span>
+      </a>
+    </div>
   </header>
 
   <main>
