@@ -133,6 +133,33 @@ body {
     background: transparent
 }
 
+.dg-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(120, 170, 255, .35);
+    background: linear-gradient(135deg, rgba(80, 140, 255, .28), rgba(130, 80, 255, .18));
+    color: rgba(255, 255, 255, .95);
+    font-weight: 800;
+    font-size: 13px;
+    text-decoration: none;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(80, 120, 255, .18);
+    transition: filter .15s ease, transform .15s ease;
+}
+
+.dg-nav-btn:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+}
+
+.dg-nav-btn .icon {
+    font-size: 14px;
+}
+
 .dg-btn.danger {
     background: rgba(255, 90, 106, .14);
     border-color: rgba(255, 90, 106, .35)

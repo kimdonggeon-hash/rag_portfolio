@@ -71,18 +71,30 @@
     padding:7px 9px;
     margin:2px 0;
     border-radius:10px;
-    border:none;
+    border:1px solid transparent;
     background:transparent;
     color:#e5e7eb;
     font-size:13px;
     cursor:pointer;
     text-align:left;
+    outline:none;
+    transition:background .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
   .guide-nav-btn span.icon {width:18px;text-align:center;}
   .guide-nav-btn:hover {background:rgba(148,163,184,0.18);}
+  /* ✅ 브라우저 기본 포커스 아웃라인(흰 테두리) 대신, 사이드바 톤에 맞는
+     은은한 보라색 링으로 대체 — 클릭/키보드 포커스 모두 동일하게 적용 */
+  .guide-nav-btn:focus-visible {
+    border-color:rgba(129,140,248,.65);
+    box-shadow:0 0 0 3px rgba(99,102,241,.28);
+    background:rgba(99,102,241,.14);
+  }
   .guide-nav-btn.is-active {
     background:linear-gradient(90deg,#6366f1 0%,#4f46e5 100%);
     box-shadow:0 10px 25px rgba(79,70,229,0.35);
+  }
+  .guide-nav-btn.is-active:focus-visible {
+    box-shadow:0 10px 25px rgba(79,70,229,0.35), 0 0 0 3px rgba(199,210,254,.55);
   }
 
   .guide-detail {

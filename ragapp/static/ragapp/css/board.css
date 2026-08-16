@@ -309,12 +309,19 @@ html[data-theme="dark"] .board-wrap {
     border-radius: 12px;
     color: var(--ink);
     text-decoration: none;
-    transition: background .12s ease, border-color .12s ease;
+    outline: none;
+    transition: background .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
 
 .side-link:hover {
     background: color-mix(in srgb, var(--accent) 8%, transparent);
     text-decoration: none;
+}
+
+/* ✅ 브라우저 기본 포커스 아웃라인(흰 테두리) 대신 사이드바 톤에 맞는 은은한 링으로 대체 */
+.side-link:focus-visible {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .side-link.is-active {

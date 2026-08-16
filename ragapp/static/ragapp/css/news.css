@@ -762,7 +762,14 @@ html[data-theme="dark"] .btn.heart {
     border-radius: 10px;
     text-decoration: none;
     color: var(--text-main);
-    transition: background 0.12s ease, transform 0.08s ease;
+    outline: none;
+    transition: background 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+}
+
+/* ✅ 브라우저 기본 포커스 아웃라인(흰 테두리) 대신 사이드바 톤에 맞는 은은한 링으로 대체 */
+.shell-side .side-link:focus-visible {
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
 }
 
 @media (hover: hover) and (pointer: fine) {
