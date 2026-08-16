@@ -1,0 +1,129 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>휴지통</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f1f5f9;--panel:#fff;--text:#172033;--muted:#64748b;--line:#d9e2ef;--accent:#4f46e5;--danger:#dc2626;--ok:#16a34a;--shadow:0 18px 50px rgba(15,23,42,.1)}
+    @media(prefers-color-scheme:dark){:root{--bg:#0b1020;--panel:#151c2d;--text:#edf2ff;--muted:#9aa8c3;--line:#2a3750;--accent:#818cf8;--danger:#fb7185;--ok:#4ade80;--shadow:0 18px 50px rgba(0,0,0,.3)}}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif}
+    .topbar{max-width:1400px;margin:auto;padding:42px 28px 20px}
+    .eyebrow{color:var(--accent);font-size:.76rem;font-weight:800;letter-spacing:.18em}
+    .topbar h1{margin:.25rem 0;font-size:clamp(1.6rem,3vw,2.3rem)}
+    .topbar h1 span{display:inline-grid;place-items:center;min-width:2rem;padding:.15rem .5rem;border-radius:999px;background:var(--accent);color:#fff;font-size:.95rem;vertical-align:middle}
+    .topbar p{color:var(--muted);margin:.3rem 0 0}
+    main{max-width:1400px;margin:auto;padding:0 28px 60px}
+    .tabs{display:flex;gap:.5rem;margin:18px 0;flex-wrap:wrap}
+    .tabs a{border:1px solid var(--line);border-radius:999px;padding:.5rem 1rem;text-decoration:none;color:var(--muted);font-weight:700;background:var(--panel)}
+    .tabs a.active{color:#fff;background:var(--accent);border-color:var(--accent)}
+    .filters{display:flex;gap:.6rem;align-items:center;margin-bottom:16px;color:var(--muted);flex-wrap:wrap}
+    select{border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem;background:var(--panel);color:var(--text)}
+    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+    thead th{text-align:left;padding:.8rem 1rem;background:rgba(79,70,229,.08);color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+    tbody td{padding:.8rem 1rem;border-top:1px solid var(--line);vertical-align:top}
+    tbody tr:hover{background:rgba(79,70,229,.04)}
+    .model-badge{display:inline-block;border-radius:999px;padding:.2rem .55rem;background:rgba(79,70,229,.12);color:var(--accent);font-size:.74rem;font-weight:800}
+    .repr{font-weight:600;overflow-wrap:anywhere}
+    .meta{color:var(--muted);font-size:.8rem}
+    .actions{display:flex;gap:.4rem;flex-wrap:wrap}
+    button{border:1px solid var(--line);border-radius:10px;padding:.5rem .8rem;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer}
+    .btn-restore{border-color:color-mix(in srgb,var(--ok) 40%,var(--line));color:var(--ok)}
+    .btn-restore:hover{background:var(--ok);color:#06210f}
+    .btn-purge{border-color:color-mix(in srgb,var(--danger) 40%,var(--line));color:var(--danger)}
+    .btn-purge:hover{background:var(--danger);color:#fff}
+    .status-chip{display:inline-block;border-radius:999px;padding:.2rem .55rem;font-size:.74rem;font-weight:800}
+    .status-purged{background:rgba(220,38,38,.12);color:var(--danger)}
+    .status-restored{background:rgba(22,163,74,.12);color:var(--ok)}
+    .empty{padding:70px;text-align:center;border:1px dashed var(--line);border-radius:16px;color:var(--muted);background:var(--panel)}
+    .messages{list-style:none;margin:0 0 16px;padding:0}
+    .messages li{padding:.6rem 1rem;border-radius:10px;margin-bottom:.4rem;font-weight:600}
+    .messages li.success{background:rgba(22,163,74,.12);color:var(--ok)}
+    .messages li.error{background:rgba(220,38,38,.12);color:var(--danger)}
+    @media(max-width:720px){.topbar,main{padding-left:16px;padding-right:16px}table,thead,tbody,th,td,tr{display:block}thead{display:none}tbody td{border-top:none;border-bottom:1px solid var(--line)}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <p class="eyebrow">RAGADMIN</p>
+    <h1>휴지통 <span>{{ active_count }}</span></h1>
+    <p>어드민에서 삭제한 항목은 여기로 옮겨집니다. 실수로 지웠다면 복구하고, 확실하면 영구 삭제하세요.</p>
+  </header>
+
+  <main>
+    {% if messages %}
+      <ul class="messages">
+        {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+
+    <div class="tabs">
+      <a href="?tab=active{% if model_filter %}&model={{ model_filter }}{% endif %}" class="{% if tab == 'active' %}active{% endif %}">담긴 항목</a>
+      <a href="?tab=restored" class="{% if tab == 'restored' %}active{% endif %}">복구됨</a>
+      <a href="?tab=purged" class="{% if tab == 'purged' %}active{% endif %}">영구 삭제됨</a>
+    </div>
+
+    {% if tab == 'active' and model_choices %}
+      <form class="filters" method="get">
+        <input type="hidden" name="tab" value="active">
+        <label for="model">모델</label>
+        <select id="model" name="model" onchange="this.form.submit()">
+          <option value="">전체</option>
+          {% for m in model_choices %}
+            <option value="{{ m }}" {% if m == model_filter %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endif %}
+
+    {% if records %}
+      <table>
+        <thead>
+          <tr>
+            <th>모델</th>
+            <th>내용</th>
+            <th>삭제 시각 / 삭제자</th>
+            <th>상태</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+          <tr>
+            <td><span class="model-badge">{{ r.model_label }}</span></td>
+            <td>
+              <div class="repr">{{ r.object_repr|default:r.object_pk }}</div>
+              <div class="meta">pk={{ r.object_pk }}{% if r.file_trash_map %} · 파일 {{ r.file_trash_map|length }}개 보관 중{% endif %}</div>
+            </td>
+            <td class="meta">{{ r.deleted_at }}<br>{{ r.deleted_by|default:"-" }}</td>
+            <td>
+              {% if r.purged %}<span class="status-chip status-purged">영구 삭제됨</span>
+              {% elif r.restored %}<span class="status-chip status-restored">복구됨</span>
+              {% else %}<span class="meta">보관 중</span>{% endif %}
+            </td>
+            <td class="actions">
+              {% if tab == 'active' %}
+              <form method="post" action="{% url 'ragadmin:trash_restore' r.id %}" onsubmit="return confirm('이 항목을 복구할까요?');">
+                {% csrf_token %}
+                <button type="submit" class="btn-restore">복구</button>
+              </form>
+              <form method="post" action="{% url 'ragadmin:trash_purge' r.id %}" onsubmit="return confirm('영구 삭제하면 되돌릴 수 없습니다. 계속할까요?');">
+                {% csrf_token %}
+                <button type="submit" class="btn-purge">영구 삭제</button>
+              </form>
+              {% else %}
+              <span class="meta">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">표시할 항목이 없습니다.</div>
+    {% endif %}
+  </main>
+</body>
+</html>

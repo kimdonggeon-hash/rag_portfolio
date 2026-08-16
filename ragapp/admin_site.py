@@ -94,6 +94,7 @@ class RagAdminSite(AdminSite):
             "faqentry_list": "ragadmin:ragapp_faqentry_changelist",
             "applog_list": "ragadmin:ragapp_applog_changelist",
             "usage": "ragadmin:usage",
+            "trash": "ragadmin:trash",
         }
 
         target_name = mapping.get(dest)
@@ -137,6 +138,10 @@ class RagAdminSite(AdminSite):
             path("live-chat/", self.admin_view(_lazy_view("ragapp.admin_views.live_chat_view")), name="live_chat"),
             path("legal/", self.admin_view(_lazy_view("ragapp.admin_views.legal_config_entrypoint")), name="legal_entry"),
             path("feedback-board/", self.admin_view(_lazy_view("ragapp.admin_views.feedback_board_view")), name="feedback_board"),
+
+            path("trash/", self.admin_view(_lazy_view("ragapp.trash_views.trash_admin_view")), name="trash"),
+            path("trash/<int:record_id>/restore/", self.admin_view(_lazy_view("ragapp.trash_views.trash_restore_view")), name="trash_restore"),
+            path("trash/<int:record_id>/purge/", self.admin_view(_lazy_view("ragapp.trash_views.trash_purge_view")), name="trash_purge"),
         ]
         return extra + super().get_urls()
 

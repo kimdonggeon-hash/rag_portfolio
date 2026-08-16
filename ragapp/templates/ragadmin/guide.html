@@ -258,6 +258,9 @@
         <button type="button" class="guide-nav-btn" data-target="mylog_list">
           <span class="icon">📝</span><span>MyLog</span>
         </button>
+        <button type="button" class="guide-nav-btn" data-target="trash">
+          <span class="icon">🗑</span><span>휴지통</span>
+        </button>
       </aside>
 
       <!-- 오른쪽: 선택한 기능 설명 -->
@@ -772,6 +775,33 @@
               {% csrf_token %}
               <input type="hidden" name="dest" value="mylog_list">
               <button type="submit" class="gobtn">MyLog 화면 열기</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="section-trash" class="guide-section">
+          <h2>🗑 휴지통</h2>
+          <p class="guide-summary">
+            어드민 화면에서 무언가를 삭제하면 즉시 지워지지 않고 여기(휴지통)로 먼저 옮겨집니다.
+            이미지 등 실제 파일이 있는 자료는 파일도 함께 격리 보관됩니다.
+          </p>
+          <ol class="guide-steps">
+            <li>실수로 지운 항목은 <strong>복구</strong> 버튼으로 원래대로 되돌릴 수 있습니다.</li>
+            <li>확실히 필요 없는 항목은 <strong>영구 삭제</strong>를 누르면 파일까지 완전히 삭제됩니다(되돌릴 수 없음).</li>
+            <li>탭에서 "복구됨"/"영구 삭제됨" 이력도 확인할 수 있습니다.</li>
+          </ol>
+          <div class="guide-tips">
+            <h3>TIP</h3>
+            <ul>
+              <li>영구 삭제는 정말 필요 없을 때만 누르세요 — 이후에는 어떤 방법으로도 복구할 수 없습니다.</li>
+              <li>보존기간 만료로 자동 삭제되는 로그(개인정보 정책상)는 휴지통을 거치지 않고 바로 삭제됩니다.</li>
+            </ul>
+          </div>
+          <div class="guide-actions">
+            <form class="inline" method="post" action="{% url 'ragadmin:goto' %}">
+              {% csrf_token %}
+              <input type="hidden" name="dest" value="trash">
+              <button type="submit" class="gobtn">휴지통 열기</button>
             </form>
           </div>
         </section>

@@ -10,12 +10,14 @@ from typing import Any, Dict, List, Optional
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ─── .env 로드 ───────────────────────────────────────────────────────────────
+# ⚠️ override=True는 쓰지 않는다: scripts/run_local.ps1처럼 로컬 실행 스크립트가
+# 의도적으로 DJANGO_DEBUG=1 / SECURE_SSL_REDIRECT=0 등을 .env보다 우선해서
+# 세팅하는 경우가 있는데, override=True면 그 의도된 오버라이드까지 .env가
+# 덮어써버려서(예: DEBUG가 도로 0이 되어 로컬에서 HTTPS 강제 리다이렉트 발생)
+# 로컬 개발 워크플로가 깨진다. (한 번 override=True로 바꿨다가 이 문제로 되돌림.)
 try:
     from dotenv import load_dotenv  # type: ignore
-    # override=True: 이 저장소의 .env 값이 셸/OS에 남아있을 수 있는 다른 프로젝트의
-    # 환경변수(User/Machine 레벨)보다 항상 우선하도록 한다. .env는 배포 환경에는
-    # 존재하지 않으므로(gcloudignore로 제외) 운영에는 영향이 없다.
-    load_dotenv(BASE_DIR / ".env", override=True)
+    load_dotenv(BASE_DIR / ".env")
 except Exception:
     pass
 
