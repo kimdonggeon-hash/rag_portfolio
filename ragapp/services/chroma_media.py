@@ -319,9 +319,12 @@ def _detect_existing_dim(col: Any) -> Optional[int]:
     """
     try:
         got = col.get(include=["embeddings"], limit=1)
-        embs = got.get("embeddings") or []
-        if embs and isinstance(embs[0], (list, tuple)):
-            return len(embs[0])
+        embs = got.get("embeddings")
+        if embs is None or len(embs) == 0:
+            return None
+        first = embs[0]
+        if first is not None:
+            return int(len(first))
     except Exception:
         pass
     return None
@@ -381,6 +384,11 @@ def images_space() -> str:
 @lru_cache(maxsize=1)
 def table_coll():
     return _client().get_or_create_collection(name="table_rows")
+
+
+def table_embedding_dim() -> Optional[int]:
+    """Return the persisted table vector size, if the collection has rows."""
+    return _detect_existing_dim(table_coll())
 
 
 # -----------------------------------------------------------------------------
@@ -1226,3 +1234,16 @@ def add_table_rows(*, table_name: str, rows: List[Dict[str, Any]], embeddings: L
 def search_table_by_text_embedding(*, text_embedding: List[float], k: int = 10):
     c = table_coll()
     return c.query(query_embeddings=[text_embedding], n_results=int(k))
+
+
+def list_table_rows(*, k: int = 200) -> Dict[str, Any]:
+    """Read table metadata without vector scoring for offline/local search."""
+    c = table_coll()
+    got = c.get(limit=max(1, int(k)), include=["metadatas", "documents"])
+    metas = got.get("metadatas") or []
+    docs = got.get("documents") or []
+    return {
+        "metadatas": [metas],
+        "documents": [docs],
+        "distances": [[None] * len(metas)],
+    }

@@ -746,6 +746,10 @@ class MediaAsset(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "미디어 자산"
+        verbose_name_plural = "미디어 자산"
+
     def __str__(self) -> str:
         return f"[{self.id}] {self.file.name}"
 
@@ -798,6 +802,8 @@ class LiveChatSession(models.Model):
     """
 
     class Status(models.TextChoices):
+        ENDED_NEED_SAVE = "ended_need_save", "저장 필요"
+        SAVED = "saved", "저장 완료"
         WAITING = "waiting", "대기"
         ACTIVE = "active", "진행"
         ENDED = "ended", "종료"
@@ -872,6 +878,11 @@ class LiveChatSession(models.Model):
 
     def mark_ended(self):
         self.status = self.Status.ENDED
+        if not self.ended_at:
+            self.ended_at = timezone.now()
+
+    def mark_ended_need_save(self):
+        self.status = self.Status.ENDED_NEED_SAVE
         if not self.ended_at:
             self.ended_at = timezone.now()
 

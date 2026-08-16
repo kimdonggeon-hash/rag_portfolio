@@ -185,6 +185,10 @@ def crawl_news_view(request: HttpRequest) -> HttpResponse:
         "WEB_INGEST_META_ONLY": meta_only,
         "ALLOW_STORE_NEWS_BODY": allow_body,
         "NEWS_SNIPPET_INDEX_CHARS": getattr(settings, "NEWS_SNIPPET_INDEX_CHARS", 500),
+        # Local/offline mode can crawl and index without calling Google OAuth/LLM.
+        "CRAWL_MODEL_ENABLED": not _as_bool(
+            os.environ.get("LOCAL_EMBEDDINGS"), default=False
+        ),
 
         # api paths
         "WEB_API_PATH": (
@@ -283,6 +287,13 @@ def api_news_ingest(request: HttpRequest) -> JsonResponse:
             topk=topk,
             meta_only=resolved_meta_only,
         )
+
+        if not detailed_news_list:
+            return _fail(
+                "뉴스 검색 결과가 없습니다. 외부 RSS 연결 상태를 확인한 뒤 다시 시도해 주세요.",
+                status=502,
+                extra={"code": "NO_NEWS", "news_count": 0},
+            )
 
         # ✅ 새 안전 인덱서 사용
         ingest_summary = index_answer_and_news_to_vdb(

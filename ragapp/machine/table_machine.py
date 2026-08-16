@@ -39,10 +39,16 @@ except Exception:  # pragma: no cover
 try:
     from ragapp.services.vertex_embed import (
         embed_texts_vertex as embed_texts,
+        embed_texts_local,
         infer_table_query_with_vertex,
+        local_embeddings_enabled,
     )
 except Exception:  # pragma: no cover
-    from ragapp.services.vertex_embed import embed_texts_vertex as embed_texts
+    from ragapp.services.vertex_embed import (
+        embed_texts_vertex as embed_texts,
+        embed_texts_local,
+        local_embeddings_enabled,
+    )
     infer_table_query_with_vertex = None  # type: ignore
 
 # Chroma(표)
@@ -52,10 +58,27 @@ try:
 
     add_table_rows = cm.add_table_rows
     search_table_by_text_embedding = cm.search_table_by_text_embedding
+    table_embedding_dim = cm.table_embedding_dim
+    list_table_rows = cm.list_table_rows
 except Exception as e:  # pragma: no cover
     CHROMA_TABLE_IMPORT_ERR = f"{e.__class__.__name__}: {e}"
     add_table_rows = None  # type: ignore
     search_table_by_text_embedding = None  # type: ignore
+    table_embedding_dim = None  # type: ignore
+    list_table_rows = None  # type: ignore
+
+
+def _embed_table_texts(texts: List[str]) -> List[List[float]]:
+    """Embed with the dimension already used by the local table collection."""
+    if local_embeddings_enabled():
+        dim = None
+        if table_embedding_dim is not None:
+            try:
+                dim = table_embedding_dim()
+            except Exception:
+                dim = None
+        return embed_texts_local(texts, dim=int(dim or 384))
+    return embed_texts(texts)
 
 
 def _as_path(p: Any) -> Path:
@@ -281,7 +304,7 @@ def table_index_view(request: HttpRequest) -> HttpResponse:
         if not texts:
             raise RuntimeError("인덱싱할 행이 없습니다.")
 
-        embs = embed_texts(texts)
+        embs = _embed_table_texts(texts)
         added = add_table_rows(
             table_name=table_name,
             rows=rows,
@@ -942,14 +965,22 @@ def table_search_view(request: HttpRequest) -> HttpResponse:
         if search_table_by_text_embedding is None:
             raise RuntimeError("표 검색 모듈을 불러올 수 없습니다(chroma_media import 실패).")
 
-        q_vecs = embed_texts([q]) or []
+        res = None
+        if local_embeddings_enabled() and list_table_rows is not None:
+            # Bundled rows can contain Vertex vectors that are incompatible
+            # with offline embeddings. Local filters can use stored metadata.
+            res = list_table_rows(k=k) or {}
+
+        q_vecs = _embed_table_texts([q]) or []
         if not q_vecs:
             raise RuntimeError("임베딩을 만들 수 없습니다.")
         qv = q_vecs[0]
 
-        res = search_table_by_text_embedding(text_embedding=qv, k=k) or {}
+        if res is None:
+            res = search_table_by_text_embedding(text_embedding=qv, k=k) or {}
         metas_raw = res.get("metadatas") or []
         dists_raw = res.get("distances") or []
+        docs_raw = res.get("documents") or []
 
         if isinstance(metas_raw, list) and metas_raw:
             metas = metas_raw[0] if isinstance(metas_raw[0], list) else metas_raw
@@ -960,6 +991,11 @@ def table_search_view(request: HttpRequest) -> HttpResponse:
             dists = dists_raw[0] if isinstance(dists_raw[0], list) else dists_raw
         else:
             dists = []
+
+        if isinstance(docs_raw, list) and docs_raw:
+            docs = docs_raw[0] if isinstance(docs_raw[0], list) else docs_raw
+        else:
+            docs = []
 
         if len(dists) < len(metas):
             dists = dists + [None] * (len(metas) - len(dists))
@@ -973,7 +1009,7 @@ def table_search_view(request: HttpRequest) -> HttpResponse:
 
         MIN_SIM = float(min_sim or 0.0)
 
-        for meta, dist in zip(metas, dists):
+        for row_index, (meta, dist) in enumerate(zip(metas, dists)):
             if not isinstance(meta, dict):
                 continue
 
@@ -989,6 +1025,17 @@ def table_search_view(request: HttpRequest) -> HttpResponse:
                 row = row_json
             else:
                 row = {}
+
+            # Older table collections stored the row only in the Chroma
+            # document ("column:value | ...") and not in row_json metadata.
+            if (not isinstance(row, dict) or not row) and row_index < len(docs):
+                doc = str(docs[row_index] or "")
+                restored: Dict[str, Any] = {}
+                for part in doc.split(" | "):
+                    key, sep, value = part.partition(":")
+                    if sep and key.strip():
+                        restored[key.strip()] = value.strip()
+                row = restored
 
             if not isinstance(row, dict) or not row:
                 continue

@@ -45,10 +45,12 @@ from .media_helpers import (
     _read_json_from_storage,
     _write_json_to_storage,
     _list_pending_ids,
+    _list_rejected_ids,
     _promote_pending_object,
     _approve_public_storage_key,
     PENDING_UPLOAD_META_PREFIX,
     APPROVED_UPLOAD_META_PREFIX,
+    REJECTED_UPLOAD_META_PREFIX,
 )
 from .media_ai import (
     PUBLIC_IMAGE_UPLOAD_AI,
@@ -67,6 +69,11 @@ def _pending_preview_url(req: HttpRequest, pending_id: str) -> str:
     - raw=1: pending_raw_proxy에서 signed redirect 스킵/스트리밍 강제용
     """
     rel = reverse("ragadmin_media_pending_raw", kwargs={"item_id": pending_id})
+    return req.build_absolute_uri(rel) + "?raw=1"
+
+
+def _rejected_preview_url(req: HttpRequest, rejected_id: str) -> str:
+    rel = reverse("ragadmin_media_rejected_raw", kwargs={"item_id": rejected_id})
     return req.build_absolute_uri(rel) + "?raw=1"
 
 
@@ -1466,6 +1473,7 @@ def media_pending_admin_view(request: HttpRequest) -> HttpResponse:
             "penalty_list_url": reverse("api_user_penalty_list"),  # ✅ 드로어에서 사용
             "penalties_url": reverse("ragadmin_media_penalties"),
             "admin_upload_url": reverse("ragadmin_media_upload"),
+            "rejected_url": reverse("ragadmin_media_rejected"),
         },
     )
 
@@ -1684,10 +1692,6 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
     reason = str(payload.get("reason") or "").strip()
     reject_mode = str(payload.get("reject_mode") or "reject_only").strip()  # reject_only | restrict_all
     restrict_days_raw = str(payload.get("restrict_days") or "7").strip()  # 1/7/14/21/30/permanent
-    delete_blob = True
-    if "delete_blob" in payload:
-        delete_blob = str(payload.get("delete_blob")).strip().lower() in ("1", "true", "yes", "on")
-
     allowed_days = {1, 7, 14, 21, 30}
     permaban = False
     suspend_days = 0
@@ -1710,17 +1714,18 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
     actor_key = str(meta.get("actor_key") or "").strip()
 
     # ImageUploadRequest가 있으면 기록(있을 때만)
+    upload_request = None
     try:
         from ragapp.moderation_models import ImageUploadRequest
 
-        obj = ImageUploadRequest.objects.filter(storage_key=src_key).first()
-        if obj:
-            actor_key = actor_key or str(getattr(obj, "actor_key", "") or "")
-            obj.status = ImageUploadRequest.Status.REJECTED
-            obj.reject_reason = reason
-            obj.reviewed_by = getattr(request, "user", None)
-            obj.reviewed_at = timezone.now()
-            obj.save(update_fields=["status", "reject_reason", "reviewed_by", "reviewed_at", "updated_at"])
+        upload_request = ImageUploadRequest.objects.filter(storage_key=src_key).first()
+        if upload_request:
+            actor_key = actor_key or str(getattr(upload_request, "actor_key", "") or "")
+            upload_request.status = ImageUploadRequest.Status.REJECTED
+            upload_request.reject_reason = reason
+            upload_request.reviewed_by = getattr(request, "user", None)
+            upload_request.reviewed_at = timezone.now()
+            upload_request.save(update_fields=["status", "reject_reason", "reviewed_by", "reviewed_at", "updated_at"])
     except Exception:
         pass
 
@@ -1756,26 +1761,46 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
             pass
 
     # pending blob 삭제
-    if delete_blob:
+    rejected_storage_key = src_key
+    if src_key and src_key.startswith("pending/"):
         try:
-            if src_key and src_key.startswith("pending/") and default_storage.exists(src_key):
-                default_storage.delete(src_key)
+            rejected_storage_key, _ = _promote_pending_object(
+                src_key=src_key,
+                dest_prefix=f"rejected/{timezone.now().strftime('%Y/%m')}",
+            )
+        except Exception:
+            # Retain the original object if quarantine relocation fails, but log it
+            # loudly: otherwise the pending blob becomes an orphan (meta says
+            # "rejected", file stays under pending/) with no trace for ops to find.
+            log.warning(
+                "quarantine relocation failed for pending_id=%s src_key=%s; "
+                "file left in place, meta will still be marked rejected",
+                pending_id, src_key, exc_info=True,
+            )
+            rejected_storage_key = src_key
+
+    if upload_request is not None and rejected_storage_key != src_key:
+        try:
+            upload_request.storage_key = rejected_storage_key
+            upload_request.save(update_fields=["storage_key", "updated_at"])
         except Exception:
             pass
 
     # rejected meta 저장
     try:
-        rejected_key = f"meta/rejected_uploads/{pending_id}.json"
+        rejected_key = f"{REJECTED_UPLOAD_META_PREFIX}/{pending_id}.json"
         rejected_payload = dict(meta)
         rejected_payload.update(
             {
                 "rejected": True,
                 "rejected_at": timezone.now().isoformat(),
-                "rejected_storage_key": src_key,
+                "storage_key": rejected_storage_key,
+                "rejected_storage_key": rejected_storage_key,
                 "reject_reason": reason,
                 "reject_mode": reject_mode,
                 "restrict": {"permaban": bool(permaban), "days": int(suspend_days or 0)},
-                "delete_blob": bool(delete_blob),
+                "delete_blob": False,
+                "retained_for_review": True,
             }
         )
         _write_json_to_storage(rejected_key, rejected_payload)
@@ -1789,6 +1814,115 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
         pass
 
     return JsonResponse({"ok": True, "pending_id": pending_id, "actor_key": actor_key}, status=200, json_dumps_params={"ensure_ascii": False})
+
+
+def _safe_review_id(value: str) -> str:
+    value = str(value or "").strip()
+    return value if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value) else ""
+
+
+@never_cache
+@staff_member_required
+@require_GET
+def media_rejected_admin_view(request: HttpRequest) -> HttpResponse:
+    """Show quarantined uploads that were rejected by an administrator."""
+    limit = max(1, min(_int(request.GET.get("limit"), 100), 200))
+    items: list[dict[str, Any]] = []
+
+    for rejected_id in _list_rejected_ids(limit=limit):
+        meta_key = f"{REJECTED_UPLOAD_META_PREFIX}/{rejected_id}.json"
+        meta = _read_json_from_storage(meta_key) or {}
+        storage_key = str(meta.get("rejected_storage_key") or meta.get("storage_key") or "").strip()
+        try:
+            storage_key = _normalize_storage_key(storage_key) if storage_key else ""
+            file_exists = bool(storage_key and default_storage.exists(storage_key))
+        except Exception:
+            file_exists = False
+
+        items.append(
+            {
+                "rejected_id": rejected_id,
+                "storage_key": storage_key,
+                "orig_name": meta.get("orig_name") or "",
+                "mime": meta.get("mime") or "",
+                "size": meta.get("size") or 0,
+                "actor_key": meta.get("actor_key") or "",
+                "rejected_at": meta.get("rejected_at"),
+                "reject_reason": meta.get("reject_reason") or "사유 없음",
+                "reject_mode": meta.get("reject_mode") or "reject_only",
+                "restriction": meta.get("restrict") or {},
+                "file_exists": file_exists,
+                "preview_url": _rejected_preview_url(request, rejected_id) if file_exists else "",
+            }
+        )
+
+    return render(
+        request,
+        "ragadmin/media_rejected_admin.html",
+        {
+            "limit": limit,
+            "count": len(items),
+            "items": items,
+            "delete_url": reverse("api_media_rejected_delete"),
+            "pending_url": reverse("ragadmin_media_pending"),
+            "admin_upload_url": reverse("ragadmin_media_upload"),
+        },
+    )
+
+
+@require_POST
+@csrf_protect
+@staff_member_required
+def api_media_rejected_delete(request: HttpRequest) -> JsonResponse:
+    """Permanently remove one quarantined file and all of its review records."""
+    try:
+        payload = json.loads((request.body or b"{}").decode("utf-8")) if "application/json" in (request.content_type or "") else request.POST
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        payload = {}
+
+    rejected_id = _safe_review_id(payload.get("rejected_id", ""))
+    if not rejected_id:
+        return JsonResponse({"ok": False, "error": "invalid_rejected_id"}, status=400)
+
+    meta_key = f"{REJECTED_UPLOAD_META_PREFIX}/{rejected_id}.json"
+    meta = _read_json_from_storage(meta_key) or {}
+    if not meta:
+        return JsonResponse({"ok": False, "error": "rejected_meta_not_found"}, status=404)
+
+    storage_key = str(meta.get("rejected_storage_key") or meta.get("storage_key") or "").strip()
+    try:
+        storage_key = _normalize_storage_key(storage_key) if storage_key else ""
+    except Exception:
+        return JsonResponse({"ok": False, "error": "invalid_storage_key"}, status=400)
+
+    # Never let this endpoint delete approved/public media.
+    if storage_key and not storage_key.startswith(("rejected/", "pending/")):
+        return JsonResponse({"ok": False, "error": "unsafe_storage_key"}, status=400)
+
+    file_deleted = False
+    if storage_key and default_storage.exists(storage_key):
+        default_storage.delete(storage_key)
+        file_deleted = True
+
+    record_deleted = 0
+    try:
+        from ragapp.moderation_models import ImageUploadRequest
+
+        record_deleted, _ = ImageUploadRequest.objects.filter(storage_key=storage_key).delete()
+    except Exception:
+        pass
+
+    if default_storage.exists(meta_key):
+        default_storage.delete(meta_key)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "rejected_id": rejected_id,
+            "file_deleted": file_deleted,
+            "record_deleted": bool(record_deleted),
+        }
+    )
 
 
 # ────────────────────────────────────────────────

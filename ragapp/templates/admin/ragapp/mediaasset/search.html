@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'ragapp/css/mediaasset_admin.css' %}?v={{ STATIC_VERSION|default:'dev' }}">{% endblock %}
+{% block content %}
+<div class="ma-hero">
+  <h1>AI 유사 이미지 검색</h1>
+  <div class="sub">파일명의 글자가 아니라 이미지의 의미를 기준으로 비슷한 자료를 찾습니다. AI 검색 상태가 체크된 이미지만 검색됩니다.</div>
+</div>
+<section class="ma-guide" open>
+  <summary>사용 방법</summary>
+  <div class="tips"><ol class="ma-steps"><li>찾고 싶은 장면을 자연어로 입력합니다. 예: <code>파란 배경의 제품 로고</code></li><li>결과 개수는 1~50개로 지정합니다.</li><li>결과가 없다면 목록에서 해당 파일의 AI 검색 상태를 먼저 확인합니다.</li></ol></div>
+</section>
+<form method="post" class="ma-search-form">{% csrf_token %}
+  <div class="form-row"><label for="id_q">검색 문장</label><input id="id_q" name="q" value="{{ q }}" placeholder="예: 노을이 보이는 바다 풍경" required></div>
+  <div class="form-row"><label for="id_k">결과 개수</label><input id="id_k" name="k" type="number" value="{{ k }}" min="1" max="50"></div>
+  <div class="submit-row"><button type="submit" class="default">AI 검색</button><a href="{{ back_url }}">목록으로 돌아가기</a></div>
+</form>
+{% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+{% if q and not error %}
+<div class="results"><table><thead><tr><th>순위</th><th>ID</th><th>설명</th><th>파일 경로</th><th>거리</th></tr></thead><tbody>
+{% for item in results %}<tr><td>{{ item.rank }}</td><td>{{ item.pid }}</td><td>{{ item.caption|default:"-" }}</td><td>{{ item.path|default:"-" }}</td><td>{{ item.distance|floatformat:4|default:"-" }}</td></tr>{% empty %}<tr><td colspan="5">검색 가능한 인덱스가 없습니다.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}

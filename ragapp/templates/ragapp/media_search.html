@@ -4,7 +4,9 @@
 {% block title %}글로 이미지 찾기{% endblock %}
 {% block content %}
 
-<link rel="stylesheet" href="{% static 'ragapp/css/media_search.css' %}">
+<link rel="stylesheet" href="{% static 'ragapp/css/media_search.css' %}?v={{ STATIC_VERSION }}">
+<link rel="stylesheet" href="{% static 'ragapp/css/product_redesign.css' %}?v={{ STATIC_VERSION }}">
+<link rel="stylesheet" href="{% static 'ragapp/css/feature_theme.css' %}?v={{ STATIC_VERSION }}">
 
 {% with mode_q=request.GET.mode|default:'' debug_q=request.GET.debug|default:'' min_sim_q=request.GET.min_sim|default:'' %}
 <div id="mediaSearchRoot"
@@ -14,7 +16,11 @@
 
   <section class="ms-card" aria-labelledby="search-title">
     <div class="ms-head">
-      <h1 id="search-title" class="ms-title">글로 이미지 찾기</h1>
+      <div>
+        <p class="product-eyebrow">VISUAL SEARCH</p>
+        <h1 id="search-title" class="ms-title">글로 이미지 찾기</h1>
+        <p class="product-subtitle">찾고 싶은 장면이나 분위기를 문장으로 입력해 보세요.</p>
+      </div>
     </div>
 
     {% if error %}<div class="ms-err" role="alert">❌ {{ error }}</div>{% endif %}

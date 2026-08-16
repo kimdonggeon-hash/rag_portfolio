@@ -80,6 +80,10 @@ def media_pending_admin_view(request: HttpRequest, *args: Any, **kwargs: Any) ->
     return _call_page(_MEDIA, "media_pending_admin_view", request, *args, **kwargs)
 
 
+def media_rejected_admin_view(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+    return _call_page(_MEDIA, "media_rejected_admin_view", request, *args, **kwargs)
+
+
 def media_upload_admin_view(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
     # ✅ 스태프 전용 업로드(즉시 승격/인덱싱) 화면
     return _call_page(_MEDIA, "media_upload_admin_view", request, *args, **kwargs)
@@ -109,6 +113,10 @@ def api_media_pending_approve(request: HttpRequest, *args: Any, **kwargs: Any) -
 
 def api_media_pending_reject(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
     return _call_api(_MEDIA, "api_media_pending_reject", request, *args, **kwargs)
+
+
+def api_media_rejected_delete(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+    return _call_api(_MEDIA, "api_media_rejected_delete", request, *args, **kwargs)
 
 
 # ✅ alias: urls.py에서 이름을 이쪽으로 쓰고 싶을 때
@@ -156,6 +164,7 @@ __all__ = [
     "media_index_view",
     "media_search_view",
     "media_pending_admin_view",
+    "media_rejected_admin_view",
     "media_upload_admin_view",
     "media_penalties_admin_view",
     # media apis
@@ -164,6 +173,7 @@ __all__ = [
     "api_media_pending_list",
     "api_media_pending_approve",
     "api_media_pending_reject",
+    "api_media_rejected_delete",
     "api_user_penalty_list",
     "api_user_penalty_lift",
     # table pages (legacy redirect 포함)

@@ -20,6 +20,7 @@
   data-vdb-path="{{ VECTOR_DB_PATH|default:'(미설정)' }}"
   data-api-webqa="{{ WEB_API_PATH|default:'/api/web_qa' }}"
   data-api-ingest="{{ NEWS_INGEST_API_PATH|default:'/api/news_ingest/' }}"
+  data-model-enabled="{% if CRAWL_MODEL_ENABLED %}1{% else %}0{% endif %}"
 >
   <section class="header-card">
     <div class="header-top-row">

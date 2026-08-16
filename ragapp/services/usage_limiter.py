@@ -172,3 +172,51 @@ def check_and_increment_usage(request, kind: str) -> Tuple[bool, int, int]:
         usage.save(update_fields=update_fields)
         cache[kind] = (True, limit, used + 1)
         return cache[kind]
+
+
+def refund_usage(request, kind: str) -> None:
+    """
+    check_and_increment_usage()로 차감한 사용량 1회를 되돌린다.
+
+    실제로는 AI 호출이 실패해서 로컬 폴백 등으로 대신 응답한 경우처럼,
+    사용자의 오늘 사용 횟수를 소모시키면 안 되는 상황에 사용한다.
+    - admin/무제한 케이스는 애초에 차감하지 않았으므로 아무 것도 하지 않는다.
+    - 이번 요청에서 차감이 실제로 일어나지 않았다면(한도 초과 등) 아무 것도 하지 않는다.
+    """
+    if is_admin_unlimited(request):
+        return
+
+    cache = _req_usage_cache(request)
+    cached = cache.get(kind)
+    if not cached or not cached[0]:
+        return
+
+    limit = get_daily_limit(kind)
+    if limit <= 0:
+        return
+
+    field = _FIELD_MAP.get(kind)
+    if not field:
+        return
+
+    today = timezone.localdate()
+    key = build_client_key(request)
+
+    try:
+        with transaction.atomic():
+            usage = DailyUsage.objects.select_for_update().filter(date=today, client_key=key).first()
+            if usage is None:
+                return
+            used = int(getattr(usage, field) or 0)
+            if used <= 0:
+                return
+            setattr(usage, field, used - 1)
+            update_fields = [field]
+            if hasattr(usage, "updated_at"):
+                update_fields.append("updated_at")
+            usage.save(update_fields=update_fields)
+    except Exception:
+        return
+
+    allowed, _, used_after = cached
+    cache[kind] = (allowed, limit, max(0, used_after - 1))

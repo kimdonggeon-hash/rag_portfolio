@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import mimetypes
 from typing import Any
 
 from django.conf import settings
@@ -9,7 +11,7 @@ from django.contrib import admin
 from django.contrib.admin.sites import AlreadyRegistered, NotRegistered
 from django.db.models import Max
 from django.http import HttpRequest, HttpResponse
-from django.middleware.csrf import get_token
+from django.shortcuts import render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, mark_safe
@@ -667,11 +669,20 @@ class AppLogAdmin(admin.ModelAdmin):
 
     def result_badge(self, obj):
         extra = self._extra(obj)
-        r = (extra.get("result") or "").lower()
+        raw_result = extra.get("result")
+        if isinstance(raw_result, dict):
+            raw_result = (
+                raw_result.get("result")
+                or raw_result.get("status")
+                or ("success" if raw_result.get("ok") is True else "")
+            )
+        elif isinstance(raw_result, bool):
+            raw_result = "success" if raw_result else "fail"
+        r = str(raw_result or "").lower()
         if not r:
             if obj.level in ("ERROR", "CRITICAL"):
                 r = "fail"
-            elif obj.level == "WARNING":
+            elif obj.level in ("WARN", "WARNING"):
                 r = "warn"
             else:
                 r = "success"
@@ -783,8 +794,26 @@ class TableSearchRuleAdmin(admin.ModelAdmin):
 if _HAS_MEDIA_MODELS:
 
     class MediaAssetAdmin(admin.ModelAdmin):
-        list_display = ("id", "file", "caption", "indexed_at", "size", "mime")
+        change_list_template = "admin/ragapp/mediaasset/change_list.html"
+        list_display = ("id", "file", "caption", "mime", "size_display", "index_status", "created_at")
         search_fields = ("caption", "file")
+        list_filter = ("mime", "created_at", "indexed_at")
+        readonly_fields = ("mime", "size", "sha256", "chroma_id", "indexed_at", "created_at", "updated_at")
+        date_hierarchy = "created_at"
+        ordering = ("-created_at",)
+
+        @admin.display(description="크기")
+        def size_display(self, obj):
+            size = int(obj.size or 0)
+            if size >= 1024 * 1024:
+                return f"{size / (1024 * 1024):.1f} MB"
+            if size >= 1024:
+                return f"{size / 1024:.1f} KB"
+            return f"{size} B"
+
+        @admin.display(description="AI 검색", boolean=True)
+        def index_status(self, obj):
+            return bool(obj.chroma_id and obj.indexed_at)
 
         def get_urls(self):
             urls = super().get_urls()
@@ -794,59 +823,68 @@ if _HAS_MEDIA_MODELS:
             return custom + urls
 
         def search_view(self, request: HttpRequest):
-            token = get_token(request)
             ns = self.admin_site.name
             back = reverse(f"{ns}:ragapp_mediaasset_changelist")
-
-            html_top = f"""
-            <div class="ma-wrap"><div class="ma-card">
-              <div class="ma-h1">Media 이미지 검색</div>
-              <form method="post" class="ma-form" style="margin-bottom:12px">
-                <input type="hidden" name="csrfmiddlewaretoken" value="{token}">
-                <input name="q" type="text" placeholder="예: 노을 바다 풍경" style="width:420px" required>
-                <input name="k" type="number" value="8" min="1" max="50" style="width:80px">
-                <button class="ma-btn" type="submit">검색</button>
-                <a class="ma-link" href="{back}" style="margin-left:8px">← 목록으로</a>
-              </form>
-            """
-
-            if request.method != "POST":
-                return HttpResponse(html_top + "</div></div>")
-
-            from ragapp.services.vertex_embed import embed_text_mm
-            from ragapp.services.chroma_media import search_images_by_text_embedding
-
             q = (request.POST.get("q") or "").strip()
             try:
-                k = int(request.POST.get("k") or 8)
+                k = max(1, min(int(request.POST.get("k") or 8), 50))
             except Exception:
                 k = 8
+            results = []
+            error = ""
+            if request.method == "POST" and q:
+                try:
+                    from ragapp.services.vertex_embed import embed_text_mm
+                    from ragapp.services.chroma_media import search_images_by_text_embedding
 
-            try:
-                qv = embed_text_mm(q)
-                res = search_images_by_text_embedding(text_embedding=qv, k=k) or {}
-                ids = (res.get("ids") or [[]])[0] if isinstance(res.get("ids"), list) else []
-                metas = (res.get("metadatas") or [[]])[0] if isinstance(res.get("metadatas"), list) else []
-                docs = (res.get("documents") or [[]])[0] if isinstance(res.get("documents"), list) else []
+                    response = search_images_by_text_embedding(text_embedding=embed_text_mm(q), k=k) or {}
+                    ids = (response.get("ids") or [[]])[0]
+                    metas = (response.get("metadatas") or [[]])[0]
+                    docs = (response.get("documents") or [[]])[0]
+                    distances = (response.get("distances") or [[]])[0]
+                    for index, pid in enumerate(ids):
+                        meta = metas[index] if index < len(metas) else {}
+                        results.append({
+                            "rank": index + 1,
+                            "pid": pid,
+                            "caption": docs[index] if index < len(docs) else "",
+                            "path": (meta or {}).get("path", ""),
+                            "distance": distances[index] if index < len(distances) else None,
+                        })
+                except Exception as exc:
+                    log.exception("MediaAsset semantic search failed")
+                    error = f"AI 유사 검색을 완료하지 못했습니다: {exc}"
 
-                rows = []
-                for i, (pid, meta, doc) in enumerate(zip(ids, metas, docs), 1):
-                    path_val = (meta or {}).get("path", "")
-                    rows.append(
-                        f"<tr><td>{i}</td><td>{pid}</td><td>{doc or '-'}</td>"
-                        f"<td class='mono'>{path_val or '-'}</td></tr>"
-                    )
+            context = {
+                **self.admin_site.each_context(request),
+                "title": "미디어 자산 AI 유사 검색",
+                "opts": self.model._meta,
+                "back_url": back,
+                "q": q,
+                "k": k,
+                "results": results,
+                "error": error,
+            }
+            return render(request, "admin/ragapp/mediaasset/search.html", context)
 
-                table = f"""
-                  <table class="ma-table">
-                    <thead><tr><th>#</th><th>ID</th><th>캡션</th><th>파일경로</th></tr></thead>
-                    <tbody>{''.join(rows) or "<tr><td colspan='4'>결과 없음</td></tr>"}</tbody>
-                  </table>
-                </div></div>
-                """
-                return HttpResponse(html_top + table)
-            except Exception as e:
-                return HttpResponse(html_top + f"<p style='color:#fca5a5'>오류: {e}</p></div></div>")
+        def save_model(self, request, obj, form, change):
+            upload = getattr(obj, "file", None)
+            if upload:
+                obj.mime = mimetypes.guess_type(upload.name)[0] or "application/octet-stream"
+                try:
+                    obj.size = int(upload.size or 0)
+                except Exception:
+                    pass
+                try:
+                    upload.open("rb")
+                    digest = hashlib.sha256()
+                    for chunk in iter(lambda: upload.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                    obj.sha256 = digest.hexdigest()
+                    upload.seek(0)
+                except Exception:
+                    log.exception("MediaAsset metadata calculation failed")
+            super().save_model(request, obj, form, change)
 
     class TableDatasetAdmin(admin.ModelAdmin):
         list_display = ("id", "table_name", "csv", "row_count", "indexed_at")
@@ -865,6 +903,7 @@ _safe_register(admin.site, Feedback, FeedbackAdmin, force=True)
 _safe_register(admin.site, IngestHistory, IngestHistoryAdmin, force=True)
 _safe_register(admin.site, TableSchema, TableSchemaAdmin, force=True)
 _safe_register(admin.site, RagChunk, RagChunkAdmin, force=True)
+_safe_register(admin.site, AppLog, AppLogAdmin, force=True)
 _safe_register(admin.site, LegalConfig, LegalConfigAdmin, force=True)
 _safe_register(admin.site, LiveChatSession, LiveChatSessionAdmin, force=True)
 

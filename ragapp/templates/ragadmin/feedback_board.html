@@ -565,9 +565,7 @@
 
   setInterval(function(){
     if (!enabled) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("_ts", Date.now()); // 캐시 방지용
-    window.location.href = url.toString();
+    window.location.reload();
   }, INTERVAL);
 })();
 </script>

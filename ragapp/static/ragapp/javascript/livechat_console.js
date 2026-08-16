@@ -52,6 +52,13 @@
 
     let masterSocket = null;
     let roomSocket = null;
+    let masterReconnectTimer = null;
+    let roomReconnectTimer = null;
+
+    // ✅ roomSocket이 "지금" 어떤 방을 향해 연결(시도)되고 있는지.
+    //    onopen을 기다리지 않고 소켓 생성 시점에 바로 채워서, 연결 중(CONNECTING)에
+    //    또 클릭/버튼으로 같은 방에 중복 연결을 시도하지 않게 막는 데 쓴다.
+    let socketTargetRoom = null;
 
     // 세션 / 상태 관리
     let sessions = (INITIAL.sessions || []).slice();
@@ -127,9 +134,9 @@
     function statusLabel(status) {
         const s = (status || "").toLowerCase();
         if (!s || s === "waiting" || s === "대기" || s === "pending") return "대기중";
-        if (s === "active") return "진행중";
+        if (s === "active") return "상담중";
         if (s === "ended_need_save" || s === "need_note") return "저장 필요";
-        if (s === "saved" || s === "done") return "저장 완료";
+        if (s === "saved" || s === "done") return "종료";
         if (
             s === "ended" ||
             s === "종료" ||
@@ -137,7 +144,7 @@
             s === "deleted" ||
             s === "삭제됨"
         ) {
-            return "종료됨";
+            return "종료";
         }
         return status;
     }
@@ -170,7 +177,7 @@
         // 상단 배지 텍스트
         if (dom.recordStatusBadge) {
             if (type === "success") {
-                dom.recordStatusBadge.textContent = "저장 완료";
+                dom.recordStatusBadge.textContent = "종료";
             } else if (type === "error") {
                 dom.recordStatusBadge.textContent = "오류";
             } else {
@@ -232,7 +239,7 @@
         }
 
         const label = statusLabel(found.status);
-        if (label === "종료됨" || label === "저장 필요" || label === "저장 완료") {
+        if (label === "종료" || label === "저장 필요") {
             endedRooms.add(found.room);
         }
 
@@ -332,7 +339,8 @@
     function appendChatMessage(src) {
         if (!dom.messages) return;
         const role = (src.sender || src.role || "system").toLowerCase();
-        const text = src.text || src.content || "";
+        const text = String(src.text || src.content || "").trim();
+        if (!text) return;
 
         const wrap = document.createElement("div");
         wrap.classList.add("lc-msg");
@@ -389,8 +397,10 @@
     // ─────────────────────────────────────
     //  히스토리 로드
     // ─────────────────────────────────────
+    // 반환값: 이 방의 히스토리에 이미 operator(상담사) 메시지가 있었는지 여부.
+    // 새로고침 후 재연결 시 자동 인사말을 또 보내지 않기 위해 사용한다.
     function loadHistory(room, sessionId) {
-        if (!CONFIG.historyUrl) return;
+        if (!CONFIG.historyUrl) return Promise.resolve(false);
         const params = new URLSearchParams();
         if (sessionId) params.set("session_id", String(sessionId));
         else if (room) params.set("room", room);
@@ -398,24 +408,29 @@
 
         const url = CONFIG.historyUrl + "?" + params.toString();
 
-        fetch(url, {
+        return fetch(url, {
             method: "GET",
             headers: { Accept: "application/json" }
         })
             .then(function (res) { return res.json(); })
             .then(function (data) {
                 clearMessages();
-                if (!data || !Array.isArray(data.messages)) return;
+                if (!data || !Array.isArray(data.messages)) return false;
+                let hasOperatorMessage = false;
                 data.messages.forEach(function (m) {
+                    const role = String(m.sender || m.role || "").toLowerCase();
+                    if (role === "operator") hasOperatorMessage = true;
                     appendChatMessage({
-                        role: m.role,
-                        content: m.content,
+                        sender: m.sender || m.role,
+                        text: m.text || m.content,
                         created_at: m.created_at
                     });
                 });
+                return hasOperatorMessage;
             })
             .catch(function (err) {
                 console.warn("[livechat] history load error", err);
+                return false;
             });
     }
 
@@ -423,15 +438,31 @@
     //  master WebSocket
     // ─────────────────────────────────────
     function connectMaster() {
+        if (masterSocket && (
+            masterSocket.readyState === WebSocket.OPEN ||
+            masterSocket.readyState === WebSocket.CONNECTING
+        )) return;
+
         const url = wsBase + "/ws/chat/master";
         masterSocket = new WebSocket(url);
 
         masterSocket.onopen = function () {
+            if (masterReconnectTimer) {
+                clearTimeout(masterReconnectTimer);
+                masterReconnectTimer = null;
+            }
             setMasterStatus(true);
         };
 
         masterSocket.onclose = function () {
             setMasterStatus(false);
+            masterSocket = null;
+            if (!masterReconnectTimer) {
+                masterReconnectTimer = setTimeout(function () {
+                    masterReconnectTimer = null;
+                    connectMaster();
+                }, 1500);
+            }
         };
 
         masterSocket.onerror = function () {
@@ -479,10 +510,7 @@
             const s = findSession(room, sid);
             if (s) {
                 s.status = payload.status || "saved";
-                const label = statusLabel(s.status);
-                if (label === "종료됨" || label === "저장 필요" || label === "저장 완료") {
-                    endedRooms.add(s.room);
-                }
+                endedRooms.add(s.room);
                 renderSessionList();
                 if (selectedRoom === s.room &&
                     (!selectedSessionId || selectedSessionId === s.id)) {
@@ -526,10 +554,15 @@
     }
 
     function disconnectRoomSocket() {
+        if (roomReconnectTimer) {
+            clearTimeout(roomReconnectTimer);
+            roomReconnectTimer = null;
+        }
         if (roomSocket) {
             try { roomSocket.close(1000, "operator switch room"); } catch (e) { }
         }
         roomSocket = null;
+        socketTargetRoom = null;
         connectedRoom = null;
         connectedSessionId = null;
         setChatLocked(true, "이 방과 아직 연결되지 않았습니다. '연결하기'를 눌러주세요.");
@@ -546,22 +579,45 @@
             return;
         }
 
+        // ✅ 이미 이 방으로 연결되어 있거나(OPEN) 연결 시도 중(CONNECTING)이면
+        //    중복으로 새 소켓을 만들지 않는다. (목록 클릭 자동연결 + '연결하기' 버튼
+        //    이 거의 동시에 눌렸을 때 소켓이 두 개 생기는 레이스를 방지)
         if (
             roomSocket &&
-            roomSocket.readyState === WebSocket.OPEN &&
-            connectedRoom === selectedRoom
+            socketTargetRoom === selectedRoom &&
+            (roomSocket.readyState === WebSocket.OPEN || roomSocket.readyState === WebSocket.CONNECTING)
         ) {
             return;
         }
 
         disconnectRoomSocket();
 
-        const url = wsBase + "/ws/chat/" + encodeURIComponent(selectedRoom);
-        roomSocket = new WebSocket(url);
+        const targetRoom = selectedRoom;
+        const targetSessionId = selectedSessionId;
+        socketTargetRoom = targetRoom;
 
-        roomSocket.onopen = function () {
-            connectedRoom = selectedRoom;
-            connectedSessionId = selectedSessionId || null;
+        const url = wsBase + "/ws/chat/" + encodeURIComponent(targetRoom) + "?operator=1";
+        const socket = new WebSocket(url);
+        roomSocket = socket;
+
+        // ✅ 아래 각 핸들러는 "이 소켓이 여전히 현재 활성 소켓인지"를 먼저 확인한다.
+        //    새 연결로 대체된 stale 소켓에서 뒤늦게 도착한 이벤트가 현재 연결 상태
+        //    (connectedRoom/입력창 잠금)를 잘못 건드리는 것을 막기 위함이다.
+        socket.onopen = function () {
+            if (roomSocket !== socket) return;
+
+            if (roomReconnectTimer) {
+                clearTimeout(roomReconnectTimer);
+                roomReconnectTimer = null;
+            }
+            connectedRoom = targetRoom;
+            connectedSessionId = targetSessionId || null;
+            const connectedSession = findSession(connectedRoom, connectedSessionId);
+            if (connectedSession) {
+                connectedSession.status = "active";
+                renderSessionList();
+                updateRoomHeaderForSession(connectedSession);
+            }
             warnedNotConnected = false;
             setChatLocked(false);
             updateConnectButtonState();
@@ -571,25 +627,56 @@
             }
 
             // ✅ 상담사가 연결된 직후 자동 안내 메시지 전송
-            sendOperatorConnectedMessage();
+            // Draw persisted system messages before broadcasting the welcome.
+            // This prevents a late history response from clearing that message.
+            // 이미 이 방에 저장된 operator 메시지가 있으면(예: 새로고침 전에 이미
+            // 인사말을 보낸 경우) 다시 보내지 않는다.
+            loadHistory(connectedRoom, connectedSessionId)
+                .then(function (hasOperatorMessage) {
+                    if (roomSocket !== socket) return;
+                    if (hasOperatorMessage) {
+                        welcomeSentRooms.add(connectedRoom);
+                    } else {
+                        sendOperatorConnectedMessage();
+                    }
+                });
         };
 
-        roomSocket.onclose = function () {
-            if (connectedRoom === selectedRoom) {
+        socket.onclose = function (event) {
+            if (roomSocket !== socket) return;
+
+            const retryRoom = targetRoom;
+            if (connectedRoom === targetRoom) {
                 connectedRoom = null;
                 connectedSessionId = null;
             }
-            if (!endedRooms.has(selectedRoom)) {
+            if (!endedRooms.has(targetRoom)) {
                 setChatLocked(true, "이 방과의 연결이 끊어졌습니다. 다시 연결하려면 '연결하기'를 눌러 주세요.");
             }
             updateConnectButtonState();
+            if (
+                retryRoom &&
+                event.code !== 1000 &&
+                !endedRooms.has(retryRoom) &&
+                !roomReconnectTimer
+            ) {
+                roomReconnectTimer = setTimeout(function () {
+                    roomReconnectTimer = null;
+                    if (selectedRoom === retryRoom && !endedRooms.has(retryRoom)) {
+                        connectSelectedRoom();
+                    }
+                }, 1500);
+            }
         };
 
-        roomSocket.onerror = function () {
+        socket.onerror = function () {
+            if (roomSocket !== socket) return;
             console.warn("[livechat] room socket error");
         };
 
-        roomSocket.onmessage = function (event) {
+        socket.onmessage = function (event) {
+            if (roomSocket !== socket) return;
+
             let payload;
             try {
                 payload = JSON.parse(event.data || "{}");
@@ -764,6 +851,9 @@
                 setChatLocked(true, msg);
             }
             updateConnectButtonState();
+            if (!endedRooms.has(selectedRoom)) {
+                connectSelectedRoom();
+            }
         });
     }
 
@@ -1029,7 +1119,7 @@
                     if (s) {
                         s.status = data.session_status || data.status_after || "saved";
                         const label = statusLabel(s.status);
-                        if (label === "종료됨" || label === "저장 필요" || label === "저장 완료") {
+                        if (label === "종료" || label === "저장 필요") {
                             endedRooms.add(s.room);
                         }
                         renderSessionList();

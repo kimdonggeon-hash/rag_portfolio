@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 from typing import List, Tuple
 
 from django.conf import settings
@@ -10,13 +11,18 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
-from ragapp.services.usage_limiter import check_and_increment_usage
+from ragapp.services.usage_limiter import check_and_increment_usage, refund_usage
 from ragapp.services.pdf_vertex_service import (
     summarize_pdf_text_with_vertex,
     VertexNotConfiguredError,
 )
 
 log = logging.getLogger(__name__)
+
+_LOCAL_STOP_WORDS = {
+    "그리고", "그러나", "대한", "통해", "위해", "에서", "으로", "문서", "내용",
+    "pdf", "요약", "정리", "해줘", "해주세요", "표로", "핵심",
+}
 
 # markdown -> html (표 렌더)
 try:
@@ -115,6 +121,70 @@ def _md_to_html(md_text: str) -> str | None:
     except Exception as e:
         log.warning("PDF markdown 변환 실패: %s", e)
         return None
+
+
+def _is_vertex_connection_error(exc: Exception) -> bool:
+    """Vertex 서버에 요청 자체를 보내지 못한 네트워크 오류인지 판별한다."""
+    messages: list[str] = []
+    current: BaseException | None = exc
+    for _ in range(6):
+        if current is None:
+            break
+        messages.append(str(current).lower())
+        current = current.__cause__ or current.__context__
+    text = " ".join(messages)
+    return any(
+        marker in text
+        for marker in (
+            "winerror 10013",
+            "failed to establish a new connection",
+            "max retries exceeded",
+            "connection refused",
+            "connection aborted",
+            "name resolution",
+            "aiplatform.googleapis.com",
+        )
+    )
+
+
+def _local_pdf_answer(text: str, question: str, *, mode: str) -> str:
+    """네트워크 장애 시 동작하는 가벼운 추출형 PDF 요약."""
+    clean = re.sub(r"\[FILE\]\s*[^\n]+", "", text)
+    clean = re.sub(r"[ \t]+", " ", clean)
+    candidates = [
+        part.strip(" -•\t")
+        for part in re.split(r"(?<=[.!?。])\s+|\n{1,}", clean)
+        if 25 <= len(part.strip()) <= 700
+    ]
+    if not candidates:
+        candidates = [clean.strip()[:700]] if clean.strip() else []
+
+    keywords = {
+        token.lower()
+        for token in re.findall(r"[0-9A-Za-z가-힣]{2,}", question)
+        if token.lower() not in _LOCAL_STOP_WORDS
+    }
+
+    ranked: list[tuple[float, int, str]] = []
+    for index, sentence in enumerate(candidates):
+        lowered = sentence.lower()
+        keyword_score = sum(3 for keyword in keywords if keyword in lowered)
+        position_score = max(0.0, 2.0 - index * 0.04)
+        length_score = 1.0 if 45 <= len(sentence) <= 260 else 0.2
+        ranked.append((keyword_score + position_score + length_score, index, sentence))
+
+    selected = sorted(sorted(ranked, reverse=True)[:6], key=lambda row: row[1])
+    sentences = [sentence for _, _, sentence in selected]
+    notice = "> Vertex AI 연결이 차단되어 문서 본문에서 핵심 문장을 추출해 정리했습니다.\n\n"
+
+    if mode == "table":
+        rows = [sentence.replace("|", "\\|").replace("\n", " ") for sentence in sentences]
+        table = ["| 번호 | 핵심 내용 |", "|---:|---|"]
+        table.extend(f"| {index} | {sentence} |" for index, sentence in enumerate(rows, 1))
+        return notice + "\n".join(table)
+
+    bullets = "\n".join(f"- {sentence}" for sentence in sentences)
+    return notice + (bullets or "PDF에서 요약할 수 있는 텍스트를 찾지 못했습니다.")
 
 
 @csrf_protect
@@ -251,10 +321,22 @@ def pdf_analyze_api_view(request: HttpRequest) -> JsonResponse:
         )
     except Exception as e:
         log.exception("Vertex PDF 분석 중 오류")
-        return JsonResponse(
-            {"ok": False, "error": f"Vertex AI 호출 중 오류가 발생했습니다: {e}", "file_errors": file_errors},
-            status=500,
-        )
+        if _is_vertex_connection_error(e):
+            answer = _local_pdf_answer(combined_text, question, mode=mode)
+            fallback_mode = "local_extract"
+            # 실제 Vertex AI를 사용하지 못했으므로 방금 차감한 일일 PDF 한도를 되돌린다.
+            refund_usage(request, "pdf")
+        else:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "PDF AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                    "file_errors": file_errors,
+                },
+                status=502,
+            )
+    else:
+        fallback_mode = ""
 
     answer_main = (answer or "").strip() or "Vertex AI로부터 응답을 받지 못했습니다. 설정을 다시 확인해 주세요."
     answer_html = _md_to_html(answer_main)
@@ -287,5 +369,6 @@ def pdf_analyze_api_view(request: HttpRequest) -> JsonResponse:
             "files_used": [fn for fn, _ in extracted_blocks],
             "file_errors": file_errors,
             "is_staff": is_staff,
+            "fallback": fallback_mode,
         }
     )

@@ -224,7 +224,6 @@
 
         if (mode === "restrict_all") {
             payload.restrict_days = ($('select[name="restrict_days"]', card)?.value || "7").trim();
-            payload.delete_blob = $('input[name="delete_blob"]', card)?.checked ? 1 : 0;
             payload.actor_key = (card.dataset.actorKey || "").trim();
         }
         return payload;
@@ -264,8 +263,7 @@
 
         if (payload.reject_mode === "restrict_all") {
             const days = payload.restrict_days;
-            const del = payload.delete_blob ? " + 파일삭제" : "";
-            const ok = window.confirm(`정말 제한(${days})${del}까지 적용할까요?`);
+            const ok = window.confirm(`정말 제한(${days})까지 적용할까요? 거절 파일은 보관함으로 이동합니다.`);
             if (!ok) {
                 if (st) st.textContent = "취소됨";
                 return;
@@ -281,7 +279,7 @@
         }
 
         if (st) st.textContent = "거절 완료";
-        showToast("거절 완료");
+        showToast("거절 보관함으로 이동했습니다.");
         card.remove();
         decCount();
 

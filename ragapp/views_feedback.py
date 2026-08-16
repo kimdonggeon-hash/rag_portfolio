@@ -12,8 +12,9 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.db import transaction
 
-from ragapp.models import QaragFeedback, ChatQueryLog
+from ragapp.models import QaragFeedback, ChatQueryLog, FeedbackLog, FeedbackReview
 
 log = logging.getLogger(__name__)
 
@@ -140,19 +141,52 @@ def _norm_reasons(v: Any) -> List[str]:
     return []
 
 
-def _maybe_pii_redact(question: str, comment: str) -> tuple[str, str, bool]:
+def _maybe_pii_redact(question: str, answer: str, comment: str) -> tuple[str, str, str, bool]:
     """
-    PII 가드가 있으면 question/comment를 마스킹.
+    PII 가드가 있으면 저장 대상 텍스트를 마스킹.
     """
     if not detect_pii or not redact_pii:
-        return question, comment, False
+        return question, answer, comment, False
     try:
-        has = bool(detect_pii(question) or detect_pii(comment))
+        results = [detect_pii(value) for value in (question, answer, comment)]
+        has = any(bool(getattr(result, "hit", result)) for result in results)
         if not has:
-            return question, comment, False
-        return redact_pii(question), redact_pii(comment), True
+            return question, answer, comment, False
+        return redact_pii(question), redact_pii(answer), redact_pii(comment), True
     except Exception:
-        return question, comment, False
+        return question, answer, comment, False
+
+
+def _canonical_answer_type(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if "rag" in normalized:
+        return "rag"
+    if "qa" in normalized or "chat" in normalized:
+        return "qa"
+    return "web"
+
+
+def _create_feedback_log(
+    *, answer_type: str, from_ui: str, question: str, answer: str,
+    helpful: Optional[bool], reasons: List[str], comment: str,
+    sources: List[Dict[str, str]], stage: str,
+) -> FeedbackLog:
+    """Persist the record consumed by the integrated admin feedback board."""
+    with transaction.atomic():
+        feedback = FeedbackLog.objects.create(
+            answer_type=_canonical_answer_type(answer_type),
+            from_ui=from_ui,
+            question=question,
+            answer=answer,
+            helpful=helpful,
+            reasons=reasons,
+            comment=comment,
+            sources=sources,
+            stage=stage,
+        )
+        if helpful is False:
+            FeedbackReview.objects.create(feedback=feedback, status="todo")
+    return feedback
 
 
 def _find_chat_log(log_id: Any) -> Optional[ChatQueryLog]:
@@ -265,7 +299,7 @@ def api_qarag_feedback(request: HttpRequest) -> JsonResponse:
         ua = request.META.get("HTTP_USER_AGENT", "") or ""
         ip_h = _hash_ip(ip)
 
-        question, comment, pii_redacted = _maybe_pii_redact(question, comment)
+        question, answer, comment, pii_redacted = _maybe_pii_redact(question, answer, comment)
 
         extra = {
             "from_ui": "qarag",
@@ -282,9 +316,20 @@ def api_qarag_feedback(request: HttpRequest) -> JsonResponse:
             is_helpful=helpful_b,
             comment=_append_extra(comment, extra),
         )
+        board_entry = _create_feedback_log(
+            answer_type="qa",
+            from_ui="qarag",
+            question=question,
+            answer=answer,
+            helpful=helpful_b,
+            reasons=[],
+            comment=comment,
+            sources=[],
+            stage="thumb",
+        )
 
         return JsonResponse(
-            {"ok": True, "id": fb.id},
+            {"ok": True, "id": board_entry.id, "legacy_id": fb.id},
             json_dumps_params={"ensure_ascii": False},
         )
 
@@ -336,7 +381,7 @@ def _submit_feedback_impl(request: HttpRequest) -> JsonResponse:
     ua = request.META.get("HTTP_USER_AGENT", "") or ""
     ip_h = _hash_ip(ip)
 
-    question, comment, pii_redacted = _maybe_pii_redact(question, comment)
+    question, answer, comment, pii_redacted = _maybe_pii_redact(question, answer, comment)
 
     extra = {
         "from_ui": from_ui,
@@ -360,9 +405,20 @@ def _submit_feedback_impl(request: HttpRequest) -> JsonResponse:
         is_helpful=helpful_b,
         comment=_append_extra(comment, extra),
     )
+    board_entry = _create_feedback_log(
+        answer_type=answer_type,
+        from_ui=from_ui,
+        question=question,
+        answer=answer,
+        helpful=helpful_b,
+        reasons=reasons,
+        comment=comment,
+        sources=sources,
+        stage=stage,
+    )
 
     return JsonResponse(
-        {"ok": True, "id": fb.id},
+        {"ok": True, "id": board_entry.id, "legacy_id": fb.id},
         json_dumps_params={"ensure_ascii": False},
     )
 

@@ -1,0 +1,234 @@
+.fx-theme-switch {
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid rgba(148, 163, 184, .24);
+    border-radius: 999px;
+    background: rgba(2, 6, 23, .58);
+    color: #e5e7eb;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+html[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f4f7fb;
+    --text: #172033;
+    --muted: #667085;
+    --border: #d8e0ec;
+    --card-bg: #ffffff;
+    --card-sub: #f7f9fc;
+    --line: #d8e0ec;
+    --ink: #172033;
+    --fx-bg: #f4f7fb;
+    --fx-ink: #172033;
+    --fx-dim: #667085;
+    --fx-line: #d8e0ec;
+}
+
+html[data-theme="light"] body {
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, .08), transparent 48%), #f4f7fb;
+    color: #172033;
+}
+
+html[data-theme="light"] .fx-header {
+    background: rgba(255, 255, 255, .88) !important;
+    border-color: #d8e0ec !important;
+}
+
+html[data-theme="light"] .fx-brand,
+html[data-theme="light"] .fx-seg,
+html[data-theme="light"] .fx-guide-btn,
+html[data-theme="light"] .fx-theme-switch,
+html[data-theme="light"] .fx-usage-pill {
+    background: rgba(255, 255, 255, .92);
+    border-color: #d8e0ec;
+    color: #172033;
+    box-shadow: 0 8px 24px rgba(31, 42, 68, .08);
+}
+
+html[data-theme="light"] .fx-brand .fx-brand-text {
+    background: none;
+    color: #172033;
+}
+
+html[data-theme="light"] .fx-seg-item { color: #475467; }
+html[data-theme="light"] .fx-seg-item.is-active { color: #071224; }
+
+html[data-theme="light"] .mi-card,
+html[data-theme="light"] .ms-card,
+html[data-theme="light"] .mi-drop,
+html[data-theme="light"] .mi-item,
+html[data-theme="light"] .ms-item,
+html[data-theme="light"] .ms-thumb-wrap,
+html[data-theme="light"] .mi-input,
+html[data-theme="light"] .ms-input,
+html[data-theme="light"] .ms-num,
+html[data-theme="light"] .ms-select,
+html[data-theme="light"] .ms-stepper,
+html[data-theme="light"] .ms-step,
+html[data-theme="light"] .ms-btn.ghost,
+html[data-theme="light"] .mi-btn:not(.primary),
+html[data-theme="light"] .mi-note {
+    background: #ffffff;
+    border-color: #d8e0ec;
+    color: #172033;
+}
+
+html[data-theme="light"] .mi-note,
+html[data-theme="light"] .mi-note b,
+html[data-theme="light"] .mi-label,
+html[data-theme="light"] .mi-busy,
+html[data-theme="light"] .ms-title,
+html[data-theme="light"] .ms-cap { color: #172033; }
+
+html[data-theme="light"] .mi-muted,
+html[data-theme="light"] .mi-hint,
+html[data-theme="light"] .ms-muted,
+html[data-theme="light"] .ms-chip { color: #667085; }
+
+/* Table upload/search pages -------------------------------------------------
+   These screens contain page-local dark defaults, so the theme layer needs
+   explicit, higher-specificity light overrides. */
+html[data-theme="light"] .ci-card,
+html[data-theme="light"] .panel {
+    background: #ffffff;
+    border-color: #d8e0ec;
+    color: #172033;
+    box-shadow: 0 18px 48px rgba(31, 42, 68, .12);
+}
+
+html[data-theme="light"] .ci-title,
+html[data-theme="light"] .title,
+html[data-theme="light"] .ci-kv,
+html[data-theme="light"] .tbl tbody td,
+html[data-theme="light"] .ci-tbl tbody td {
+    color: #172033;
+}
+
+html[data-theme="light"] .ci-sub,
+html[data-theme="light"] .ci-muted,
+html[data-theme="light"] .ci-label,
+html[data-theme="light"] .ci-hint,
+html[data-theme="light"] .sub,
+html[data-theme="light"] .label,
+html[data-theme="light"] .help,
+html[data-theme="light"] .muted,
+html[data-theme="light"] .count {
+    color: #667085;
+}
+
+html[data-theme="light"] .ci-input,
+html[data-theme="light"] .ci-file,
+html[data-theme="light"] .ci-num,
+html[data-theme="light"] .ctl input,
+html[data-theme="light"] .ctl select {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #172033;
+    caret-color: #172033;
+}
+
+html[data-theme="light"] .ci-input::placeholder,
+html[data-theme="light"] .ci-num::placeholder,
+html[data-theme="light"] .ctl input::placeholder {
+    color: #98a2b3;
+    opacity: 1;
+}
+
+html[data-theme="light"] .ci-drop {
+    background: #f7f9fc;
+    border-color: #b8c4d6;
+    color: #344054;
+}
+
+html[data-theme="light"] .ci-drop:hover,
+html[data-theme="light"] .ci-drop.is-drag {
+    background: #f0f5ff;
+}
+
+html[data-theme="light"] .ci-badge,
+html[data-theme="light"] .badge,
+html[data-theme="light"] .ci-chip,
+html[data-theme="light"] details.opt > summary {
+    background: #f7f9fc;
+    border-color: #d0d8e5;
+    color: #475467;
+}
+
+html[data-theme="light"] .ci-navbtn,
+html[data-theme="light"] .navbtn,
+html[data-theme="light"] .ci-qbtn,
+html[data-theme="light"] .qbtn,
+html[data-theme="light"] .ci-btn:not(.primary),
+html[data-theme="light"] .btn:not(.info) {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #25324a;
+}
+
+html[data-theme="light"] .ci-navbtn small,
+html[data-theme="light"] .navbtn small {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #4338ca;
+}
+
+html[data-theme="light"] .ci-navbtn.is-active,
+html[data-theme="light"] .navbtn.is-active {
+    background: linear-gradient(90deg, #eef4ff, #ffffff);
+    border-color: #60a5fa;
+    color: #172033;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, .2), 0 8px 24px rgba(37, 99, 235, .14);
+}
+
+html[data-theme="light"] .ci-btn.primary,
+html[data-theme="light"] .btn.info {
+    color: #ffffff;
+}
+
+html[data-theme="light"] .ci-twrap,
+html[data-theme="light"] .tbl-wrap {
+    border-color: #d8e0ec;
+    background: #ffffff;
+}
+
+html[data-theme="light"] .ci-tbl thead th,
+html[data-theme="light"] .tbl thead th {
+    background: #eef3f9;
+    border-color: #d8e0ec;
+    color: #475467;
+}
+
+html[data-theme="light"] .ci-tbl tbody td,
+html[data-theme="light"] .tbl tbody td {
+    border-color: #e5eaf1;
+}
+
+html[data-theme="light"] .tbl tbody tr:hover {
+    background: #f0f5ff;
+}
+
+html[data-theme="light"] .ci-err,
+html[data-theme="light"] .msg-err {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    color: #b42318;
+}
+
+@media (max-width: 720px) {
+    html[data-theme="light"] .btnbar {
+        background: rgba(255, 255, 255, .92);
+        border-color: #d8e0ec;
+        box-shadow: 0 14px 36px rgba(31, 42, 68, .14);
+    }
+}
+
+html[data-theme="dark"] { color-scheme: dark; }
+
+@media (max-width: 640px) {
+    .fx-theme-label { display: none; }
+    .fx-theme-switch { width: 44px; padding: 0; justify-content: center; }
+}

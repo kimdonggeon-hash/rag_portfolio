@@ -11,6 +11,21 @@ from django.http import HttpResponse, JsonResponse
 from ragapp.utils.pii_guard import detect_pii_any
 
 
+# These endpoints redact PII field-by-field before persistence. Scanning their
+# whole JSON body here also scans generated answers, timestamps and log IDs,
+# which caused false positives before the view could sanitize them.
+_SELF_SANITIZING_PATHS = {
+    "/api/feedback",
+    "/api/feedback/",
+    "/api/submit_feedback",
+    "/api/submit_feedback/",
+    "/submit_feedback",
+    "/submit_feedback/",
+    "/api/qarag/feedback",
+    "/api/qarag/feedback/",
+}
+
+
 def _get_setting(name: str, default: Any) -> Any:
     return getattr(settings, name, default)
 
@@ -21,7 +36,7 @@ def _is_html_request(request) -> bool:
     return "text/html" in accept and "application/json" not in accept
 
 
-def _qdict_to_plain(qd) -> dict[str, Any]:
+def _qdict_to_plain(qd, *, ignore_keys: tuple[str, ...] = ()) -> dict[str, Any]:
     """
     QueryDict / MultiValueDict를 detect_pii_any가 탐지 가능한
     일반 dict 구조로 변환:
@@ -29,7 +44,8 @@ def _qdict_to_plain(qd) -> dict[str, Any]:
       - value: list[str] (여러 값도 안전하게 전부 검사)
     """
     try:
-        return {k: vlist for k, vlist in qd.lists()}
+        ignored = set(ignore_keys)
+        return {k: vlist for k, vlist in qd.lists() if k not in ignored}
     except Exception:
         # 최후의 폴백
         try:
@@ -54,6 +70,9 @@ class PiiBlockMiddleware:
             return self.get_response(request)
 
         path = request.path or "/"
+
+        if path in _SELF_SANITIZING_PATHS:
+            return self.get_response(request)
 
         # ✅ 제외 경로 (헬스체크/웰노운/정적 등)
         if path in ("/healthz", "/healthz/"):
@@ -111,7 +130,7 @@ class PiiBlockMiddleware:
         # ------------------------------------------------------------
         # 1) QueryString 검사 (QueryDict → plain dict로 변환 후 검사)
         # ------------------------------------------------------------
-        r = detect_pii_any(_qdict_to_plain(request.GET))
+        r = detect_pii_any(_qdict_to_plain(request.GET, ignore_keys=("_ts",)))
         if r.hit:
             return blocked(r.kind)
 

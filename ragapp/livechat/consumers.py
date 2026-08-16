@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -39,6 +39,10 @@ except Exception:  # pragma: no cover
     LiveChatSession = None  # type: ignore
 
 _END_TYPES = {"end", "closed", "close"}
+_STANDARD_END_MESSAGE = (
+    "상담을 종료했습니다. 추가로 궁금한 점이 생기면 언제든지 "
+    "질문 챗봇이나 실시간 상담을 이용해 주세요."
+)
 
 _CLOSED_STATUS_FALLBACKS = {
     "ended",
@@ -686,7 +690,7 @@ class MasterConsumer(AsyncWebsocketConsumer):
     async def broadcast(self, event: Dict[str, Any]):
         payload = event.get("payload") or {}
         try:
-            await self.send(text_data=json.dumps(payload))
+            await self.send(text_data=json.dumps(payload, default=str))
         except Exception as e:
             log.warning("MasterConsumer send failed: %s", e)
 
@@ -717,6 +721,16 @@ class RoomConsumer(AsyncWebsocketConsumer):
         except Exception:
             pass
 
+        # A staff account may also open the public customer widget in the same
+        # browser. Only the operator console's explicit connection may accept a
+        # waiting request and move it to active.
+        query_string = (self.scope.get("query_string") or b"").decode("utf-8", "ignore")
+        is_operator_connection = "operator=1" in query_string.split("&")
+        if is_operator_connection:
+            active_payload = await self._mark_active_for_staff()
+            if active_payload:
+                await self._broadcast_master(active_payload)
+
         try:
             await self.send(text_data=json.dumps({"type": "room_connected", "room": self.room}))
         except Exception:
@@ -737,6 +751,57 @@ class RoomConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_send("livechat_master", {"type": "broadcast", "payload": payload})
         except Exception as e:
             log.warning("broadcast master failed: %s", e)
+
+    @database_sync_to_async
+    def _mark_active_for_staff(self) -> Optional[Dict[str, Any]]:
+        user = self.scope.get("user")
+        if not (
+            getattr(user, "is_authenticated", False)
+            and getattr(user, "is_staff", False)
+            and LiveChatSession is not None
+        ):
+            return None
+
+        try:
+            session = LiveChatSession.objects.filter(room=self.room).order_by("-id").first()
+            if session is None or _is_session_closed_obj(session):
+                return None
+
+            # 이미 다른 상담사가 담당 중인 active 상담은 목록을 열람만 해도
+            # 담당자가 조용히 바뀌지 않도록 가로채기(hijack)를 막는다.
+            already_owned_by_other = (
+                getattr(session, "status", None) == "active"
+                and hasattr(session, "assigned_staff_id")
+                and session.assigned_staff_id
+                and session.assigned_staff_id != user.id
+            )
+            if already_owned_by_other:
+                return None
+
+            now = timezone.now()
+            update_fields: List[str] = []
+            if getattr(session, "status", None) != "active":
+                session.status = "active"
+                update_fields.append("status")
+            if not getattr(session, "started_at", None):
+                session.started_at = now
+                update_fields.append("started_at")
+            if hasattr(session, "assigned_staff_id") and session.assigned_staff_id != user.id:
+                session.assigned_staff = user
+                update_fields.append("assigned_staff")
+            if update_fields:
+                session.save(update_fields=update_fields)
+
+            return {
+                "type": "session_started",
+                "room": session.room,
+                "session_id": session.id,
+                "status": session.status,
+                "ts": int(now.timestamp() * 1000),
+            }
+        except Exception:
+            log.warning("mark livechat active failed", exc_info=True)
+            return None
 
     @database_sync_to_async
     def _resolve_session_id_by_room(self, room: str) -> Optional[int]:
@@ -801,6 +866,12 @@ class RoomConsumer(AsyncWebsocketConsumer):
         ts = _ts_ms(_pick_first(data, "ts", default=None)) or int(timezone.now().timestamp() * 1000)
 
         sender_norm, _trimmed = _normalize_sender_role(sender_raw, max_len=16)
+
+        # 종료 주체와 관계없이 고객에게는 상담사가 보낸 표준 종료
+        # 안내로 전달하고, 기록에도 동일한 발신자/문구를 남긴다.
+        if effective_type in _END_TYPES:
+            sender_norm = "operator"
+            text = _STANDARD_END_MESSAGE
 
         # ✅ 이미 종료된 상담이면 메시지 저장/전송 자체를 차단
         if effective_type not in _END_TYPES:

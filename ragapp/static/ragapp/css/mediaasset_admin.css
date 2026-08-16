@@ -1,0 +1,117 @@
+/* Django admin theme follows data-theme, not the operating-system preference. */
+html[data-theme="light"],
+html[data-theme="auto"] {
+  --ma-bg:#f4f7fb;--ma-panel:#fff;--ma-ink:#172033;--ma-muted:#64748b;
+  --ma-line:#dbe3ef;--ma-soft:#eef3fa;--ma-accent:#315fd6;--ma-focus:rgba(49,95,214,.18);
+}
+html[data-theme="dark"] {
+  --ma-bg:#0b1020;--ma-panel:#141b2d;--ma-ink:#eef2ff;--ma-muted:#a7b2c8;
+  --ma-line:#2b3852;--ma-soft:#10182a;--ma-accent:#7c8cff;--ma-focus:rgba(124,140,255,.2);
+}
+@media (prefers-color-scheme:dark) {
+  html[data-theme="auto"] {
+    --ma-bg:#0b1020;--ma-panel:#141b2d;--ma-ink:#eef2ff;--ma-muted:#a7b2c8;
+    --ma-line:#2b3852;--ma-soft:#10182a;--ma-accent:#7c8cff;--ma-focus:rgba(124,140,255,.2);
+  }
+}
+
+.ma-hero,.ma-guide{background:var(--ma-panel)!important;border-color:var(--ma-line)!important;color:var(--ma-ink)!important;box-shadow:0 12px 34px rgba(15,23,42,.06)}
+.ma-hero{padding:22px 24px!important;border-radius:20px!important;background:linear-gradient(135deg,color-mix(in srgb,var(--ma-accent) 9%,var(--ma-panel)),var(--ma-panel) 58%)!important}
+.ma-hero h1,.ma-guide summary{color:var(--ma-ink)!important}.ma-hero h1{font-size:26px!important}.ma-hero .sub,.ma-guide .tips{color:var(--ma-muted)!important;font-size:14px;line-height:1.75}
+.ma-guide{padding:18px 20px!important;border-radius:18px!important}.ma-guide summary{font-size:16px}.ma-guide summary::after{content:"열기";margin-left:auto;padding:4px 9px;border-radius:999px;background:var(--ma-soft);color:var(--ma-muted);font-size:11px}.ma-guide[open] summary::after{content:"접기"}
+.ma-steps{display:grid;gap:9px;margin:16px 0 0;padding-left:22px}.ma-steps b{color:var(--ma-ink)}.ma-guide-note{margin-top:16px;padding:14px 16px;border:1px solid var(--ma-line);border-radius:13px;background:var(--ma-soft);color:var(--ma-muted)}.ma-examples{margin-top:14px}.ma-guide .chip{border-color:var(--ma-line)!important;background:var(--ma-soft);color:var(--ma-ink)!important}
+.ma-quick{gap:8px!important}.ma-quick a{padding:8px 13px!important;border-color:var(--ma-line)!important;background:var(--ma-panel)!important;color:var(--ma-ink)!important}.ma-quick a:hover{border-color:var(--ma-accent)!important;background:var(--ma-soft)!important}
+.ma-semantic-link{background:var(--ma-accent)!important;color:#fff!important}
+#changelist-search input[type="text"]{min-width:320px;padding:10px 12px;border:1px solid var(--ma-line);border-radius:11px;background:var(--ma-panel);color:var(--ma-ink)}#changelist-search input[type="submit"]{padding:10px 18px;border-radius:11px;background:var(--ma-accent);color:#fff}#changelist-search input:focus{outline:3px solid var(--ma-focus);border-color:var(--ma-accent)}
+#changelist .results{border-color:var(--ma-line);border-radius:14px;background:var(--ma-panel)}
+
+/* 오른쪽 필터 패널 */
+#changelist-filter {
+  overflow:hidden;
+  padding:0 0 14px;
+  border:1px solid var(--ma-line)!important;
+  border-radius:18px!important;
+  background:var(--ma-panel)!important;
+  box-shadow:0 14px 34px rgba(15,23,42,.08);
+}
+#changelist-filter h2 {
+  margin:0!important;
+  padding:15px 17px!important;
+  border:0!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--ma-accent) 15%,var(--ma-panel)),var(--ma-panel))!important;
+  color:var(--ma-ink)!important;
+  font-size:16px!important;
+  font-weight:800!important;
+  letter-spacing:-.01em;
+}
+#changelist-filter h3 {
+  margin:0!important;
+  padding:15px 17px 8px!important;
+  border-top:1px solid var(--ma-line)!important;
+  color:var(--ma-muted)!important;
+  font-size:11px!important;
+  font-weight:800!important;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+#changelist-filter details:first-of-type h3,
+#changelist-filter h2 + h3 { border-top:0!important; }
+#changelist-filter details { border:0!important; }
+#changelist-filter details > summary {
+  padding:13px 17px 8px!important;
+  color:var(--ma-muted)!important;
+  font-size:12px;
+  font-weight:800;
+}
+#changelist-filter ul {
+  display:grid;
+  gap:3px;
+  margin:0!important;
+  padding:0 10px!important;
+  list-style:none!important;
+}
+#changelist-filter li { margin:0!important; padding:0!important; }
+#changelist-filter li a {
+  display:flex;
+  align-items:center;
+  min-height:34px;
+  padding:7px 10px!important;
+  border:1px solid transparent;
+  border-radius:10px;
+  color:var(--ma-muted)!important;
+  line-height:1.35;
+  text-decoration:none!important;
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease;
+}
+#changelist-filter li a:hover {
+  border-color:var(--ma-line);
+  background:var(--ma-soft)!important;
+  color:var(--ma-ink)!important;
+}
+#changelist-filter li.selected a {
+  border-color:color-mix(in srgb,var(--ma-accent) 35%,var(--ma-line));
+  background:color-mix(in srgb,var(--ma-accent) 12%,var(--ma-panel))!important;
+  color:var(--ma-accent)!important;
+  font-weight:800;
+}
+#changelist-filter li.selected a::before {
+  content:"✓";
+  display:inline-grid;
+  place-items:center;
+  width:18px;
+  height:18px;
+  margin-right:7px;
+  border-radius:6px;
+  background:var(--ma-accent);
+  color:#fff;
+  font-size:11px;
+}
+#changelist-filter-extra-actions {
+  margin:10px 12px 0!important;
+  padding-top:10px;
+  border-top:1px solid var(--ma-line);
+}
+#changelist-filter-extra-actions a { color:var(--ma-accent)!important; }
+#changelist-filter .viewlink { color:var(--ma-accent)!important; }
+.ma-search-form{display:grid;gap:14px;margin:18px 0;padding:20px;border:1px solid var(--ma-line);border-radius:18px;background:var(--ma-panel)}.ma-search-form .form-row{display:grid;grid-template-columns:110px minmax(0,560px);gap:12px;align-items:center}.ma-search-form label{color:var(--ma-ink);font-weight:700}.ma-search-form input{padding:11px 12px;border:1px solid var(--ma-line);border-radius:11px;background:var(--ma-soft);color:var(--ma-ink)}.ma-search-form .submit-row{display:flex;align-items:center;gap:14px;padding:4px 0 0;background:transparent}.ma-search-form .submit-row a{color:var(--ma-accent)}
+@media(max-width:767px){.ma-hero{padding:18px!important}.ma-hero h1{font-size:22px!important}#changelist-search input[type="text"]{min-width:0;width:calc(100% - 80px)}}

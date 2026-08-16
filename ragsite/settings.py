@@ -277,6 +277,12 @@ CONTENT_GUARD_ALLOW_PREFIXES = (
     "/legal/",
     "/favicon.ico",
     "/healthz",
+    # 관리자 화면에는 날짜, 내부 ID, 검색 필터처럼 숫자로 된 제어값이
+    # 자동으로 포함된다. 이를 사용자 입력 PII로 검사하면 새로고침만 해도
+    # 오탐 차단 페이지가 표시되므로 전역 가드에서는 제외한다.
+    # 공개 입력 API와 상담/검색 기능의 개별 PII 검사는 계속 적용된다.
+    "/admin/",
+    "/ragadmin/",
 )
 
 # ✅ (NEW) 강력 경고 문구(원하면 여기만 바꾸면 됨)
@@ -435,6 +441,7 @@ _db_name = (_env_first(["DB_NAME", "DATABASE_NAME", "PGDATABASE"], default="") o
 _db_user = (_env_first(["DB_USER", "DATABASE_USER", "PGUSER"], default="") or "").strip()
 _db_pass = (_env_first(["DB_PASSWORD", "DATABASE_PASSWORD", "PGPASSWORD"], default="") or "").strip()
 _db_port = (_env_first(["DB_PORT", "PGPORT"], default="") or "").strip()
+_sqlite_db_path = (_env_first(["SQLITE_DB_PATH"], default="") or "").strip()
 
 DB_CONN_MAX_AGE = _env_int(["DB_CONN_MAX_AGE", "CONN_MAX_AGE"], default=30)             # 초 (0도 가능)
 DB_CONNECT_TIMEOUT = _env_int(["DB_CONNECT_TIMEOUT"], default=5)         # 초
@@ -474,7 +481,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": Path(_sqlite_db_path) if _sqlite_db_path else BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -1062,6 +1069,7 @@ LIVECHAT_MAX_ACTIVE_SESSIONS = _env_int(["LIVECHAT_MAX_ACTIVE_SESSIONS"], defaul
 
 # 오래된 waiting 상담 자동 종료 기준
 LIVECHAT_WAITING_EXPIRE_MINUTES = _env_int(["LIVECHAT_WAITING_EXPIRE_MINUTES"], default=30)
+LIVECHAT_ACTIVE_EXPIRE_MINUTES = _env_int(["LIVECHAT_ACTIVE_EXPIRE_MINUTES"], default=120)
 
 # 고객 메시지 도배 방지
 LIVECHAT_USER_MSG_LIMIT_PER_MIN = _env_int(["LIVECHAT_USER_MSG_LIMIT_PER_MIN"], default=20)

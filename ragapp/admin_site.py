@@ -48,6 +48,26 @@ class RagAdminSite(AdminSite):
         context["title"] = self.index_title
         context["app_list"] = self.get_app_list(request)
 
+        # Dashboard badges should show real zeroes on a fresh installation,
+        # rather than looking like unfinished placeholders.
+        try:
+            from ragapp.machine.media_helpers import _list_pending_ids
+
+            context["media_pending_count"] = len(_list_pending_ids(limit=500))
+        except Exception:
+            context["media_pending_count"] = 0
+
+        try:
+            from ragapp.moderation_models import UserPenalty
+
+            penalty_qs = UserPenalty.objects.all()
+            field_names = {f.name for f in UserPenalty._meta.get_fields()}
+            if "is_active" in field_names:
+                penalty_qs = penalty_qs.filter(is_active=True)
+            context["media_penalty_count"] = penalty_qs.count()
+        except Exception:
+            context["media_penalty_count"] = 0
+
         request.current_app = self.name
         return render(request, self.index_template, context)
 

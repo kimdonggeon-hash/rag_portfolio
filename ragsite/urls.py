@@ -6,13 +6,17 @@ from pathlib import Path
 from django.conf import settings
 from django.conf.urls.static import static as djstatic
 from django.contrib import admin
-from django.contrib.staticfiles import finders
-from django.http import HttpResponse, JsonResponse, FileResponse
 from django.urls import include, path
 from django.views.generic.base import RedirectView
-from django.views.decorators.http import require_GET
 
-from ragapp.media_views import uploads_proxy, uploads_probe, pending_raw_proxy
+from ragsite.url_helpers import (
+    chrome_devtools_manifest,
+    favicon,
+    hello,
+    missing_view,
+)
+
+from ragapp.media_views import uploads_proxy, uploads_probe, pending_raw_proxy, rejected_raw_proxy
 
 from ragapp.news_views.usage_views import daily_usage_dashboard, api_usage_status
 from ragapp import admin_views, views_feedback
@@ -42,6 +46,7 @@ from ragapp.feature_views import (
     media_index_view,
     media_search_view,
     media_pending_admin_view,
+    media_rejected_admin_view,
     media_upload_admin_view,
     media_penalties_admin_view,
     api_media_upsert_tags_caption,
@@ -49,6 +54,7 @@ from ragapp.feature_views import (
     api_media_pending_list,
     api_media_pending_approve,
     api_media_pending_reject,
+    api_media_rejected_delete,
     api_user_penalty_list,
     api_user_penalty_lift,
 
@@ -66,7 +72,6 @@ from ragapp.news_views.api_views import (
     api_chroma_verify,
     api_config,
     api_diag,
-    api_feedback,
     api_legal_bundle,
     api_media_upsert,
     api_ping,
@@ -76,7 +81,6 @@ from ragapp.news_views.api_views import (
     api_rag_upsert,
     api_vector_diag,
     api_vector_verify,
-    api_ingest_news as api_ingest_news_pipeline,
 )
 
 from ragapp.views_admin_obs_badge import (
@@ -88,60 +92,14 @@ from ragapp.views_admin_obs_badge import (
 )
 
 from ragapp.legal_views import consent_record, healthz, privacy_page, robots_txt
-
-try:
-    from ragapp.news_views.legal_views import (
-        legal_bundle,
-        legal_guide,
-        legal_overseas,
-        legal_privacy,
-        legal_tester,
-        legal_tos,
-    )
-except Exception:  # pragma: no cover
-    def _legal_stub(_req, what="문서"):
-        return HttpResponse(f"{what} 페이지가 준비되지 않았습니다.", status=200)
-
-    def legal_bundle(_req):
-        return HttpResponse("{}", content_type="application/json")
-
-    def legal_privacy(req):  return _legal_stub(req, "개인정보처리방침")
-    def legal_tos(req):      return _legal_stub(req, "이용약관")
-    def legal_overseas(req): return _legal_stub(req, "국외이전 고지")
-    def legal_tester(req):   return _legal_stub(req, "테스터 안내")
-    def legal_guide(req):    return _legal_stub(req, "이용 가이드")
-
-
-def _missing_view(name: str):
-    def _view(_request, *args, **kwargs):
-        return JsonResponse(
-            {"ok": False, "error": f"{name} view not available"},
-            status=501,
-            json_dumps_params={"ensure_ascii": False},
-        )
-    return _view
-
-
-try:
-    from ragapp.news_views.news_views import submit_feedback  # POST (레거시)
-except Exception:  # pragma: no cover
-    submit_feedback = None
-
-
-def hello(_request):
-    return HttpResponse("urls.py 연결 OK")
-
-
-def chrome_devtools_manifest(_request):
-    return JsonResponse({}, status=200)
-
-
-@require_GET
-def favicon(_request):
-    p = finders.find("ragapp/favicon.ico")
-    if not p:
-        return HttpResponse(status=204)
-    return FileResponse(open(p, "rb"), content_type="image/x-icon")
+from ragsite.legal_url_views import (
+    legal_bundle,
+    legal_guide,
+    legal_overseas,
+    legal_privacy,
+    legal_tester,
+    legal_tos,
+)
 
 
 urlpatterns = [
@@ -204,6 +162,10 @@ urlpatterns = [
     path("ragadmin/media/pending/raw/<str:item_id>", pending_raw_proxy, name="ragadmin_media_pending_raw"),
     path("ragadmin/media/pending/raw/<str:item_id>/", pending_raw_proxy),
 
+    path("ragadmin/media/rejected/", media_rejected_admin_view, name="ragadmin_media_rejected"),
+    path("ragadmin/media/rejected/raw/<str:item_id>", rejected_raw_proxy, name="ragadmin_media_rejected_raw"),
+    path("ragadmin/media/rejected/raw/<str:item_id>/", rejected_raw_proxy),
+
     # pending 목록
     path("api/media/pending", api_media_pending_list, name="api_media_pending_list"),
     path("api/media/pending/", api_media_pending_list),
@@ -215,6 +177,9 @@ urlpatterns = [
     path("api/media/pending/reject", api_media_pending_reject, name="api_media_pending_reject"),
     path("api/media/pending/reject/", api_media_pending_reject),
 
+    path("api/media/rejected/delete", api_media_rejected_delete, name="api_media_rejected_delete"),
+    path("api/media/rejected/delete/", api_media_rejected_delete),
+
     # ✅ (추가) 선처(정지/제재 해제) 화면 + API
     path("ragadmin/media/penalties/", media_penalties_admin_view, name="ragadmin_media_penalties"),
     path("api/moderation/penalty/lift", api_user_penalty_lift, name="api_user_penalty_lift"),
@@ -223,8 +188,8 @@ urlpatterns = [
     path("api/moderation/penalty/list", api_user_penalty_list, name="api_user_penalty_list"),
     path("api/moderation/penalty/list/", api_user_penalty_list),
 
-    path("api/web_qa", web_qa_view or _missing_view("web_qa_view"), name="api_web_qa"),
-    path("api/web_qa/", web_qa_view or _missing_view("web_qa_view")),
+    path("api/web_qa", web_qa_view or missing_view("web_qa_view"), name="api_web_qa"),
+    path("api/web_qa/", web_qa_view or missing_view("web_qa_view")),
 
     path("api/rag_qa", rag_qa_view, name="api_rag_qa"),
     path("api/rag_qa/", rag_qa_view),

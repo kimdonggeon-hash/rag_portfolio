@@ -310,6 +310,12 @@ def _embed_texts(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []
 
+    if str(os.getenv("LOCAL_EMBEDDINGS", "0")).strip().lower() in {
+        "1", "true", "yes", "y", "on",
+    }:
+        from ragapp.services.vertex_embed import embed_texts_local
+        return embed_texts_local(texts)
+
     batch: List[str] = []
     for t in texts:
         s = ("" if t is None else str(t)).strip()

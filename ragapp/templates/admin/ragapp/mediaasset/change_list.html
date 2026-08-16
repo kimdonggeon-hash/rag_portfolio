@@ -52,23 +52,38 @@
   }
   .ma-quick a:hover{background:rgba(99,102,241,.12); border-color:rgba(99,102,241,.35)}
 </style>
+<link rel="stylesheet" href="{% static 'ragapp/css/mediaasset_admin.css' %}?v={{ STATIC_VERSION|default:'dev' }}">
+{% endblock %}
+
+{% block object-tools-items %}
+  <li><a class="ma-semantic-link" href="search/">AI 유사 이미지 검색</a></li>
+  {{ block.super }}
 {% endblock %}
 
 {% block content %}
   <!-- 상단 히어로 -->
   <div class="ma-hero">
     <h1>미디어 자산 검색</h1>
-    <div class="sub">제목·태그·URL로 빠르게 찾고, 좌측 필터로 종류/확장자/날짜를 좁혀보세요.</div>
+    <div class="sub">관리자가 등록한 이미지·PDF·문서 파일을 한곳에서 보관하고 이름과 설명으로 다시 찾는 파일 자료실입니다.</div>
   </div>
 
   <!-- 설명서(토글) -->
   <details class="ma-guide">
-    <summary>📘 사용 가이드 펼치기</summary>
+    <summary>📘 미디어 자산 사용 설명서</summary>
     <div class="tips">
-      <ul style="margin:8px 0 0 18px; padding:0">
-        <li><b>검색창</b>(우측 상단)을 이용하면 <code>search_fields</code> 에 지정된 필드에서 부분 일치를 찾습니다.</li>
-        <li><b>필터 사이드바</b>에서 <b>종류/확장자/등록일</b>을 조합해 범위를 좁힙니다.</li>
-        <li>자주 쓰는 예시:
+      <ol class="ma-steps">
+        <li><b>MEDIA ASSET 추가</b>를 눌러 파일을 선택하고, 나중에 찾기 쉬운 설명을 <b>caption</b>에 입력합니다.</li>
+        <li><b>검색창</b>에서는 파일명과 caption의 일부만 입력해도 찾을 수 있습니다. 예: <code>제품 로고</code>, <code>.pdf</code></li>
+        <li>오른쪽 필터에서 <b>MIME 형식·등록일·AI 검색 등록 여부</b>를 조합해 결과를 좁힙니다.</li>
+        <li><b>AI 유사 이미지 검색</b>은 이미지 검수·승인 과정에서 벡터DB에 등록된 이미지 중 의미가 비슷한 자료를 찾습니다.</li>
+        <li>파일을 추가하면 MIME 형식, 용량, SHA-256 해시는 자동으로 기록됩니다.</li>
+      </ol>
+      <div class="ma-guide-note">
+        <b>일반 검색과 AI 검색의 차이</b><br>
+        일반 검색은 파일명·설명에 실제로 포함된 글자를 찾고, AI 검색은 “노을 바다 풍경”처럼 의미가 비슷한 이미지를 찾습니다.
+        목록이 <b>0건</b>이면 오류가 아니라 아직 이 자료실에 직접 등록한 파일이 없다는 뜻입니다.
+      </div>
+      <div class="ma-examples"><b>검색 예시</b>
           <div style="margin-top:6px">
             <span class="chip">제품 로고</span>
             <span class="chip">meeting</span>
@@ -76,9 +91,7 @@
             <span class="chip">.pdf</span>
             <span class="chip">.png</span>
           </div>
-        </li>
-        <li>목록에서 체크 후 상단의 <b>Actions</b>로 일괄 처리(재임베딩/재인덱싱 등 확장 액션 구성 시)도 가능합니다.</li>
-      </ul>
+      </div>
     </div>
   </details>
 

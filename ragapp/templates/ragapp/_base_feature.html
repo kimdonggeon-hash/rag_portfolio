@@ -8,6 +8,7 @@
 <title>{% block title %}RAG 도구 모음{% endblock %}</title>
 
 <link rel="stylesheet" href="{% static 'ragapp/css/feature.css' %}?v={{ STATIC_VERSION }}" />
+<link rel="stylesheet" href="{% static 'ragapp/css/feature_theme.css' %}?v={{ STATIC_VERSION }}-table-theme-2" />
 
 {# ✅ Guide cards modal CSS #}
 <link rel="stylesheet" href="{% static 'ragapp/css/signal_guide_cards_modal.css' %}?v={{ STATIC_VERSION }}" />
@@ -392,6 +393,10 @@
     {% endif %}
 
     <div class="fx-header-actions">
+      <button type="button" id="boardThemeSwitch" class="fx-theme-switch" aria-label="다크 모드로 전환" aria-pressed="false">
+        <span class="bts-ico" aria-hidden="true">☀️</span>
+        <span class="fx-theme-label">테마</span>
+      </button>
       <button
         type="button"
         class="fx-guide-btn primary"
@@ -435,6 +440,7 @@
 </footer>
 
 <script defer src="{% static 'ragapp/javascript/usage_widget.js' %}?v={{ STATIC_VERSION }}"></script>
+<script defer src="{% static 'ragapp/javascript/board_theme_switch.js' %}?v={{ STATIC_VERSION }}"></script>
 
 {% include "ragapp/partials/signal_guide_cards_modal.html" %}
 <script defer src="{% static 'ragapp/javascript/signal_guide_cards_modal.js' %}?v={{ STATIC_VERSION }}"></script>

@@ -518,6 +518,10 @@ class RequestGuardMiddleware:
         return any(path.startswith(p) for p in self.admin_prefixes)
 
     def _is_admin_anon_allowed(self, path: str) -> bool:
+        # Let Django's admin index redirect anonymous visitors to its login
+        # page. Other admin routes remain hidden unless explicitly allowed.
+        if path.rstrip("/") in {"/admin", "/ragadmin"}:
+            return True
         return any(path.startswith(p) for p in self.admin_anon_allow)
 
     def _is_mobile_ua(self, request: HttpRequest) -> bool:

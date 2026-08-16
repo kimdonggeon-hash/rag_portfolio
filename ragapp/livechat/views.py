@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import timedelta
 from typing import Any, Dict, Optional, Tuple, Set, List
 
@@ -287,8 +288,14 @@ def _visible_console_statuses() -> List[str]:
             "대기",
             "active",
             "진행",
+            "ended_need_save",
+            "need_note",
+            "saved",
+            "done",
             _status_value("WAITING", "waiting"),
             _status_value("ACTIVE", "active"),
+            _status_value("ENDED_NEED_SAVE", "ended_need_save"),
+            _status_value("SAVED", "saved"),
         }
     )
 
@@ -385,6 +392,54 @@ def _expire_stale_waiting_sessions(minutes: int = 5) -> None:
         log.warning("expire stale waiting sessions failed", exc_info=True)
 
 
+def _expire_stale_active_sessions(minutes: int = 120) -> None:
+    """Close abandoned active sessions so they cannot reappear as new work."""
+    fields = _model_fields(LiveChatSession)
+    if "status" not in fields:
+        return
+
+    now = timezone.now()
+    cutoff = now - timedelta(minutes=max(1, minutes))
+    qs = LiveChatSession.objects.filter(status__in=_active_statuses())
+
+    if "ended_at" in fields:
+        qs = qs.filter(ended_at__isnull=True)
+
+    if "started_at" in fields and "created_at" in fields:
+        qs = qs.filter(
+            Q(started_at__lt=cutoff)
+            | (Q(started_at__isnull=True) & Q(created_at__lt=cutoff))
+        )
+    elif "started_at" in fields:
+        qs = qs.filter(started_at__lt=cutoff)
+    elif "created_at" in fields:
+        qs = qs.filter(created_at__lt=cutoff)
+    else:
+        return
+
+    # 수동 종료(api_livechat_end)와 동일하게 "저장 필요" 단계를 거치게 해서
+    # 방치된 상담도 상담사가 검토/기록할 기회 없이 콘솔에서 사라지지 않게 한다.
+    update_kwargs: Dict[str, Any] = {"status": _status_value("ENDED_NEED_SAVE", "ended_need_save")}
+    if "ended_at" in fields:
+        update_kwargs["ended_at"] = now
+    if "updated_at" in fields:
+        update_kwargs["updated_at"] = now
+
+    try:
+        qs.update(**update_kwargs)
+    except Exception:
+        log.warning("expire stale active sessions failed", exc_info=True)
+
+
+def _expire_stale_console_sessions() -> None:
+    _expire_stale_waiting_sessions(
+        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 30)
+    )
+    _expire_stale_active_sessions(
+        minutes=_int_setting("LIVECHAT_ACTIVE_EXPIRE_MINUTES", 120)
+    )
+
+
 def _console_sessions_queryset():
     """
     상담자 콘솔 왼쪽 목록용 queryset.
@@ -401,7 +456,15 @@ def _console_sessions_queryset():
         qs = qs.exclude(room__isnull=True).exclude(room__exact="")
 
     if "ended_at" in fields:
-        qs = qs.filter(ended_at__isnull=True)
+        qs = qs.filter(
+            Q(ended_at__isnull=True)
+            | Q(status__in=["ended_need_save", "need_note", "saved", "done"])
+        )
+
+    # WebSocket/store fallback rows are not customer requests. The request API
+    # always records requested_at, so only those rows belong in the queue.
+    if "requested_at" in fields:
+        qs = qs.filter(requested_at__isnull=False)
 
     if "created_at" in fields:
         qs = qs.order_by("-created_at")
@@ -426,9 +489,7 @@ def live_chat_view(request: HttpRequest) -> HttpResponse:
     initial_room = request.GET.get("room") or "master"
 
     # 오래된 waiting 세션 먼저 정리
-    _expire_stale_waiting_sessions(
-        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 5)
-    )
+    _expire_stale_console_sessions()
 
     # 전체 세션이 아니라 상담 콘솔에 보여줄 세션만 조회
     qs = _console_sessions_queryset()
@@ -556,9 +617,7 @@ def api_livechat_next(request: HttpRequest) -> JsonResponse:
     """
 
     # 오래된 waiting 세션 먼저 정리
-    _expire_stale_waiting_sessions(
-        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 5)
-    )
+    _expire_stale_console_sessions()
 
     # 1) ENDED_NEED_SAVE가 남아있으면 막기(가능하면)
     try:
@@ -648,9 +707,7 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
     fields = _model_fields(LiveChatSession)
 
     # ✅ 오래된 waiting 세션 정리 후, 대기열 제한 확인
-    _expire_stale_waiting_sessions(
-        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 30)
-    )
+    _expire_stale_console_sessions()
 
     max_waiting = _int_setting("LIVECHAT_MAX_WAITING_SESSIONS", 3)
     waiting_count = _open_session_count(_waiting_statuses())
@@ -667,11 +724,17 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
 
     room = (data.get("room") or "").strip()
     if not room:
-        room = timezone.now().strftime("r%y%m%d%H%M%S%f")[-14:]
+        # Keep the token non-numeric. Numeric-only room IDs can be mistaken for
+        # phone/account numbers by the PII guard when used in URLs or queries.
+        token = uuid.uuid4().hex.translate(str.maketrans("0123456789", "abcdefghij"))
+        room = "r_" + token[:20]
 
+    now = timezone.now()
     s = LiveChatSession(room=room)
     if "status" in fields:
         s.status = data.get("status") or "waiting"
+    if "requested_at" in fields:
+        s.requested_at = now
 
     page = data.get("page") or {}
     if isinstance(page, dict):
@@ -703,8 +766,8 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
 
     # ✅ (선택) 초기 system 메시지 2개: DB 컬럼 불일치에도 안전하게 저장
     try:
-        now_ts = int(timezone.now().timestamp() * 1000)
-        save_ws_message(room=s.room, session_id=s.id, sender_norm="system", effective_type="system", body="욕설 폭언 모욕적인 언행 발견시 즉시 상담 종료하고 보고 바랍니다.", ts=now_ts)
+        now_ts = int(now.timestamp() * 1000)
+        save_ws_message(room=s.room, session_id=s.id, sender_norm="system", effective_type="system", body="욕설 폭언 모욕적인 언행 발견시 즉시 상담 종료되니 주의해주세요.", ts=now_ts)
         save_ws_message(room=s.room, session_id=s.id, sender_norm="system", effective_type="system", body="오늘 하루도 좋은 하루 보내시길 바랍니다.", ts=now_ts + 1)
     except Exception:
         # 시스템 메시지 실패는 절대 전체 플로우를 막지 않음
@@ -717,7 +780,7 @@ def api_livechat_request(request: HttpRequest) -> JsonResponse:
     except Exception:
         redirect_url = f"/c/{s.room}/"
 
-    now_ts = int(timezone.now().timestamp() * 1000)
+    now_ts = int(now.timestamp() * 1000)
     _send_master(
         {
             "type": "session_created",
@@ -976,7 +1039,7 @@ def api_livechat_end(request: HttpRequest) -> JsonResponse:
 
     sid = _to_int(payload.get("session_id"))
     room = (payload.get("room") or "").strip()
-    end_text = (payload.get("text") or "").strip() or END_MESSAGE
+    end_text = END_MESSAGE
 
     obj, fields = _get_session_by_sid_or_room(sid, room)
     if obj is None:
@@ -1070,7 +1133,7 @@ def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
     except Exception:
         payload = {}
 
-    end_text = (payload.get("text") or "").strip() or END_MESSAGE
+    end_text = END_MESSAGE
 
     obj, fields = _get_session_by_sid_or_room(None, (room or "").strip())
     if obj is None:
@@ -1120,7 +1183,8 @@ def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
                 "event": "session_closed",
                 "closed": True,
                 "can_send": False,
-                "sender": "client",
+                "sender": "operator",
+                "role": "operator",
                 "text": end_text,
                 "ts": ts,
                 "room": room_name,
@@ -1135,7 +1199,7 @@ def api_livechat_client_end(request: HttpRequest, room: str) -> JsonResponse:
         save_ws_message(
             room=room_name,
             session_id=getattr(obj, "id", None),
-            sender_norm="user",
+            sender_norm="operator",
             effective_type="end",
             body=end_text,
             ts=ts,
@@ -1163,9 +1227,7 @@ def api_livechat_recent_sessions(request: HttpRequest) -> HttpResponse:
     /api/livechat/recent-sessions/
     """
     # 오래된 waiting 세션 먼저 정리
-    _expire_stale_waiting_sessions(
-        minutes=_int_setting("LIVECHAT_WAITING_EXPIRE_MINUTES", 5)
-    )
+    _expire_stale_console_sessions()
 
     # 전체 세션이 아니라 상담 콘솔에 보여줄 세션만 조회
     qs = _console_sessions_queryset()

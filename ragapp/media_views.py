@@ -22,6 +22,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 
 from ragapp.machine.media_helpers import (
     PENDING_UPLOAD_META_PREFIX,
+    REJECTED_UPLOAD_META_PREFIX,
     _read_json_from_storage,
 )
 
@@ -426,3 +427,31 @@ def pending_raw_proxy(request, item_id: str):
 
     ctype = getattr(item, "mime", None) or mimetypes.guess_type(object_name)[0] or "image/jpeg"
     return _serve_object(object_name, ctype)
+
+
+@require_http_methods(["GET", "HEAD"])
+@staff_member_required
+def rejected_raw_proxy(request, item_id: str):
+    """관리자가 거절 보관함의 이미지를 안전하게 미리 보는 전용 엔드포인트."""
+    meta_key = f"{REJECTED_UPLOAD_META_PREFIX}/{item_id}.json"
+    meta = _read_json_from_storage(meta_key) or {}
+    object_name = _norm_key(str(meta.get("rejected_storage_key") or meta.get("storage_key") or ""))
+    if not object_name or not object_name.startswith(("rejected/", "pending/")):
+        raise Http404("rejected media not found")
+
+    content_type = str(meta.get("mime") or "").strip() or mimetypes.guess_type(object_name)[0] or "image/jpeg"
+    if request.method == "HEAD":
+        response = HttpResponse(content_type=content_type)
+        response["Cache-Control"] = "private, max-age=60"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    try:
+        file_obj = default_storage.open(object_name, "rb")
+    except Exception as exc:
+        raise Http404("not found") from exc
+
+    response = FileResponse(file_obj, content_type=content_type)
+    response["Cache-Control"] = "private, max-age=60"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

@@ -1,0 +1,60 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>거절 이미지 보관함</title>
+  <link rel="stylesheet" href="{% static 'ragapp/css/ragadmin_media_rejected.css' %}?v={{ STATIC_VERSION }}">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">IMAGE MODERATION</p>
+      <h1>거절 이미지 보관함 <span id="itemCount">{{ count }}</span></h1>
+      <p>거절된 원본을 별도로 확인합니다. 완전 삭제 전까지 검색 결과에는 노출되지 않습니다.</p>
+    </div>
+    <nav aria-label="이미지 관리 메뉴">
+      <a href="{{ pending_url }}">검수 대기</a>
+      <a href="{{ admin_upload_url }}">관리자 업로드</a>
+    </nav>
+  </header>
+
+  <main id="rejectedArchive" data-delete-url="{{ delete_url }}">
+    <form class="limit" method="get">
+      <label for="limit">표시 개수</label>
+      <input id="limit" name="limit" type="number" min="1" max="200" value="{{ limit }}">
+      <button type="submit">적용</button>
+    </form>
+
+    <div id="toast" class="toast" hidden></div>
+    <section id="cardGrid" class="grid">
+      {% for item in items %}
+      <article class="card" data-rejected-id="{{ item.rejected_id }}">
+        <div class="preview">
+          {% if item.file_exists %}
+            <img src="{{ item.preview_url }}" alt="{{ item.orig_name|default:'거절 이미지' }}" loading="lazy">
+          {% else %}
+            <div class="missing">원본 파일 없음<br><small>이전 삭제 기록일 수 있습니다.</small></div>
+          {% endif %}
+        </div>
+        <div class="content">
+          <div class="status">거절 보관</div>
+          <h2>{{ item.orig_name|default:item.rejected_id }}</h2>
+          <dl>
+            <div><dt>거절 일시</dt><dd>{{ item.rejected_at|default:'-' }}</dd></div>
+            <div><dt>요청자</dt><dd>{{ item.actor_key|default:'-' }}</dd></div>
+            <div><dt>사유</dt><dd>{{ item.reject_reason }}</dd></div>
+            <div><dt>보관 경로</dt><dd class="mono">{{ item.storage_key|default:'-' }}</dd></div>
+          </dl>
+          <button class="delete" type="button">파일과 기록 완전 삭제</button>
+        </div>
+      </article>
+      {% empty %}
+      <div class="empty">보관 중인 거절 이미지가 없습니다.</div>
+      {% endfor %}
+    </section>
+  </main>
+  <script src="{% static 'ragapp/javascript/ragadmin_media_rejected.js' %}?v={{ STATIC_VERSION }}"></script>
+</body>
+</html>

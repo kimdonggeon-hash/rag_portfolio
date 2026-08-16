@@ -92,6 +92,7 @@ def _enforce_quota_or_429(
 # ────────────────────────────────────────────────
 PENDING_UPLOAD_META_PREFIX = "meta/pending_uploads"
 APPROVED_UPLOAD_META_PREFIX = "meta/approved_uploads"
+REJECTED_UPLOAD_META_PREFIX = "meta/rejected_uploads"
 PUBLIC_IMAGE_ALLOWLIST_KEY = "meta/public_image_allowlist.json"
 DELETED_IMAGE_IDS_KEY = "meta/deleted_image_ids.json"
 
@@ -156,8 +157,8 @@ def _approve_public_storage_key(storage_key: str) -> None:
     _save_public_allowlist(keys)
 
 
-def _list_pending_ids(limit: int = 200) -> list[str]:
-    prefix = PENDING_UPLOAD_META_PREFIX.rstrip("/") + "/"   # ✅ 디렉터리 prefix로 고정
+def _list_meta_ids(prefix: str, limit: int = 200) -> list[str]:
+    prefix = prefix.rstrip("/") + "/"
     try:
         _, files = default_storage.listdir(prefix)
 
@@ -175,10 +176,22 @@ def _list_pending_ids(limit: int = 200) -> list[str]:
         out.sort(reverse=True)
         return out
 
+    except FileNotFoundError:
+        # An empty queue is the normal state on a fresh local installation.
+        # FileSystemStorage does not create list-only directories in advance.
+        return []
     except Exception as e:
         # ✅ 여기 로그가 Cloud Run 로그에 찍히면 99% 원인 바로 나옴
-        log.exception("list_pending_ids failed (prefix=%s): %s", prefix, e)
+        log.exception("list_meta_ids failed (prefix=%s): %s", prefix, e)
         return []
+
+
+def _list_pending_ids(limit: int = 200) -> list[str]:
+    return _list_meta_ids(PENDING_UPLOAD_META_PREFIX, limit=limit)
+
+
+def _list_rejected_ids(limit: int = 200) -> list[str]:
+    return _list_meta_ids(REJECTED_UPLOAD_META_PREFIX, limit=limit)
 
 
 def _promote_pending_object(*, src_key: str, dest_prefix: str) -> tuple[str, bytes]:

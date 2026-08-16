@@ -4,10 +4,14 @@
 {% block content %}
 
 <link rel="stylesheet" href="{% static 'ragapp/css/media_upload.css' %}?v={{ STATIC_VERSION }}">
+<link rel="stylesheet" href="{% static 'ragapp/css/product_redesign.css' %}?v={{ STATIC_VERSION }}">
+<link rel="stylesheet" href="{% static 'ragapp/css/feature_theme.css' %}?v={{ STATIC_VERSION }}">
 
 <div class="mi-wrap">
   <section class="mi-card">
+    <p class="product-eyebrow">IMAGE LIBRARY</p>
     <h1 class="mi-title">이미지 업로드</h1>
+    <p class="product-subtitle">이미지를 안전하게 보관하고 검색에 사용할 설명과 태그를 추가하세요.</p>
 
     {% if request.GET.ok == "1" %}
       <div class="fx-alert ok">✅ 업로드가 접수되었습니다. 운영자 검수 후 승인됩니다.</div>

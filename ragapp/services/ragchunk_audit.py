@@ -87,6 +87,20 @@ def build_ragchunk_kwargs(
         base = f"{source}|{url}|{chunk_index}|{_sha1(text)}"
         data[k_hash] = _sha1(base)
 
+    # The current RagChunk schema requires these fields even for audit-only
+    # mirrors. The searchable embedding remains in the vector store; an empty
+    # audit embedding makes the row valid without duplicating vector data.
+    if "unique_hash" in fields:
+        data["unique_hash"] = _sha1(
+            f"{source}|{url}|{title}|{chunk_index}|{_sha1(text)}"
+        )
+    if "doc_id" in fields:
+        data["doc_id"] = str((meta or {}).get("doc_id") or _sha1(f"{source}|{url}|{title}"))[:191]
+    if "embedding" in fields:
+        data["embedding"] = b""
+    if "dim" in fields:
+        data["dim"] = 0
+
     # created_at 류
     k_created = _pick_first(fields, ("created_at", "created", "created_on"))
     if k_created:

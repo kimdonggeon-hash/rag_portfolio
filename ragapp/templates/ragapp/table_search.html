@@ -351,7 +351,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         <h3 style="margin:0">검색 결과</h3>
         <div class="count">
-          총 {{ total|default:rows|length }}개 · {{ page|default:1 }}/{{ page_count|default:1 }}페이지
+          총 {{ total|default:0 }}개 · {{ page|default:1 }}/{{ page_count|default:1 }}페이지
         </div>
       </div>
 

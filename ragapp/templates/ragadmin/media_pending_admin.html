@@ -34,6 +34,7 @@
         </div>
 
         <button class="dg-btn ghost" id="dgReloadBtn" type="button">새로고침</button>
+        <a class="dg-btn ghost" href="{{ rejected_url }}">거절 보관함</a>
         <a class="dg-btn ghost" href="{{ penalties_url }}">정지/선처</a>
         <a class="dg-btn primary" href="{{ admin_upload_url }}">어드민 업로드</a>
       </div>
@@ -252,10 +253,7 @@
                         <option value="permanent">영구</option>
                       </select>
 
-                      <label class="dg-check">
-                        <input type="checkbox" name="delete_blob" checked>
-                        <span>파일 삭제</span>
-                      </label>
+                      <span class="dg-muted">거절 파일은 보관함으로 이동됩니다.</span>
                     </div>
                   </div>
 

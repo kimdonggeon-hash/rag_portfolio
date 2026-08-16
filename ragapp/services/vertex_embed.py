@@ -3,9 +3,42 @@ from __future__ import annotations
 
 import os
 import logging
+import hashlib
+import re
+from math import sqrt
 from typing import Any, Dict, List, Optional
 
 log = logging.getLogger(__name__)
+
+
+def local_embeddings_enabled() -> bool:
+    return str(os.getenv("LOCAL_EMBEDDINGS", "0")).strip().lower() in {
+        "1", "true", "yes", "y", "on",
+    }
+
+
+def embed_texts_local(texts: List[str], dim: int = 384) -> List[List[float]]:
+    """Deterministic hashing embeddings for offline/local development.
+
+    This is intentionally shared by ingestion and retrieval so newly uploaded or
+    crawled content is searchable without a Vertex network call.
+    """
+    vectors: List[List[float]] = []
+    for raw in texts:
+        vec = [0.0] * dim
+        normalized = re.sub(r"\s+", " ", str(raw or "").lower()).strip()
+        tokens = re.findall(r"[0-9a-zA-Z가-힣]+", normalized)
+        # Include Korean/Latin character trigrams so partial terms still match.
+        compact = "".join(tokens)
+        features = tokens + [compact[i:i + 3] for i in range(max(0, len(compact) - 2))]
+        for feature in features:
+            digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
+            idx = int.from_bytes(digest[:4], "little") % dim
+            sign = 1.0 if digest[4] & 1 else -1.0
+            vec[idx] += sign
+        norm = sqrt(sum(value * value for value in vec))
+        vectors.append([value / norm for value in vec] if norm else vec)
+    return vectors
 
 # =========================================================
 # Vertex AI SDK 로드 (임베딩 + LLM)
@@ -372,6 +405,17 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []
 
+    if local_embeddings_enabled():
+        local_dim = TXT_DIM or 384
+        if not TXT_DIM:
+            log.warning(
+                "LOCAL_EMBEDDINGS=1 이지만 VERTEX_TXT_EMBED_DIM 이 설정되지 않아 "
+                "기본 %d차원으로 임베딩합니다. 기존에 실제 Vertex(보통 768차원)로 "
+                "쌓인 컬렉션과 함께 쓰면 차원 불일치로 검색이 깨질 수 있습니다.",
+                local_dim,
+            )
+        return embed_texts_local(texts, dim=local_dim)
+
     # .env 에서 토큰/비용 보호용 설정 읽기
     try:
         max_chars_per_item = int(os.getenv("EMBED_MAX_CHARS_PER_ITEM", "8000"))
@@ -471,6 +515,13 @@ def infer_table_query_with_vertex(
     if not q:
         return {}
     if not tables:
+        return {}
+
+    # Local development deliberately uses deterministic embeddings and may not
+    # have Google credentials or outbound access.  Query parsing is optional;
+    # table_machine already has a schema/synonym based local parser, so do not
+    # turn every table search into a slow failing Vertex request in this mode.
+    if local_embeddings_enabled():
         return {}
 
     if GenerativeModel is None or vertexai is None:

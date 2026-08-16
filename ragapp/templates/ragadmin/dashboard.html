@@ -142,7 +142,7 @@
             <span class="pill">사유 기록</span>
             <span class="pill">파일 삭제 옵션</span>
             <span class="pill">actor_key 기준</span>
-            <span class="pill">대기 {{ media_pending_count|default:"-" }}건</span>
+            <span class="pill">대기 {{ media_pending_count|default_if_none:"-" }}건</span>
           </div>
         </section>
 
@@ -159,7 +159,7 @@
             <span class="pill">기간/영구</span>
             <span class="pill">해제(선처)</span>
             <span class="pill">기록 보관</span>
-            <span class="pill">활성 {{ media_penalty_count|default:"-" }}명</span>
+            <span class="pill">활성 {{ media_penalty_count|default_if_none:"-" }}명</span>
           </div>
         </section>
 

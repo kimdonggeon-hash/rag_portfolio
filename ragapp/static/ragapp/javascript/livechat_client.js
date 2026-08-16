@@ -625,6 +625,19 @@
                         return;
                     }
 
+                    if (Array.isArray(data.messages)) {
+                        msgBox.innerHTML = "";
+                        data.messages.forEach(function (message) {
+                            const role = String(
+                                message.role || message.sender || "system"
+                            ).toLowerCase();
+                            const text = String(
+                                message.text || message.content || ""
+                            );
+                            if (text) pushMsg(role === "user" ? "user" : "bot", text);
+                        });
+                    }
+
                     if (
                         data.closed === true ||
                         data.can_send === false ||
@@ -680,18 +693,7 @@
 
                     try {
                         manuallyClosed = true;
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(
-                                JSON.stringify({
-                                    sender: "user",
-                                    type: "end",
-                                    text: "[사용자]가 상담을 종료했습니다.",
-                                    ts: Date.now(),
-                                    session_id: sessionId || null,
-                                })
-                            );
-                            ws.close(1000, "user_end");
-                        }
+                        // 종료 안내는 서버가 상담사 메시지 형태로 방송한다.
                     } catch (e) {
                         log("CLIENT_END_SEND_ERR", e);
                     }

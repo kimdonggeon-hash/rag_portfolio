@@ -331,18 +331,25 @@
         if (ingestBox) ingestBox.textContent = "실행 중…";
 
         try {
-            // 1) 모델 답변 먼저 생성
+            // 모델 답변은 선택 기능이다. 로컬 모드에서는 OAuth 호출을 건너뛴다.
             let qa = {};
+            const modelEnabled = (root.dataset.modelEnabled || "1") === "1";
 
-            try {
-                qa = await postJSON(API_WEB_QA, { q });
-            } catch {
-                // 웹 QA 실패해도 뉴스 수집/인덱싱은 계속 진행
-                qa = {};
+            if (modelEnabled) {
+                try {
+                    qa = await postJSON(API_WEB_QA, { q });
+                } catch {
+                    // 웹 QA 실패해도 뉴스 수집/인덱싱은 계속 진행
+                    qa = {};
+                }
             }
 
             const ans = (qa && (qa.answer_text || qa.answer || qa.model_answer)) || "";
-            renderAnswer(ans);
+            renderAnswer(
+                ans || (modelEnabled
+                    ? ""
+                    : "로컬 모드: 모델 호출 없이 뉴스 수집과 인덱싱을 진행합니다.")
+            );
 
             // 2) 뉴스 수집 & 안전 인덱싱
             const ing = await postJSON(API_INGEST, {

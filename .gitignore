@@ -3,8 +3,10 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-local/
 env/
 venv/
+.local-server/
 db.sqlite3
 
 # Django 정적/미디어
