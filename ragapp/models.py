@@ -21,7 +21,7 @@ from .models_chat_retention import (  # noqa: F401
     compute_purge_at,
 )
 
-from .models_trash import TrashedRecord  # noqa: F401
+from .models_trash import TrashedRecord, TrashSettings  # noqa: F401
 
 
 # ============================================================================

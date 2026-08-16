@@ -158,3 +158,33 @@ def purge_trashed_record(record: "TrashedRecord") -> None:  # noqa: F821
     record.data_json = {}
     record.file_trash_map = {}
     record.save(update_fields=["purged", "purged_at", "data_json", "file_trash_map"])
+
+
+def purge_expired_trash(*, retention_days: int | None = None) -> int:
+    """
+    보관 기간이 지난(=아직 복구/영구삭제 되지 않은) 휴지통 항목을 자동으로
+    영구 삭제한다. retention_days를 안 주면 TrashSettings(관리자가 화면에서
+    고른 값)을 사용한다. 0(또는 None)이면 아무 것도 하지 않는다.
+
+    반환: 실제로 영구 삭제한 항목 수.
+    """
+    from ragapp.models_trash import TrashedRecord, TrashSettings
+
+    if retention_days is None:
+        retention_days = TrashSettings.get_solo().retention_days
+
+    if not retention_days or retention_days <= 0:
+        return 0
+
+    cutoff = timezone.now() - timezone.timedelta(days=retention_days)
+    qs = TrashedRecord.objects.filter(purged=False, restored=False, deleted_at__lt=cutoff)
+
+    purged_count = 0
+    for record in qs.iterator():
+        try:
+            purge_trashed_record(record)
+            purged_count += 1
+        except Exception:
+            log.exception("trash: auto-purge failed for record id=%s", record.id)
+
+    return purged_count

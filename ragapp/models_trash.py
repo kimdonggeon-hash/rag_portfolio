@@ -59,3 +59,41 @@ class TrashedRecord(models.Model):
         if self.restored:
             return "restored"
         return "trashed"
+
+
+class TrashSettings(models.Model):
+    """
+    휴지통 자동 영구삭제 설정(단일 행). retention_days는 관리자가 화면에서
+    직접 고를 수 있게 하고, purge_expired_trash 커맨드가 이 값을 읽어서
+    기간이 지난 항목을 자동으로 영구 삭제한다.
+    """
+
+    RETENTION_CHOICES = [
+        (0, "사용 안 함(자동 삭제 없음)"),
+        (7, "7일"),
+        (14, "14일"),
+        (30, "30일"),
+        (60, "60일"),
+        (90, "90일"),
+    ]
+
+    retention_days = models.PositiveIntegerField(
+        default=30,
+        choices=RETENTION_CHOICES,
+        help_text="휴지통에 담긴 지 이 기간(일)이 지나면 자동으로 영구 삭제합니다. 0이면 자동 삭제하지 않습니다.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "휴지통 설정"
+        verbose_name_plural = "휴지통 설정"
+
+    def __str__(self) -> str:
+        return f"휴지통 자동 영구삭제: {self.retention_days}일" if self.retention_days else "휴지통 자동 영구삭제: 사용 안 함"
+
+    @classmethod
+    def get_solo(cls) -> "TrashSettings":
+        obj = cls.objects.first()
+        if obj:
+            return obj
+        return cls.objects.create()

@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
-from ragapp.models_trash import TrashedRecord
+from ragapp.models_trash import TrashedRecord, TrashSettings
 from ragapp.services.trash_service import purge_trashed_record, restore_trashed_record
 
 log = logging.getLogger(__name__)
@@ -41,6 +41,8 @@ def trash_admin_view(request: HttpRequest) -> HttpResponse:
         .distinct()
     )
 
+    settings_obj = TrashSettings.get_solo()
+
     ctx = {
         "title": "휴지통",
         "tab": tab,
@@ -48,8 +50,36 @@ def trash_admin_view(request: HttpRequest) -> HttpResponse:
         "model_choices": sorted(set(model_choices)),
         "records": qs[:500],
         "active_count": TrashedRecord.objects.filter(purged=False, restored=False).count(),
+        "retention_days": settings_obj.retention_days,
+        "retention_choices": TrashSettings.RETENTION_CHOICES,
     }
     return render(request, "ragadmin/trash_admin.html", ctx)
+
+
+@staff_member_required
+@csrf_protect
+@require_POST
+def trash_settings_view(request: HttpRequest) -> HttpResponse:
+    try:
+        days = int(request.POST.get("retention_days") or 0)
+    except (TypeError, ValueError):
+        days = 0
+
+    valid_values = {v for v, _ in TrashSettings.RETENTION_CHOICES}
+    if days not in valid_values:
+        messages.error(request, "올바르지 않은 보관 기간 값입니다.")
+        return redirect(reverse("ragadmin:trash"))
+
+    obj = TrashSettings.get_solo()
+    obj.retention_days = days
+    obj.save(update_fields=["retention_days", "updated_at"])
+
+    if days:
+        messages.success(request, f"자동 영구삭제 기간을 {days}일로 저장했습니다.")
+    else:
+        messages.success(request, "자동 영구삭제를 사용하지 않도록 저장했습니다.")
+
+    return redirect(reverse("ragadmin:trash"))
 
 
 @staff_member_required

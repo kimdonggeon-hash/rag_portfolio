@@ -140,6 +140,7 @@ class RagAdminSite(AdminSite):
             path("feedback-board/", self.admin_view(_lazy_view("ragapp.admin_views.feedback_board_view")), name="feedback_board"),
 
             path("trash/", self.admin_view(_lazy_view("ragapp.trash_views.trash_admin_view")), name="trash"),
+            path("trash/settings/", self.admin_view(_lazy_view("ragapp.trash_views.trash_settings_view")), name="trash_settings"),
             path("trash/<int:record_id>/restore/", self.admin_view(_lazy_view("ragapp.trash_views.trash_restore_view")), name="trash_restore"),
             path("trash/<int:record_id>/purge/", self.admin_view(_lazy_view("ragapp.trash_views.trash_purge_view")), name="trash_purge"),
         ]
