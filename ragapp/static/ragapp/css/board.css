@@ -396,6 +396,23 @@ html[data-theme="dark"] .board-wrap {
     box-shadow: var(--bbtn-ghost-shadow);
 }
 
+.qa-launch-btn.is-subtle,
+.board-btn.is-subtle {
+    background: transparent;
+    color: var(--muted);
+    border-color: transparent;
+    box-shadow: none;
+    padding: 8px 10px;
+    font-size: 12.5px;
+}
+
+.qa-launch-btn.is-subtle:hover,
+.board-btn.is-subtle:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .board-btn.is-primary,
 .reports-btn--primary {
     background: var(--bbtn-primary-bg);
@@ -1728,20 +1745,41 @@ html[data-theme="dark"] .board-switch-thumb {
 
 .mod-head {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
+    flex-wrap: wrap;
     margin: 8px 0 14px;
+}
+
+.mod-head-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mod-head-ico {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 19px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 .mod-title {
     margin: 0;
-    font-size: 18px;
+    font-size: 20px;
+    font-weight: 800;
     letter-spacing: -.02em;
 }
 
 .mod-sub {
-    margin: 6px 0 0;
+    margin: 4px 0 0;
     color: var(--muted);
     font-size: 13px;
 }
@@ -1758,9 +1796,16 @@ html[data-theme="dark"] .board-switch-thumb {
 }
 
 .mod-help-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-weight: 800;
     font-size: 13px;
     margin-bottom: 8px;
+}
+
+.mod-help-ico {
+    font-size: 14px;
 }
 
 .mod-help-list {
@@ -1791,11 +1836,32 @@ html[data-theme="dark"] .board-switch-thumb {
 .mod-card {
     overflow: hidden;
     margin-bottom: 14px;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.mod-card:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
 }
 
 .mod-card-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     font-weight: 800;
     font-size: 14px;
+}
+
+.mod-card-ico {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    font-size: 13px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .mod-card-sub {
@@ -1848,16 +1914,26 @@ html[data-theme="dark"] .board-switch-thumb {
     display: grid;
     grid-template-columns: 1.2fr 1.3fr 1.2fr .6fr;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 12px 14px;
     border-top: 1px solid var(--line);
     align-items: center;
+    border-radius: 10px;
+    transition: background .12s ease;
+}
+
+.mod-tr:not(.mod-th):hover {
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .mod-th {
     border-top: 0;
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
     color: var(--muted);
     background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+    border-radius: 10px 10px 0 0;
 }
 
 .right {
@@ -1870,8 +1946,19 @@ html[data-theme="dark"] .board-switch-thumb {
 }
 
 .mod-empty {
-    padding: 14px;
+    padding: 18px 14px;
     color: var(--muted);
+    text-align: center;
+    border: 1px dashed color-mix(in srgb, var(--line) 85%, transparent);
+    border-radius: 14px;
+    margin: 8px 14px 14px;
+}
+
+.mod-empty::before {
+    content: "✅";
+    display: block;
+    font-size: 22px;
+    margin-bottom: 8px;
 }
 
 .mod-empty-title {

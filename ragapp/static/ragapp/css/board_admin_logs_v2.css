@@ -126,7 +126,7 @@
     transform: translateY(0);
 }
 
-.adminlogs-page .board-btn.primary {
+.adminlogs-page .board-btn.is-primary {
     box-shadow: 0 14px 28px rgba(79, 70, 229, .18);
 }
 

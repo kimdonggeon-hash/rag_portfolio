@@ -88,15 +88,23 @@ body {
 }
 
 .hero-title {
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 800;
     letter-spacing: -0.02em;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 
 .hero-sub {
-    font-size: 13px;
+    font-size: 13.5px;
     color: var(--dim);
+    line-height: 1.6;
+    max-width: 640px;
+}
+
+.hero-divider {
+    height: 1px;
+    margin: 16px 0;
+    background: linear-gradient(90deg, rgba(148, 163, 184, .28), rgba(148, 163, 184, .06) 70%, transparent);
 }
 
 .hero-badge {
