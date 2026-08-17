@@ -251,7 +251,6 @@ Cloud Run, Cloud SQL, Vertex AI와 연결하면서 환경변수, 권한, 리전 
 
 * RAG 답변 품질 평가 기준 추가
 * Redis 기반 Channel Layer 적용
-* 관리자 대시보드 개선
 * 비동기 작업 큐 도입
 * 사용자 회원 기능 추가
 * 문서별 권한 관리 기능 추가
