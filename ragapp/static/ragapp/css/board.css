@@ -224,6 +224,8 @@ html[data-theme="dark"] .board-wrap {
 
 .side-card {
     overflow: hidden;
+    box-shadow: none;
+    border-color: color-mix(in srgb, var(--line) 70%, transparent);
 }
 
 .side-card-head,
@@ -240,12 +242,30 @@ html[data-theme="dark"] .board-wrap {
     background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 4%, transparent), transparent);
 }
 
+.side-card .side-card-head {
+    border-bottom: none;
+    background: none;
+    padding-bottom: 6px;
+}
+
 .side-card-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     font-weight: 800;
     font-size: 12px;
     letter-spacing: .08em;
     text-transform: uppercase;
     color: var(--muted);
+}
+
+.side-card .side-card-title::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--accent);
+    flex: 0 0 auto;
 }
 
 .side-card-body {

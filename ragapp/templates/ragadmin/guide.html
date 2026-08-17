@@ -55,12 +55,25 @@
   }
 
   .guide-nav-title {
+    display:flex;
+    align-items:center;
+    gap:7px;
     font-size:13px;
     font-weight:700;
     letter-spacing:0.02em;
     text-transform:uppercase;
     color:#9ca3af;
-    margin-bottom:6px;
+    margin-bottom:8px;
+    padding:0 2px;
+  }
+
+  .guide-nav-title::before {
+    content:"";
+    width:7px;
+    height:7px;
+    border-radius:999px;
+    background:#6366f1;
+    flex:0 0 auto;
   }
 
   .guide-nav-btn {
