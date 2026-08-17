@@ -2063,62 +2063,46 @@ def api_media_penalties_list(request: HttpRequest) -> JsonResponse:
 
     now = timezone.now()
 
-    # 필드 탐색(프로젝트마다 다를 수 있어서 최대한 안전하게)
-    f_actor = "actor_key" if _model_has_field(UserPenalty, "actor_key") else None
-    f_active = "is_active" if _model_has_field(UserPenalty, "is_active") else None
-    f_until = "until" if _model_has_field(UserPenalty, "until") else ("expires_at" if _model_has_field(UserPenalty, "expires_at") else None)
-    f_reason = "reason" if _model_has_field(UserPenalty, "reason") else ("message" if _model_has_field(UserPenalty, "message") else None)
-    f_kind = "kind" if _model_has_field(UserPenalty, "kind") else ("type" if _model_has_field(UserPenalty, "type") else None)
-    f_created = "created_at" if _model_has_field(UserPenalty, "created_at") else ("created" if _model_has_field(UserPenalty, "created") else None)
-
     qs = UserPenalty.objects.all().order_by("-pk")
-    if actor_key and f_actor:
-        qs = qs.filter(**{f_actor: actor_key})
+    if actor_key:
+        qs = qs.filter(actor_key=actor_key)
+
+    Mode = getattr(UserPenalty, "Mode", None)
+    mode_permaban = getattr(Mode, "PERMABAN", "PERMABAN") if Mode else "PERMABAN"
+    mode_suspended = getattr(Mode, "SUSPENDED", "SUSPENDED") if Mode else "SUSPENDED"
 
     items: List[Dict[str, Any]] = []
     for obj in qs[:500]:
-        ak = getattr(obj, f_actor, "") if f_actor else ""
-        if actor_key and ak != actor_key:
-            continue
+        mode = getattr(obj, "mode", "") or ""
+        suspended_until = getattr(obj, "suspended_until", None)
 
-        is_active = True
-        if f_active:
-            is_active = bool(getattr(obj, f_active))
-        elif f_until:
-            until_val = getattr(obj, f_until, None)
-            if until_val is not None:
-                try:
-                    is_active = bool(until_val > now)
-                except Exception:
-                    is_active = True
+        # 활성 제재만 노출: 영구제한이거나, 정지 기간이 아직 안 끝났을 때만
+        if mode == mode_permaban:
+            is_active = True
+        elif mode == mode_suspended and suspended_until:
+            is_active = suspended_until > now
+        else:
+            is_active = False
 
         if not is_active:
             continue
 
-        until_iso = None
-        if f_until:
-            uv = getattr(obj, f_until, None)
-            if uv is not None:
-                try:
-                    until_iso = uv.isoformat()
-                except Exception:
-                    until_iso = str(uv)
+        if mode == mode_permaban:
+            kind_label = "영구 제한"
+            until_iso = "영구"
+        else:
+            kind_label = "정지"
+            until_iso = suspended_until.isoformat() if suspended_until else None
 
-        created_iso = None
-        if f_created:
-            cv = getattr(obj, f_created, None)
-            if cv is not None:
-                try:
-                    created_iso = cv.isoformat()
-                except Exception:
-                    created_iso = str(cv)
+        created_at = getattr(obj, "created_at", None)
+        created_iso = created_at.isoformat() if created_at else None
 
         items.append(
             {
                 "id": getattr(obj, "pk", None),
-                "actor_key": ak,
-                "kind": getattr(obj, f_kind, "") if f_kind else "",
-                "reason": getattr(obj, f_reason, "") if f_reason else "",
+                "actor_key": getattr(obj, "actor_key", ""),
+                "kind": kind_label,
+                "reason": getattr(obj, "reason", "") or "",
                 "until": until_iso,
                 "created_at": created_iso,
             }
@@ -2154,75 +2138,18 @@ def api_media_penalties_lift(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"ok": False, "error": "UserPenalty model not available"}, status=500, json_dumps_params={"ensure_ascii": False})
 
     reviewer = getattr(request, "user", None)
-    lifted = 0
 
-    # 1) 모델 메서드가 있으면 그걸 우선
-    for meth in ("lift_all", "clear_all", "revoke_all", "unsuspend_all", "unban_all"):
-        if hasattr(UserPenalty, meth):
-            fn = getattr(UserPenalty, meth)
-            try:
-                try:
-                    fn(actor_key, by_user=reviewer, reason=reason or "선처")
-                except TypeError:
-                    try:
-                        fn(actor_key, reviewer, reason or "선처")
-                    except TypeError:
-                        fn(actor_key)
-                return JsonResponse({"ok": True, "actor_key": actor_key, "lifted": -1}, status=200, json_dumps_params={"ensure_ascii": False})
-            except Exception:
-                pass
-
-    # 2) ORM fallback (필드가 프로젝트마다 달라서 최대한 방어적으로)
-    f_actor = "actor_key" if _model_has_field(UserPenalty, "actor_key") else None
-    if not f_actor:
-        return JsonResponse({"ok": False, "error": "UserPenalty.actor_key field missing"}, status=500, json_dumps_params={"ensure_ascii": False})
-
-    qs = UserPenalty.objects.filter(**{f_actor: actor_key})
-
-    updates = {}
-    if _model_has_field(UserPenalty, "is_active"):
-        updates["is_active"] = False
-    if _model_has_field(UserPenalty, "revoked_at"):
-        updates["revoked_at"] = timezone.now()
-    if _model_has_field(UserPenalty, "revoked_by"):
-        updates["revoked_by"] = reviewer
-    if _model_has_field(UserPenalty, "lifted_at"):
-        updates["lifted_at"] = timezone.now()
-    if _model_has_field(UserPenalty, "lifted_by"):
-        updates["lifted_by"] = reviewer
-    if _model_has_field(UserPenalty, "status"):
-        updates["status"] = "LIFTED"
-    if _model_has_field(UserPenalty, "note") and reason:
-        updates["note"] = reason
+    existed = UserPenalty.objects.filter(actor_key=actor_key).exists()
+    if not existed:
+        return JsonResponse({"ok": True, "actor_key": actor_key, "lifted": 0}, status=200, json_dumps_params={"ensure_ascii": False})
 
     try:
-        lifted = qs.update(**updates) if updates else qs.count()
-        if not updates:
-            try:
-                lifted = qs.count()
-                qs.delete()
-            except Exception:
-                pass
+        UserPenalty.pardon(actor_key, by_user=reviewer)
     except Exception:
-        lifted = 0
-        for obj in qs:
-            try:
-                if hasattr(obj, "is_active"):
-                    obj.is_active = False
-                if hasattr(obj, "revoked_at"):
-                    obj.revoked_at = timezone.now()
-                if hasattr(obj, "revoked_by"):
-                    obj.revoked_by = reviewer
-                if hasattr(obj, "status"):
-                    obj.status = "LIFTED"
-                if hasattr(obj, "note") and reason:
-                    obj.note = reason
-                obj.save()
-                lifted += 1
-            except Exception:
-                pass
+        log.exception("penalty pardon failed actor_key=%s", actor_key)
+        return JsonResponse({"ok": False, "error": "pardon_failed"}, status=500, json_dumps_params={"ensure_ascii": False})
 
-    return JsonResponse({"ok": True, "actor_key": actor_key, "lifted": int(lifted)}, status=200, json_dumps_params={"ensure_ascii": False})
+    return JsonResponse({"ok": True, "actor_key": actor_key, "lifted": 1}, status=200, json_dumps_params={"ensure_ascii": False})
 
 
 # ---- aliases (urls/템플릿 호환용) ----
