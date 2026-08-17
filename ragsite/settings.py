@@ -313,7 +313,15 @@ PII_BLOCK_STATUS = _env_int(["PII_BLOCK_STATUS"], default=200)
 PII_BLOCK_MAX_SCAN_BYTES = _env_int(["PII_BLOCK_MAX_SCAN_BYTES"], default=200_000)
 
 # ContentGuard와 동일하게 기본 allow/정적/헬스 등 제외
-PII_BLOCK_EXCLUDED_PATH_PREFIXES = CONTENT_GUARD_ALLOW_PREFIXES
+# + 스태프 전용 검수(moderation) API: pending_id/actor_key 같은 내부 hex ID가
+#   우연히 5자리 숫자(우편번호)나 10~20자리 숫자(계좌번호) 패턴과 겹쳐 오탐되면서
+#   요청이 뷰까지 도달하지 못하고 200으로 조용히 막히는 문제가 있었음(승인/거절 API 전반)
+PII_BLOCK_EXCLUDED_PATH_PREFIXES = CONTENT_GUARD_ALLOW_PREFIXES + (
+    "/api/media/pending/",
+    "/api/media/rejected/",
+    "/api/media/approved/",
+    "/api/moderation/",
+)
 
 # 감지 항목(kind)을 응답에 포함할지(원하면 False)
 PII_BLOCK_INCLUDE_KIND = _env_bool(["PII_BLOCK_INCLUDE_KIND"], default=True)
