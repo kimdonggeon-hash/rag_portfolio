@@ -1714,7 +1714,9 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
             suspend_days = d if d in allowed_days else 7
 
     meta_key = f"{PENDING_UPLOAD_META_PREFIX}/{pending_id}.json"
+    print(f"[REJECT_DEBUG] start pending_id={pending_id} meta_key={meta_key} reject_mode={reject_mode}", flush=True)
     meta = _read_json_from_storage(meta_key) or {}
+    print(f"[REJECT_DEBUG] meta_read ok={bool(meta)} storage_key={meta.get('storage_key') if meta else None}", flush=True)
     if not meta:
         return JsonResponse({"ok": False, "error": "pending_meta_not_found"}, status=404, json_dumps_params={"ensure_ascii": False})
 
@@ -1776,7 +1778,10 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
                 src_key=src_key,
                 dest_prefix=f"rejected/{timezone.now().strftime('%Y/%m')}",
             )
+            print(f"[REJECT_DEBUG] promote ok rejected_storage_key={rejected_storage_key}", flush=True)
         except Exception:
+            import traceback
+            print(f"[REJECT_DEBUG] promote FAILED src_key={src_key}\n{traceback.format_exc()}", flush=True)
             # Retain the original object if quarantine relocation fails, but log it
             # loudly: otherwise the pending blob becomes an orphan (meta says
             # "rejected", file stays under pending/) with no trace for ops to find.
@@ -1786,6 +1791,8 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
                 pending_id, src_key, exc_info=True,
             )
             rejected_storage_key = src_key
+    else:
+        print(f"[REJECT_DEBUG] skip promote (src_key={src_key!r} does not start with pending/)", flush=True)
 
     if upload_request is not None and rejected_storage_key != src_key:
         try:
@@ -1812,14 +1819,20 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
             }
         )
         _write_json_to_storage(rejected_key, rejected_payload)
+        print(f"[REJECT_DEBUG] rejected_meta WRITE OK key={rejected_key}", flush=True)
     except Exception:
-        pass
+        import traceback
+        print(f"[REJECT_DEBUG] rejected_meta WRITE FAILED key={rejected_key}\n{traceback.format_exc()}", flush=True)
 
     try:
-        if default_storage.exists(meta_key):
+        exists_before = default_storage.exists(meta_key)
+        print(f"[REJECT_DEBUG] pending_meta exists_before_delete={exists_before} key={meta_key}", flush=True)
+        if exists_before:
             default_storage.delete(meta_key)
+            print(f"[REJECT_DEBUG] pending_meta DELETE OK key={meta_key}", flush=True)
     except Exception:
-        pass
+        import traceback
+        print(f"[REJECT_DEBUG] pending_meta DELETE FAILED key={meta_key}\n{traceback.format_exc()}", flush=True)
 
     return JsonResponse({"ok": True, "pending_id": pending_id, "actor_key": actor_key}, status=200, json_dumps_params={"ensure_ascii": False})
 
