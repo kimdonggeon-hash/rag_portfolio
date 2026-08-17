@@ -10,6 +10,14 @@
 
 ---
 
+## 스크린샷
+
+| 질문 챗봇 | 어드민 대시보드 | 글로 이미지 찾기 |
+|---|---|---|
+| ![질문 챗봇](docs/screenshots/chat.png) | ![어드민 대시보드](docs/screenshots/dashboard.png) | ![글로 이미지 찾기](docs/screenshots/image-search.png) |
+
+---
+
 ## 프로젝트 목적
 
 AI 기능을 실제 웹 서비스에 적용하고, 서비스를 만든 뒤 실제로 운영하면서 생기는 문제들까지 직접 겪어보기 위해 개발했습니다.
