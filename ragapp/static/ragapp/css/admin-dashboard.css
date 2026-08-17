@@ -194,6 +194,122 @@ body {
     overflow: visible;
 }
 
+/* ── STAT STRIP (오늘 한눈에 보기) ─── */
+.stat-strip {
+    margin-bottom: 24px;
+}
+
+.stat-strip-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 10px;
+}
+
+.stat-strip-title::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 30%, #a5b4fc 0, var(--accent) 45%, var(--accent2) 100%);
+    flex: 0 0 auto;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.stat-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: linear-gradient(160deg, rgba(15, 23, 42, .95), rgba(15, 23, 42, .85));
+    text-decoration: none;
+    color: var(--text);
+    outline: none;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.stat-tile:hover {
+    transform: translateY(-2px);
+    border-color: rgba(96, 165, 250, .55);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+}
+
+.stat-tile:focus-visible {
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .4);
+    border-color: rgba(96, 165, 250, .8);
+}
+
+.stat-tile.is-warn {
+    border-color: rgba(245, 158, 11, .45);
+    background: linear-gradient(160deg, rgba(69, 45, 10, .55), rgba(15, 23, 42, .9));
+}
+
+.stat-tile.is-warn:hover {
+    border-color: rgba(245, 158, 11, .75);
+}
+
+.stat-ico {
+    font-size: 18px;
+}
+
+.stat-num {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--dim);
+}
+
+/* ── DASH SECTIONS (그룹 헤더) ─────── */
+.dash-section {
+    margin-bottom: 26px;
+}
+
+.dash-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.dash-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: #cbd5f5;
+}
+
+.dash-section-title::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 30%, #a5b4fc 0, var(--accent) 45%, var(--accent2) 100%);
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .14);
+    flex: 0 0 auto;
+}
+
 /* ── GRID & CARDS ─────────────────── */
 .grid {
     display: grid;
@@ -211,6 +327,13 @@ body {
     box-shadow: var(--shadow);
     position: relative;
     overflow: hidden;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(96, 165, 250, .45);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .7);
 }
 
 .card::before {
@@ -223,16 +346,41 @@ body {
     pointer-events: none;
 }
 
-.card h3 {
-    margin: 0 0 6px;
+.card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+.card-ico {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
     font-size: 16px;
-    font-weight: 600;
+    background: rgba(96, 165, 250, .14);
+}
+
+.card h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
 }
 
 .card p {
     margin: 0 0 12px;
     font-size: 13px;
     color: var(--dim);
+    line-height: 1.55;
+    position: relative;
+    z-index: 1;
 }
 
 .btn-row {
@@ -256,6 +404,18 @@ body {
     text-decoration: none;
     font-size: 12px;
     font-weight: 600;
+    outline: none;
+    transition: transform .1s ease, filter .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    background: rgba(30, 41, 59, .95);
+}
+
+.btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .35);
+    border-color: rgba(96, 165, 250, .8);
 }
 
 .btn-accent {
@@ -265,8 +425,17 @@ body {
     box-shadow: 0 10px 30px rgba(37, 99, 235, .6);
 }
 
+.btn-accent:hover {
+    filter: brightness(1.08);
+    background: linear-gradient(90deg, #60a5fa, #a855f7);
+}
+
 .btn-ghost {
     background: transparent;
+}
+
+.btn-ghost:hover {
+    background: rgba(148, 163, 184, .12);
 }
 
 .rows {
@@ -296,6 +465,91 @@ code {
     padding: 2px 6px;
     font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ── ADVANCED (원본 데이터, 기본 접힘) ─── */
+.dash-advanced {
+    border-radius: var(--radius);
+    border: 1px dashed var(--border);
+    background: rgba(15, 23, 42, .55);
+    padding: 4px 16px;
+    margin-bottom: 20px;
+}
+
+.dash-advanced summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    outline: none;
+    color: var(--dim);
+}
+
+.dash-advanced summary::-webkit-details-marker {
+    display: none;
+}
+
+.dash-advanced summary::after {
+    content: "▾";
+    margin-left: auto;
+    transition: transform .15s ease;
+    color: var(--dim);
+}
+
+.dash-advanced[open] summary::after {
+    transform: rotate(180deg);
+}
+
+.dash-advanced summary:focus-visible {
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .35);
+    border-radius: 10px;
+}
+
+.dash-advanced-ico {
+    font-size: 15px;
+}
+
+.dash-advanced summary > span:nth-child(2) {
+    font-weight: 700;
+    color: var(--text);
+    font-size: 13px;
+}
+
+.dash-advanced-hint {
+    font-size: 11px;
+    color: var(--dim);
+}
+
+.dash-advanced .rows {
+    padding-bottom: 14px;
+}
+
+.board-advanced {
+    margin-top: 10px;
+}
+
+.board-advanced summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--dim);
+    padding: 6px 0;
+    outline: none;
+}
+
+.board-advanced summary::-webkit-details-marker {
+    display: none;
+}
+
+.board-advanced summary:focus-visible {
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .35);
+    border-radius: 8px;
+}
+
+.board-advanced .board-list {
+    margin-top: 8px;
 }
 
 .foot {
