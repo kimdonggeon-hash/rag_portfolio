@@ -48,26 +48,43 @@
           </div>
         </div>
 
-        <!-- ✅ AI 어시스턴트 + 운영 OBS 컨트롤(4버튼) -->
+        <!-- ✅ AI 어시스턴트 + 운영 OBS 컨트롤 -->
         <div id="dgDashObsRoot" class="dg-dash-obs">
-          <div class="hero-actions">
-            <a class="hero-action primary" href="{% url 'assistant_view' %}">
-              🤖 사내 AI 어시스턴트
+          <div class="obs-panel">
+            <a class="hero-cta" href="{% url 'assistant_view' %}">
+              <span class="hero-cta-ico">🤖</span>
+              <span>사내 AI 어시스턴트</span>
             </a>
 
-            <span class="obs-state obs-off" id="obsStateChip" title="운영 OBS 상태">
-              <span class="obs-dot"></span>
-              <span id="obsStateText">OBS</span>
-            </span>
+            <div class="obs-toolbar">
+              <div class="obs-toolbar-head">
+                <span class="obs-state obs-off" id="obsStateChip" title="운영 OBS 상태">
+                  <span class="obs-dot"></span>
+                  <span id="obsStateText">OBS</span>
+                </span>
+                <span class="obs-toolbar-label">운영 도구</span>
+              </div>
+              <div class="obs-toolbar-actions">
+                <button type="button" class="obs-btn" id="adminOpsBtn" title="OPS 컨트롤">
+                  <span class="obs-btn-ico">🛠</span><span class="obs-btn-label">OPS 컨트롤</span>
+                </button>
+                <button type="button" class="obs-btn" id="adminObsBtn" title="운영 OBS 토글">
+                  <span class="obs-btn-ico">📊</span><span class="obs-btn-label">OBS 토글</span>
+                </button>
+                <button type="button" class="obs-btn" id="adminObsHealthBtn" title="상태 보기">
+                  <span class="obs-btn-ico">🩺</span><span class="obs-btn-label">상태 보기</span>
+                </button>
+                <button type="button" class="obs-btn" id="adminObsClearBtn" title="기록 초기화">
+                  <span class="obs-btn-ico">🧹</span><span class="obs-btn-label">기록 초기화</span>
+                </button>
+                <button type="button" class="obs-btn" id="adminObsCfgOpenBtn" title="OBS 설정">
+                  <span class="obs-btn-ico">⚙️</span><span class="obs-btn-label">OBS 설정</span>
+                </button>
+              </div>
+            </div>
 
-            <button type="button" class="hero-action ghost" id="adminOpsBtn">🛠 OPS 컨트롤</button>
-            <button type="button" class="hero-action ghost" id="adminObsBtn">📊 운영 OBS 토글</button>
-            <button type="button" class="hero-action ghost" id="adminObsHealthBtn">🩺 상태 보기</button>
-            <button type="button" class="hero-action ghost" id="adminObsClearBtn">🧹 기록 초기화</button>
-            <button type="button" class="hero-action ghost" id="adminObsCfgOpenBtn">⚙️ OBS 설정</button>
+            <div id="dgDashObsMount"></div>
           </div>
-
-          <div id="dgDashObsMount"></div>
         </div>
       </div>
 
@@ -380,12 +397,15 @@
       </footer>
     </main>
 
-    <!-- ✅ RIGHT: 게시판 운영 패널 -->
+    <!-- ✅ RIGHT: 게시판 운영 패널 (스크롤해도 화면에 고정) -->
     <aside class="board-panel" aria-label="게시판 운영">
       <section class="card board-card">
         <div class="board-head">
-          <h3>📌 게시판 운영</h3>
-          <span class="board-badge">board</span>
+          <div class="board-head-title">
+            <span class="board-ico">📌</span>
+            <h3>게시판 운영</h3>
+          </div>
+          <span class="board-badge">고정됨</span>
         </div>
 
         <div class="board-scroll">
@@ -396,10 +416,18 @@
           <div class="board-group">
             <div class="board-label">운영툴(모더레이션)</div>
             <div class="board-list">
-              <a class="btn btn-accent" href="{% url 'board:reports' %}">신고 관리</a>
-              <a class="btn" href="{% url 'board:bans' %}">Ban · 링크 제한</a>
-              <a class="btn" href="{% url 'board:admin_logs' %}">운영 로그</a>
-              <a class="btn btn-ghost" href="/board/" target="_blank" rel="noopener">게시판(사용자 화면)</a>
+              <a class="board-link primary" href="{% url 'board:reports' %}">
+                <span class="board-link-ico">🚩</span><span>신고 관리</span>
+              </a>
+              <a class="board-link" href="{% url 'board:bans' %}">
+                <span class="board-link-ico">🔒</span><span>Ban · 링크 제한</span>
+              </a>
+              <a class="board-link" href="{% url 'board:admin_logs' %}">
+                <span class="board-link-ico">🧾</span><span>운영 로그</span>
+              </a>
+              <a class="board-link ghost" href="/board/" target="_blank" rel="noopener">
+                <span class="board-link-ico">↗</span><span>게시판(사용자 화면)</span>
+              </a>
             </div>
           </div>
 
