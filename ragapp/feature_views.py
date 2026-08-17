@@ -49,6 +49,9 @@ def _call_page(module_path: str, fn_name: str, request: HttpRequest, *args: Any,
 
 
 def _call_api(module_path: str, fn_name: str, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+    _debug_probe = fn_name == "api_media_pending_reject"
+    if _debug_probe:
+        print(f"[CALL_API_DEBUG] enter module={module_path} fn={fn_name} method={request.method} path={request.path}", flush=True)
     try:
         fn = _resolve(module_path, fn_name)
     except Exception:
@@ -59,7 +62,13 @@ def _call_api(module_path: str, fn_name: str, request: HttpRequest, *args: Any, 
             status=501,
             json_dumps_params={"ensure_ascii": False},
         )
-    return fn(request, *args, **kwargs)
+    if _debug_probe:
+        print(f"[CALL_API_DEBUG] resolved fn={fn!r} module={getattr(fn, '__module__', None)} qualname={getattr(fn, '__qualname__', None)}", flush=True)
+    result = fn(request, *args, **kwargs)
+    if _debug_probe:
+        body = getattr(result, "content", b"")
+        print(f"[CALL_API_DEBUG] returned status={getattr(result, 'status_code', None)} len={len(body)} body={body[:300]!r}", flush=True)
+    return result
 
 
 # ────────────────────────────────────────────────
