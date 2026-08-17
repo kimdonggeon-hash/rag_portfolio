@@ -59,6 +59,9 @@ embeddings*/
 Thumbs.db
 .python-version
 
+# Claude Code local session config (머신/세션별 임시 경로 포함)
+.claude/
+
 # Front/빌드 산출물 (쓰고 있다면)
 node_modules/
 dist/
