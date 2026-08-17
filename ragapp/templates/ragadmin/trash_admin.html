@@ -44,6 +44,12 @@
     .status-purged{background:rgba(220,38,38,.12);color:var(--danger)}
     .status-restored{background:rgba(22,163,74,.12);color:var(--ok)}
     .empty{padding:70px;text-align:center;border:1px dashed var(--line);border-radius:16px;color:var(--muted);background:var(--panel)}
+    .bulk-bar{display:flex;align-items:center;gap:.7rem;margin-bottom:12px;flex-wrap:wrap}
+    .bulk-bar .meta{margin-right:auto}
+    .btn-purge-bulk{border-color:color-mix(in srgb,var(--danger) 40%,var(--line));color:var(--danger);font-weight:800}
+    .btn-purge-bulk:hover:not(:disabled){background:var(--danger);color:#fff}
+    .btn-purge-bulk:disabled{opacity:.45;cursor:not-allowed}
+    .chk-col{width:2.2rem}
     .messages{list-style:none;margin:0 0 16px;padding:0}
     .messages li{padding:.6rem 1rem;border-radius:10px;margin-bottom:.4rem;font-weight:600}
     .messages li.success{background:rgba(22,163,74,.12);color:var(--ok)}
@@ -102,10 +108,23 @@
       </form>
     {% endif %}
 
+    {% if tab == 'active' %}
+      <form id="bulkPurgeForm" method="post" action="{% url 'ragadmin:trash_purge_bulk' %}"
+            onsubmit="return confirm('선택한 항목을 모두 영구 삭제할까요? 되돌릴 수 없습니다.');">
+        {% csrf_token %}
+      </form>
+      <div class="bulk-bar">
+        <label><input type="checkbox" id="selectAllChk" onclick="dgTrashToggleAll(this)"> 전체 선택</label>
+        <span class="meta" id="selectedCountLabel">선택 0건</span>
+        <button type="submit" form="bulkPurgeForm" class="btn-purge-bulk" id="bulkPurgeBtn" disabled>선택 항목 영구 삭제</button>
+      </div>
+    {% endif %}
+
     {% if records %}
       <table>
         <thead>
           <tr>
+            {% if tab == 'active' %}<th class="chk-col"></th>{% endif %}
             <th>모델</th>
             <th>내용</th>
             <th>삭제 시각 / 삭제자</th>
@@ -116,6 +135,12 @@
         <tbody>
           {% for r in records %}
           <tr>
+            {% if tab == 'active' %}
+            <td class="chk-col">
+              <input type="checkbox" class="trash-row-chk" name="record_ids" value="{{ r.id }}"
+                     form="bulkPurgeForm" onclick="dgTrashUpdateBulkState()">
+            </td>
+            {% endif %}
             <td><span class="model-badge">{{ r.model_label }}</span></td>
             <td>
               <div class="repr">{{ r.object_repr|default:r.object_pk }}</div>
@@ -147,6 +172,23 @@
       </table>
     {% else %}
       <div class="empty">표시할 항목이 없습니다.</div>
+    {% endif %}
+
+    {% if tab == 'active' %}
+    <script>
+      function dgTrashUpdateBulkState() {
+        const boxes = Array.from(document.querySelectorAll('.trash-row-chk'));
+        const checked = boxes.filter(b => b.checked);
+        document.getElementById('selectedCountLabel').textContent = '선택 ' + checked.length + '건';
+        document.getElementById('bulkPurgeBtn').disabled = checked.length === 0;
+        const selectAll = document.getElementById('selectAllChk');
+        if (selectAll) selectAll.checked = boxes.length > 0 && checked.length === boxes.length;
+      }
+      function dgTrashToggleAll(src) {
+        document.querySelectorAll('.trash-row-chk').forEach(b => { b.checked = src.checked; });
+        dgTrashUpdateBulkState();
+      }
+    </script>
     {% endif %}
   </main>
 </body>

@@ -102,6 +102,36 @@ def trash_restore_view(request: HttpRequest, record_id: int) -> HttpResponse:
 @staff_member_required
 @csrf_protect
 @require_POST
+def trash_purge_bulk_view(request: HttpRequest) -> HttpResponse:
+    ids = request.POST.getlist("record_ids")
+    if not ids:
+        messages.error(request, "선택한 항목이 없습니다.")
+        return redirect(reverse("ragadmin:trash"))
+
+    records = TrashedRecord.objects.filter(pk__in=ids, purged=False, restored=False)
+    ok_count = 0
+    fail_count = 0
+    for record in records:
+        try:
+            purge_trashed_record(record)
+            ok_count += 1
+        except Exception:
+            log.exception("trash bulk purge failed record_id=%s", record.pk)
+            fail_count += 1
+
+    if ok_count:
+        messages.success(request, f"{ok_count}건을 영구 삭제했습니다.")
+    if fail_count:
+        messages.error(request, f"{fail_count}건은 삭제하지 못했습니다.")
+    if not ok_count and not fail_count:
+        messages.error(request, "선택한 항목을 찾을 수 없습니다(이미 처리되었을 수 있어요).")
+
+    return redirect(reverse("ragadmin:trash"))
+
+
+@staff_member_required
+@csrf_protect
+@require_POST
 def trash_purge_view(request: HttpRequest, record_id: int) -> HttpResponse:
     record = get_object_or_404(TrashedRecord, pk=record_id)
     try:
