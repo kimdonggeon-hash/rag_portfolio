@@ -147,6 +147,7 @@ body {
 }
 
 .hero-side-card {
+    box-sizing: border-box;
     border-radius: 18px;
     background: rgba(15, 23, 42, .85);
     border: 1px solid rgba(148, 163, 184, .35);
@@ -893,6 +894,7 @@ code {
 }
 
 .hero-cta--side {
+    box-sizing: border-box;
     width: 100%;
     justify-content: center;
     padding: 11px 16px;
