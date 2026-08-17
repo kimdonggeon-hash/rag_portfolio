@@ -180,7 +180,9 @@
             <div class="side-sep"></div>
 
             <a class="side-link" href="/board/" aria-label="게시판으로 이동">
-              🧾 게시판 <span class="side-meta">커뮤니티</span>
+              <span class="side-ico">🧾</span>
+              <span class="side-label">게시판</span>
+              <span class="side-meta">커뮤니티</span>
             </a>
 
             <button type="button"
@@ -188,7 +190,9 @@
                     class="side-link side-link-btn"
                     aria-expanded="false"
                     aria-label="질문 챗봇 열기">
-              💬 질문 챗봇 <span class="side-meta">Q&amp;A</span>
+              <span class="side-ico">💬</span>
+              <span class="side-label">질문 챗봇</span>
+              <span class="side-meta">Q&amp;A</span>
             </button>
           </div>
         </section>
@@ -201,18 +205,22 @@
 
           <div class="side-card-body">
             <div class="quick-tools-grid">
-              <a class="side-link" href="{% url 'media_index' %}">
-                🖼️ 이미지 모아두기 <span class="side-meta">이미지 저장</span>
+              <a class="side-tile" href="{% url 'media_index' %}">
+                <span class="side-ico">🖼️</span>
+                <span class="side-label">이미지 모아두기</span>
+                <span class="side-meta">이미지 저장</span>
               </a>
-              <a class="side-link" href="{% url 'media_search' %}">
-                🔎 글로 이미지 찾기 <span class="side-meta">이미지 검색</span>
+              <a class="side-tile" href="{% url 'media_search' %}">
+                <span class="side-ico">🔎</span>
+                <span class="side-label">글로 이미지 찾기</span>
+                <span class="side-meta">이미지 검색</span>
               </a>
             </div>
 
-            <div class="side-sep"></div>
-
             <a class="side-link" href="#" data-open-ig-guide data-guide-url="/legal/guide/">
-              📘 사용 안내(카드뉴스) <span class="side-meta">1분 설명</span>
+              <span class="side-ico">📘</span>
+              <span class="side-label">사용 안내(카드뉴스)</span>
+              <span class="side-meta">1분 설명</span>
             </a>
           </div>
         </section>
