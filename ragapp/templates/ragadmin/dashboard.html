@@ -40,29 +40,22 @@
 
       <div class="hero-divider"></div>
 
-      <div class="hero-head">
-        <div class="hero-head-left">
-          <div class="chip-row">
-            <span class="chip">김동건의 관리창</span>
-            <span class="chip">일일 사용량 제한</span>
-            <span class="chip">이미지 검수</span>
-            <span class="chip">차단자·선처 관리</span>
-          </div>
+      <div class="chip-row">
+        <span class="chip">김동건의 관리창</span>
+        <span class="chip">일일 사용량 제한</span>
+        <span class="chip">이미지 검수</span>
+        <span class="chip">차단자·선처 관리</span>
+      </div>
 
-          <div class="hero-badge">
-            <span class="dot"></span>
-            <span>오늘 세션 관리 중</span>
-          </div>
+      <!-- ✅ 세션 배지 + 운영 OBS 툴바를 같은 줄에 배치 -->
+      <div class="hero-session-row">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          <span>오늘 세션 관리 중</span>
         </div>
 
-        <!-- ✅ AI 어시스턴트 + 운영 OBS 컨트롤 -->
         <div id="dgDashObsRoot" class="dg-dash-obs">
           <div class="obs-panel">
-            <a class="hero-cta" href="{% url 'assistant_view' %}">
-              <span class="hero-cta-ico">🤖</span>
-              <span>사내 AI 어시스턴트</span>
-            </a>
-
             <div class="obs-toolbar">
               <div class="obs-toolbar-head">
                 <span class="obs-state obs-off" id="obsStateChip" title="운영 OBS 상태">
@@ -78,15 +71,12 @@
                 <button type="button" class="obs-btn" id="adminObsBtn" title="운영 OBS 토글">
                   <span class="obs-btn-ico">📊</span><span class="obs-btn-label">OBS 토글</span>
                 </button>
-                <button type="button" class="obs-btn" id="adminObsHealthBtn" title="상태 보기">
-                  <span class="obs-btn-ico">🩺</span><span class="obs-btn-label">상태 보기</span>
-                </button>
                 <button type="button" class="obs-btn" id="adminObsClearBtn" title="기록 초기화">
                   <span class="obs-btn-ico">🧹</span><span class="obs-btn-label">기록 초기화</span>
                 </button>
-                <button type="button" class="obs-btn" id="adminObsCfgOpenBtn" title="OBS 설정">
-                  <span class="obs-btn-ico">⚙️</span><span class="obs-btn-label">OBS 설정</span>
-                </button>
+                <!-- 상태보기(adminObsHealthBtn)/설정(adminObsCfgOpenBtn) 버튼은 OBS 패널 내부 버튼
+                     (#dgObsHealth, #dgObsSettings)을 그대로 대신 누르는 중복 기능이라 제거함.
+                     OBS 토글을 켜면 뜨는 OBS 패널 자체에서 확인/설정하면 됩니다. -->
               </div>
             </div>
 
@@ -124,6 +114,11 @@
           </span>
         </div>
       </div>
+
+      <a class="hero-cta hero-cta--side" href="{% url 'assistant_view' %}">
+        <span class="hero-cta-ico">🤖</span>
+        <span>사내 AI 어시스턴트</span>
+      </a>
     </aside>
   </header>
 
