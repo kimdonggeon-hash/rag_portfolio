@@ -337,6 +337,9 @@ urlpatterns = [
     path("api/qarag/feedback/", views_feedback.api_qarag_feedback, name="api_qarag_feedback"),
     path("api/qarag/feedback", views_feedback.api_qarag_feedback),
 
+    path("api/qarag/faq_suggestions/", views_feedback.api_faq_suggestions, name="api_faq_suggestions"),
+    path("api/qarag/faq_suggestions", views_feedback.api_faq_suggestions),
+
     path("board/", include(("ragapp.board.urls", "board"), namespace="board")),
 
     # ----------------------------------------------------------------------

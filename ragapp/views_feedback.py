@@ -8,13 +8,14 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from django.http import JsonResponse, HttpRequest
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.cache import never_cache
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db import transaction
 
-from ragapp.models import QaragFeedback, ChatQueryLog, FeedbackLog, FeedbackReview
+from ragapp.models import QaragFeedback, ChatQueryLog, FeedbackLog, FeedbackReview, FaqEntry
 
 log = logging.getLogger(__name__)
 
@@ -458,3 +459,32 @@ def submit_feedback(request: HttpRequest) -> JsonResponse:
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
+
+
+MAX_FAQ_SUGGESTIONS = 6
+
+
+@require_GET
+@never_cache
+def api_faq_suggestions(request: HttpRequest) -> JsonResponse:
+    """
+    질문 챗봇 패널을 처음 열었을 때 보여줄 추천 FAQ 질문 목록(공개, 인증 불필요).
+    """
+    try:
+        limit = int(request.GET.get("limit") or MAX_FAQ_SUGGESTIONS)
+    except Exception:
+        limit = MAX_FAQ_SUGGESTIONS
+    limit = max(1, min(MAX_FAQ_SUGGESTIONS, limit))
+
+    questions = list(
+        FaqEntry.objects.filter(is_active=True)
+        .order_by("-updated_at", "-created_at")
+        .values_list("question", flat=True)[:limit]
+    )
+    questions = [q.strip() for q in questions if (q or "").strip()]
+
+    return JsonResponse(
+        {"ok": True, "questions": questions},
+        status=200,
+        json_dumps_params={"ensure_ascii": False},
+    )

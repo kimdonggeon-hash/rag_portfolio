@@ -109,6 +109,54 @@
     }
 
     // ─────────────────────────────────────
+    // ✅ 봇 답변 포맷팅: 문단 구분 + 인용 표시([1] 같은 각주)를 뱃지로
+    //    (항상 텍스트 노드로만 조립 → innerHTML 사용 안 함, XSS 안전)
+    // ─────────────────────────────────────
+    const CITE_RE = /\[(\d{1,2})\]/g;
+
+    function _appendTextWithCites(parent, line) {
+        CITE_RE.lastIndex = 0;
+        let last = 0;
+        let m;
+        let any = false;
+        while ((m = CITE_RE.exec(line))) {
+            any = true;
+            if (m.index > last) {
+                parent.appendChild(document.createTextNode(line.slice(last, m.index)));
+            }
+            const cite = document.createElement("sup");
+            cite.className = "qarag-cite";
+            cite.textContent = m[1];
+            parent.appendChild(cite);
+            last = CITE_RE.lastIndex;
+        }
+        if (!any) {
+            parent.appendChild(document.createTextNode(line));
+            return;
+        }
+        if (last < line.length) {
+            parent.appendChild(document.createTextNode(line.slice(last)));
+        }
+    }
+
+    function _renderBotText(container, text) {
+        const s = String(text || "");
+        const paragraphs = s.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+        const list = paragraphs.length ? paragraphs : [s];
+
+        list.forEach((para) => {
+            const p = document.createElement("p");
+            p.className = "qarag-msg-p";
+            const lines = para.split(/\n/);
+            lines.forEach((line, idx) => {
+                if (idx > 0) p.appendChild(document.createElement("br"));
+                _appendTextWithCites(p, line);
+            });
+            container.appendChild(p);
+        });
+    }
+
+    // ─────────────────────────────────────
     // 말풍선 렌더링 (순수 RAG/FAQ 전용)
     // ─────────────────────────────────────
     const lastMsg = { role: "", text: "", at: 0 };
@@ -142,12 +190,12 @@
         if (isUser) {
             div.textContent = s;
         } else {
-            // ✅ bot은 "AI 생성" 배지 + 텍스트(텍스트 노드로 안전하게)
+            // ✅ bot은 "AI 생성" 배지 + 텍스트(문단/인용 포맷팅, 텍스트 노드로만 조립)
             div.appendChild(_makeAIBadge());
 
-            const body = document.createElement("span");
+            const body = document.createElement("div");
             body.className = "qarag-msg-text";
-            body.textContent = s;
+            _renderBotText(body, s);
             div.appendChild(body);
         }
 
@@ -159,6 +207,66 @@
 
     // 다른 스크립트(WS 등)에서 필요할 수 있으니 노출
     window.__qaragAddMsg = addBubble;
+
+    // ─────────────────────────────────────
+    // ✅ 추천 FAQ 칩 (카카오톡 퀵리플라이 느낌)
+    //    - 패널을 처음 열었을 때, 대화가 아직 없으면 등록된 FAQ 몇 개를 칩으로 보여준다.
+    // ─────────────────────────────────────
+    let _faqSuggestState = "idle"; // idle | loading | shown | skipped
+
+    function renderFaqSuggestions(box, questions) {
+        const wrap = document.createElement("div");
+        wrap.className = "qarag-msgwrap bot qarag-faq-wrap";
+
+        const intro = document.createElement("div");
+        intro.className = "qarag-msg bot qarag-faq-intro";
+        intro.textContent = "안녕하세요! 아래 질문 중 하나를 눌러보시거나, 궁금한 걸 자유롭게 물어보세요 🙂";
+        wrap.appendChild(intro);
+
+        const chipRow = document.createElement("div");
+        chipRow.className = "qarag-faq-chips";
+        questions.forEach((q) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "qarag-faq-chip";
+            chip.textContent = q;
+            chip.addEventListener("click", () => {
+                const input = document.getElementById("qaragInput");
+                if (input) input.value = q;
+                sendQarag();
+            });
+            chipRow.appendChild(chip);
+        });
+        wrap.appendChild(chipRow);
+
+        box.appendChild(wrap);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function maybeShowFaqSuggestions() {
+        const box = document.getElementById("qaragMessages");
+        if (!box || box.children.length > 0) return;
+        if (_faqSuggestState !== "idle") return;
+        _faqSuggestState = "loading";
+
+        try {
+            const res = await fetch("/api/qarag/faq_suggestions/", { credentials: "same-origin" });
+            const data = res.ok ? await res.json().catch(() => null) : null;
+            const questions = (data && Array.isArray(data.questions)) ? data.questions.filter(Boolean) : [];
+
+            // 그사이 사용자가 이미 메시지를 보냈으면 끼워넣지 않음
+            if (!questions.length || box.children.length > 0) {
+                _faqSuggestState = "skipped";
+                return;
+            }
+            renderFaqSuggestions(box, questions);
+            _faqSuggestState = "shown";
+        } catch (_) {
+            _faqSuggestState = "skipped";
+        }
+    }
+
+    window.__qaragMaybeShowFaqSuggestions = maybeShowFaqSuggestions;
 
     // ─────────────────────────────────────
     // 피드백 줄 생성
@@ -818,6 +926,7 @@
             }
 
             centerQaragPanel(panel);
+            maybeShowFaqSuggestions();
 
             // ✅ 포커스를 패널 내부로 이동 (닫기 버튼 우선, 없으면 입력)
             requestAnimationFrame(() => {
