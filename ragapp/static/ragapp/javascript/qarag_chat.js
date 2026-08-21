@@ -209,6 +209,40 @@
     window.__qaragAddMsg = addBubble;
 
     // ─────────────────────────────────────
+    // ✅ 시스템 알림 말풍선(사용량 한도 등) — "AI 생성" 배지 없이,
+    //    경고 톤의 별도 카드로 표시해서 실제 AI 답변과 헷갈리지 않게 한다.
+    // ─────────────────────────────────────
+    function addNoticeBubble(text, opts) {
+        const box = document.getElementById("qaragMessages");
+        if (!box) return null;
+
+        const icon = (opts && opts.icon) || "⏳";
+
+        const wrap = document.createElement("div");
+        wrap.className = "qarag-msgwrap bot";
+
+        const card = document.createElement("div");
+        card.className = "qarag-notice";
+
+        const iconEl = document.createElement("span");
+        iconEl.className = "qarag-notice-icon";
+        iconEl.textContent = icon;
+        card.appendChild(iconEl);
+
+        const body = document.createElement("div");
+        body.className = "qarag-notice-text";
+        _renderBotText(body, String(text || ""));
+        card.appendChild(body);
+
+        wrap.appendChild(card);
+        box.appendChild(wrap);
+        box.scrollTop = box.scrollHeight;
+        return wrap;
+    }
+
+    window.__qaragAddNotice = addNoticeBubble;
+
+    // ─────────────────────────────────────
     // ✅ 추천 FAQ 칩 (카카오톡 퀵리플라이 느낌)
     //    - 패널을 처음 열었을 때, 대화가 아직 없으면 등록된 FAQ 몇 개를 칩으로 보여준다.
     // ─────────────────────────────────────
@@ -699,7 +733,19 @@
             } else {
                 log("QARAG_ERR", e);
                 const friendly = e && e.userMessage ? e.userMessage : e && e.message ? e.message : "요청 실패";
-                addBubble("bot", "⚠️ " + friendly);
+                const codeStr = String((e && e.code) || "").toLowerCase();
+                const isQuota =
+                    (e && e.status === 429) ||
+                    codeStr.includes("limit") ||
+                    codeStr.includes("rate") ||
+                    codeStr.includes("quota") ||
+                    codeStr.includes("too_many");
+
+                if (isQuota) {
+                    addNoticeBubble(friendly, { icon: "⏳" });
+                } else {
+                    addBubble("bot", "⚠️ " + friendly);
+                }
             }
         } finally {
             BUSY.inflight = false;
