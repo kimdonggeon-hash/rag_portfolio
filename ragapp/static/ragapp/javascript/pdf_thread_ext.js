@@ -274,8 +274,13 @@
 
                 return parse.then(function (data) {
                     if (!resp.ok) {
-                        var emsg = (data && (data.error || data.message || data.detail)) || ("서버 오류: " + resp.status);
-                        throw new Error(emsg);
+                        // ✅ message가 있으면(사용량 한도 등 사람이 읽을 문구) 그걸 우선하고,
+                        //    error는 내부 코드(DAILY_LIMIT_REACHED 등)일 수 있어 후순위로.
+                        var emsg = (data && (data.message || data.error || data.detail)) || ("서버 오류: " + resp.status);
+                        var e = new Error(emsg);
+                        e.status = resp.status;
+                        e.response = data;
+                        throw e;
                     }
                     return data;
                 });
@@ -286,7 +291,9 @@
                 a.wrap.classList.remove("is-thinking");
 
                 if (!data || !data.ok) {
-                    a.bubble.textContent = (data && data.error) ? data.error : "알 수 없는 오류가 발생했습니다.";
+                    var isLimit1 = !!(data && data.error === "DAILY_LIMIT_REACHED");
+                    a.bubble.textContent = (isLimit1 ? "⏳ " : "") + ((data && (data.message || data.error)) || "알 수 없는 오류가 발생했습니다.");
+                    a.bubble.classList.toggle("chat-bubble--limit", isLimit1);
                     return;
                 }
 
@@ -312,7 +319,16 @@
             })
             .catch(function (err) {
                 a.wrap.classList.remove("is-thinking");
-                a.bubble.textContent = "요청 처리 중 오류: " + (err && err.message ? err.message : err);
+                var isLimit2 = !!(
+                    err &&
+                    ((err.response && err.response.error === "DAILY_LIMIT_REACHED") || err.status === 429)
+                );
+                if (isLimit2) {
+                    a.bubble.textContent = "⏳ " + (err && err.message ? err.message : "오늘 사용할 수 있는 PDF 분석 횟수를 모두 사용했습니다.");
+                    a.bubble.classList.add("chat-bubble--limit");
+                } else {
+                    a.bubble.textContent = "요청 처리 중 오류: " + (err && err.message ? err.message : err);
+                }
             })
             .finally(function () {
                 inFlight = false;
