@@ -747,6 +747,13 @@ body[data-layout="overlay"] .mz-sidebar {
     border-color: rgba(99, 102, 241, .22);
 }
 
+/* 사용량 한도 도달 알림: 일반 오류와 구분되는 경고 톤 */
+.mz-bubble--limit {
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    color: #fde68a;
+}
+
 .mz-bubble .muted {
     opacity: .75;
 }

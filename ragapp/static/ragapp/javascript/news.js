@@ -161,18 +161,18 @@
     }
   }
 
-  function chatError(chatCtx, msg) {
+  function chatError(chatCtx, msg, extraOpts) {
     try {
       if (!chatCtx) return false;
 
       var text = String(msg || "");
-      var opts = { aiBadge: false, error: true, pending: false };
+      var opts = Object.assign({ aiBadge: false, error: true, pending: false }, extraOpts || {});
 
       if (chatCtx.adapter && typeof chatCtx.adapter.error === "function" && chatCtx.assistant) {
         chatCtx.adapter.error(chatCtx.assistant, text, opts);
         return true;
       }
-      return chatUpdate(chatCtx, "❌ " + text, opts);
+      return chatUpdate(chatCtx, (opts.limit ? "⏳ " : "❌ ") + text, opts);
     } catch (_) {
       return false;
     }
@@ -1918,12 +1918,15 @@
                 }
 
                 log("WEB_QA_ERR", msg);
-                chatError(chatCtx, msg); // chatCtx 없으면 no-op
+                chatError(chatCtx, msg, { limit: hardLimit }); // chatCtx 없으면 no-op
+
+                var errCls2 = hardLimit ? "msg-limit" : "msg-err";
+                var errIcon2 = hardLimit ? "⏳" : "❌";
 
                 try {
                   var ansElFallback = document.getElementById("web-answer-block");
                   if (ansElFallback) {
-                    ansElFallback.innerHTML = '<div class="msg-err" role="alert">❌ ' + escHtml(msg) + "</div>";
+                    ansElFallback.innerHTML = '<div class="' + errCls2 + '" role="alert">' + errIcon2 + " " + escHtml(msg) + "</div>";
                   }
                 } catch (_) { }
 
@@ -1932,7 +1935,7 @@
                 var msgRow2 = card2 ? card2.querySelector(".msg-row") : null;
 
                 if (msgRow2) {
-                  msgRow2.innerHTML = '<div class="msg-err" role="alert">❌ ' + escHtml(msg) + "</div>";
+                  msgRow2.innerHTML = '<div class="' + errCls2 + '" role="alert">' + errIcon2 + " " + escHtml(msg) + "</div>";
                 }
 
                 if (hardLimit) {
@@ -2535,19 +2538,22 @@
                 }
 
                 log("RAG_QA_ERR", msg);
-                chatError(chatCtx, msg);
+                chatError(chatCtx, msg, { limit: hardLimit });
+
+                var errCls3 = hardLimit ? "msg-limit" : "msg-err";
+                var errIcon3 = hardLimit ? "⏳" : "❌";
 
                 try {
                   var ansElFallback = document.getElementById("rag-answer-block");
                   if (ansElFallback) {
-                    ansElFallback.innerHTML = '<div class="msg-err" role="alert">❌ ' + escHtml(msg) + "</div>";
+                    ansElFallback.innerHTML = '<div class="' + errCls3 + '" role="alert">' + errIcon3 + " " + escHtml(msg) + "</div>";
                     try { ansElFallback.dataset.latestAnswerText = String(msg || "").trim(); } catch (_) { }
                   }
                 } catch (_) { }
 
                 var msgRow2 = document.getElementById("rag-msg-block");
                 if (msgRow2) {
-                  msgRow2.innerHTML = '<div class="msg-err" role="alert">❌ ' + escHtml(msg) + "</div>";
+                  msgRow2.innerHTML = '<div class="' + errCls3 + '" role="alert">' + errIcon3 + " " + escHtml(msg) + "</div>";
                 }
 
                 try {

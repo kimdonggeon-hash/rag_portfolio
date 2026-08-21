@@ -285,16 +285,20 @@ console.log("[pdf_tab] script loaded from file");
         return m;
     }
 
-    function setAssistantMessage(m, payload, isHtml) {
+    function setAssistantMessage(m, payload, isHtml, opts) {
         try {
             if (!m || !m.bubble) return;
+
+            var isLimit = !!(opts && opts.limit);
+            m.bubble.classList.toggle("chat-bubble--limit", isLimit);
 
             if (isHtml) {
                 m.bubble.innerHTML = payload || "";
             } else {
                 // 줄바꿈 보존을 위해 textContent 대신 pre-wrap 컨테이너로
                 var safe = escapeText(payload || "");
-                m.bubble.innerHTML = '<div style="white-space:pre-wrap">' + safe + "</div>";
+                var icon = isLimit ? "⏳ " : "";
+                m.bubble.innerHTML = '<div style="white-space:pre-wrap">' + icon + safe + "</div>";
             }
         } catch (_) { }
     }
@@ -477,8 +481,13 @@ console.log("[pdf_tab] script loaded from file");
 
                     return parse.then(function (data) {
                         if (!resp.ok) {
-                            var emsg = (data && (data.error || data.message || data.detail)) || ("서버 오류: " + resp.status);
-                            throw new Error(emsg);
+                            // ✅ message가 있으면(사용량 한도 등 사람이 읽을 문구) 그걸 우선하고,
+                            //    error는 내부 코드(DAILY_LIMIT_REACHED 등)일 수 있어 후순위로.
+                            var emsg = (data && (data.message || data.error || data.detail)) || ("서버 오류: " + resp.status);
+                            var e = new Error(emsg);
+                            e.status = resp.status;
+                            e.response = data;
+                            throw e;
                         }
                         return data;
                     });
@@ -487,9 +496,10 @@ console.log("[pdf_tab] script loaded from file");
                     debug("응답 JSON:", data);
 
                     if (!data || !data.ok) {
-                        var msg0 = (data && data.error) ? data.error : "알 수 없는 오류가 발생했습니다.";
+                        var msg0 = (data && (data.message || data.error)) || "알 수 없는 오류가 발생했습니다.";
+                        var isLimit0 = !!(data && data.error === "DAILY_LIMIT_REACHED");
                         if (chat && chat.stream && assistantMsg) {
-                            setAssistantMessage(assistantMsg, msg0, false);
+                            setAssistantMessage(assistantMsg, msg0, false, { limit: isLimit0 });
                         } else {
                             setLegacyResult(msg0, false);
                         }
@@ -536,10 +546,16 @@ console.log("[pdf_tab] script loaded from file");
                 })
                 .catch(function (err) {
                     debug("fetch 에러:", err);
-                    var em = "요청 처리 중 오류가 발생했습니다: " + (err && err.message ? err.message : err);
+                    var isLimit = !!(
+                        err &&
+                        ((err.response && err.response.error === "DAILY_LIMIT_REACHED") || err.status === 429)
+                    );
+                    var em = isLimit
+                        ? (err && err.message ? err.message : "오늘 사용할 수 있는 PDF 분석 횟수를 모두 사용했습니다.")
+                        : "요청 처리 중 오류가 발생했습니다: " + (err && err.message ? err.message : err);
 
                     if (chat && chat.stream && assistantMsg) {
-                        setAssistantMessage(assistantMsg, em, false);
+                        setAssistantMessage(assistantMsg, em, false, { limit: isLimit });
                         scheduleScrollToBottom(chat.stream);
                     } else {
                         setLegacyResult(em, false);

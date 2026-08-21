@@ -881,7 +881,16 @@
 
     function apiError(handle, text, opts) {
         const o = Object.assign({ aiBadge: false, error: true, pending: false }, opts || {});
-        return apiUpdate(handle, "❌ " + String(text || ""), o);
+        const prefix = o.limit ? "⏳ " : "❌ ";
+        const ok = apiUpdate(handle, prefix + String(text || ""), o);
+        if (o.limit) {
+            try {
+                const el = _unwrapHandle(handle);
+                const bubble = el && ($(".mz-bubble", el) || el);
+                if (bubble) bubble.classList.add("mz-bubble--limit");
+            } catch (_) { }
+        }
+        return ok;
     }
 
     window.NEWS_CHAT_ADAPTER = window.NEWS_CHAT_ADAPTER || {};

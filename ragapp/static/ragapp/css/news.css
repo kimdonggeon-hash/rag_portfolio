@@ -463,6 +463,21 @@ html[data-theme="dark"] .field-input {
     color: #b91c1c;
 }
 
+.msg-limit {
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(217, 119, 6, 0.55);
+    color: #92400e;
+    font-weight: 600;
+}
+
+html[data-theme="dark"] .msg-limit {
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fde68a;
+}
+
 /* 답변 / 소스 영역 (공통 기본) */
 .answer-block {
     margin-top: 8px;
@@ -1739,6 +1754,19 @@ html[data-theme="dark"] #cardWeb .src-badge {
 .chat-msg--user .chat-bubble {
     background: var(--accent-soft);
     border-color: rgba(99, 102, 241, 0.22);
+}
+
+.chat-bubble--limit {
+    background: rgba(245, 158, 11, 0.1) !important;
+    border-color: rgba(217, 119, 6, 0.5) !important;
+    color: #92400e;
+    font-weight: 600;
+}
+
+html[data-theme="dark"] .chat-bubble--limit {
+    background: rgba(245, 158, 11, 0.16) !important;
+    border-color: rgba(245, 158, 11, 0.42) !important;
+    color: #fde68a;
 }
 
 .chat-msg--assistant .answer-meta-row {
