@@ -11,7 +11,10 @@
     };
     const setHeight = function (height) {
         const next = Math.max(minHeight, Math.min(maxHeight(), Math.round(height)));
-        thread.style.setProperty("height", next + "px", "important");
+        // height 자체를 inline !important로 박지 않고 CSS 변수로만 넘긴다.
+        // (검색 후 데스크톱 레이아웃에서 스레드를 화면 높이에 꽉 채워야 하는데,
+        //  inline !important는 스타일시트 쪽에서 절대 못 이기므로 변수로 우회)
+        thread.style.setProperty("--rag-thread-h", next + "px");
         return next;
     };
 

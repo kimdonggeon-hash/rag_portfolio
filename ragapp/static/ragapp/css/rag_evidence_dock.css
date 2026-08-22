@@ -3,7 +3,10 @@
 /* =========================
    Theme tokens (light/dark)
    ========================= */
-#dgRagEvidenceDock {
+/* ⚠️ 근거 패널은 JS가 답변 말풍선 안으로 DOM을 이동시키므로(dg-ev-in-bubble),
+   #dgRagEvidenceDock에 스코프하면 이동 후 자손이 토큰을 상속받지 못한다.
+   반드시 :root에 둬서 어디로 옮겨져도 항상 상속되게 한다. */
+:root {
     --dg-ev-pill-line: rgba(148, 163, 184, .22);
     --dg-ev-pill-bg: rgba(2, 6, 23, .28);
     --dg-ev-pill-bg2: rgba(2, 6, 23, .34);
@@ -19,26 +22,30 @@
     --dg-ev-item-bg: rgba(2, 6, 23, .18);
 
     --dg-ev-link: rgba(147, 197, 253, .98);
+    --dg-ev-num-bg: rgba(45, 212, 191, .16);
+    --dg-ev-num-ink: #2dd4bf;
     --dg-ev-shadow: 0 12px 28px rgba(0, 0, 0, .35);
 }
 
-:root[data-theme="light"] #dgRagEvidenceDock,
-html[data-theme="light"] #dgRagEvidenceDock,
-body[data-theme="light"] #dgRagEvidenceDock {
-    --dg-ev-pill-line: rgba(15, 23, 42, .14);
-    --dg-ev-pill-bg: rgba(15, 23, 42, .06);
-    --dg-ev-pill-bg2: rgba(15, 23, 42, .08);
-    --dg-ev-pill-text: rgba(15, 23, 42, .92);
-    --dg-ev-pill-muted: rgba(15, 23, 42, .68);
+:root[data-theme="light"],
+html[data-theme="light"],
+body[data-theme="light"] {
+    --dg-ev-pill-line: rgba(15, 30, 27, .12);
+    --dg-ev-pill-bg: rgba(15, 30, 27, .05);
+    --dg-ev-pill-bg2: rgba(15, 30, 27, .08);
+    --dg-ev-pill-text: rgba(15, 30, 27, .92);
+    --dg-ev-pill-muted: rgba(15, 30, 27, .64);
 
-    --dg-ev-panel-line: rgba(15, 23, 42, .10);
-    --dg-ev-panel-bg: rgba(255, 255, 255, .86);
+    --dg-ev-panel-line: rgba(15, 30, 27, .10);
+    --dg-ev-panel-bg: #ffffff;
 
-    --dg-ev-item-line: rgba(15, 23, 42, .10);
-    --dg-ev-item-bg: rgba(255, 255, 255, .75);
+    --dg-ev-item-line: rgba(15, 30, 27, .10);
+    --dg-ev-item-bg: #ffffff;
 
-    --dg-ev-link: rgba(37, 99, 235, .98);
-    --dg-ev-shadow: 0 12px 28px rgba(15, 23, 42, .10);
+    --dg-ev-link: var(--qarag-accent, #0c766c);
+    --dg-ev-num-bg: var(--qarag-accent-soft, rgba(15, 139, 127, .1));
+    --dg-ev-num-ink: var(--qarag-accent-strong, #0a5f57);
+    --dg-ev-shadow: 0 12px 28px rgba(15, 30, 27, .08);
 }
 
 /* =========================
@@ -112,7 +119,7 @@ body[data-theme="light"] #dgRagEvidenceDock {
 
 #dgRagEvidenceDock {
     width: 100%;
-    max-width: 980px;
+    max-width: 760px;
     margin: 10px auto 0;
     padding: 0 14px;
 }
@@ -278,8 +285,9 @@ body[data-theme="light"] #dgRagEvidenceDock {
     background: var(--dg-ev-panel-bg);
     padding: 10px;
 
-    max-height: 240px;
-    overflow: auto;
+    /* 시안처럼 근거 카드 안에 자체 스크롤이 생기지 않도록 높이 제한을 없앤다 */
+    max-height: none;
+    overflow: visible;
 
     box-shadow: var(--dg-ev-shadow);
     backdrop-filter: blur(8px);
@@ -345,13 +353,33 @@ body[data-theme="light"] #dgRagEvidenceDock {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    counter-reset: dg-ev-src;
 }
 
 .dg-ev-panel .src-item {
-    padding: 9px 10px;
+    position: relative;
+    padding: 9px 10px 9px 34px;
     border-radius: 12px;
     border: 1px solid var(--dg-ev-item-line);
     background: var(--dg-ev-item-bg);
+    counter-increment: dg-ev-src;
+}
+
+.dg-ev-panel .src-item::before {
+    content: counter(dg-ev-src);
+    position: absolute;
+    left: 9px;
+    top: 10px;
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--dg-ev-num-bg);
+    color: var(--dg-ev-num-ink);
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1;
 }
 
 .dg-ev-panel .src-title {

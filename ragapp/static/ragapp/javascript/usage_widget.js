@@ -36,6 +36,11 @@
         if (el) el.textContent = String(value);
     }
 
+    function setTextIn(root, key, value) {
+        var el = root.querySelector('[data-uw="' + key + '"]');
+        if (el) el.textContent = String(value);
+    }
+
     // 상단 pill (feature.html)
     function updateHeaderPills(data) {
         var root = document.getElementById("usageWidget");
@@ -54,45 +59,47 @@
         });
     }
 
-    // 홈 카드(오늘 사용량 위젯)
+    // 홈 카드(오늘 사용량 위젯) — 데스크톱 사이드바 + 모바일 도구 드로어 동시 지원
     function updateHomeCard(data) {
-        var root = document.getElementById("usage-widget");
-        if (!root) return;
+        var roots = document.querySelectorAll("[data-usage-widget]");
+        if (!roots.length) return;
 
         var used = (data && data.used) ? data.used : {};
         var limits = (data && data.limits) ? data.limits : {};
         var rem = (data && data.remaining) ? data.remaining : {};
         var isAdmin = !!(data && data.unlimited);
 
-        // used
-        setText("uw-web-used", n(used.web, 0));
-        setText("uw-rag-used", n(used.rag, 0));
-        setText("uw-pdf-used", n(used.pdf, 0));
+        roots.forEach(function (root) {
+            // used
+            setTextIn(root, "web-used", n(used.web, 0));
+            setTextIn(root, "rag-used", n(used.rag, 0));
+            setTextIn(root, "pdf-used", n(used.pdf, 0));
 
-        // limits: 어드민이면 ∞로 보이게
-        setText("uw-web-limit", isAdmin ? "∞" : fmtInf(limits.web));
-        setText("uw-rag-limit", isAdmin ? "∞" : fmtInf(limits.rag));
-        setText("uw-pdf-limit", isAdmin ? "∞" : fmtInf(limits.pdf));
+            // limits: 어드민이면 ∞로 보이게
+            setTextIn(root, "web-limit", isAdmin ? "∞" : fmtInf(limits.web));
+            setTextIn(root, "rag-limit", isAdmin ? "∞" : fmtInf(limits.rag));
+            setTextIn(root, "pdf-limit", isAdmin ? "∞" : fmtInf(limits.pdf));
 
-        // ✅ remaining 기반 경고 표시(0=red, 1=amber, null=unlimited)
-        function setRowState(kind, rowId) {
-            var row = document.getElementById(rowId);
-            if (!row) return;
+            // ✅ remaining 기반 경고 표시(0=red, 1=amber, null=unlimited)
+            function setRowState(kind) {
+                var row = root.querySelector('[data-uw-row="' + kind + '"]');
+                if (!row) return;
 
-            var r = rem[kind]; // null이면 무제한
-            row.classList.toggle("uw-zero", r === 0);
-            row.classList.toggle("uw-low", r === 1);
-            row.classList.toggle("uw-unlim", r === null || isAdmin);
+                var r = rem[kind]; // null이면 무제한
+                row.classList.toggle("uw-zero", r === 0);
+                row.classList.toggle("uw-low", r === 1);
+                row.classList.toggle("uw-unlim", r === null || isAdmin);
 
-            // undefined(키 없음)면 상태 표시 제거
-            if (r === undefined && !isAdmin) {
-                row.classList.remove("uw-zero", "uw-low", "uw-unlim");
+                // undefined(키 없음)면 상태 표시 제거
+                if (r === undefined && !isAdmin) {
+                    row.classList.remove("uw-zero", "uw-low", "uw-unlim");
+                }
             }
-        }
 
-        setRowState("web", "uw-row-web");
-        setRowState("rag", "uw-row-rag");
-        setRowState("pdf", "uw-row-pdf");
+            setRowState("web");
+            setRowState("rag");
+            setRowState("pdf");
+        });
     }
 
     function apply(data) {
@@ -102,7 +109,7 @@
 
     function refresh() {
         var hasHeader = !!document.getElementById("usageWidget");
-        var hasCard = !!document.getElementById("usage-widget");
+        var hasCard = !!document.querySelector("[data-usage-widget]");
         if (!hasHeader && !hasCard) return;
 
         var now = Date.now();

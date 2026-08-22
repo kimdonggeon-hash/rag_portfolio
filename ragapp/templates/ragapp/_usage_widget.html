@@ -1,7 +1,7 @@
 {# templates/ragapp/_usage_widget.html #}
 {% load static %}
 
-<div id="usage-widget" class="usage-widget-card">
+<div data-usage-widget class="usage-widget-card">
   <div class="usage-widget-header">
     <div class="usage-widget-title">오늘 사용량</div>
     <div class="usage-widget-sub">
@@ -10,30 +10,30 @@
   </div>
 
   <dl class="usage-widget-list">
-    <div class="uw-row" id="uw-row-web">
+    <div class="uw-row" data-uw-row="web">
       <dt>웹 검색</dt>
       <dd>
-        <span id="uw-web-used">0</span>
+        <span data-uw="web-used">0</span>
         /
-        <span id="uw-web-limit">{{ USAGE_LIMIT_WEB|default:"0" }}</span>회
+        <span data-uw="web-limit">{{ USAGE_LIMIT_WEB|default:"0" }}</span>회
       </dd>
     </div>
 
-    <div class="uw-row" id="uw-row-rag">
+    <div class="uw-row" data-uw-row="rag">
       <dt>RAG 질문</dt>
       <dd>
-        <span id="uw-rag-used">0</span>
+        <span data-uw="rag-used">0</span>
         /
-        <span id="uw-rag-limit">{{ USAGE_LIMIT_RAG|default:"0" }}</span>회
+        <span data-uw="rag-limit">{{ USAGE_LIMIT_RAG|default:"0" }}</span>회
       </dd>
     </div>
 
-    <div class="uw-row" id="uw-row-pdf">
+    <div class="uw-row" data-uw-row="pdf">
       <dt>PDF 분석</dt>
       <dd>
-        <span id="uw-pdf-used">0</span>
+        <span data-uw="pdf-used">0</span>
         /
-        <span id="uw-pdf-limit">{{ USAGE_LIMIT_PDF|default:"0" }}</span>회
+        <span data-uw="pdf-limit">{{ USAGE_LIMIT_PDF|default:"0" }}</span>회
       </dd>
     </div>
   </dl>

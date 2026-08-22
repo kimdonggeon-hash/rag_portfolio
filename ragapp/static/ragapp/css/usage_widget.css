@@ -99,17 +99,17 @@
 }
 
 /* 현재 사용량 숫자 강조 */
-#uw-web-used,
-#uw-rag-used,
-#uw-pdf-used {
+[data-uw="web-used"],
+[data-uw="rag-used"],
+[data-uw="pdf-used"] {
     font-weight: 600;
     color: var(--uw-accent);
 }
 
 /* 제한 숫자는 살짝 연하게 */
-#uw-web-limit,
-#uw-rag-limit,
-#uw-pdf-limit {
+[data-uw="web-limit"],
+[data-uw="rag-limit"],
+[data-uw="pdf-limit"] {
     opacity: 0.9;
 }
 

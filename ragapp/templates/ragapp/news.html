@@ -64,7 +64,57 @@
 
   <div class="page-wrap app-shell mz-shell" data-mode="rag">
 
-    <aside class="mz-sidebar" aria-label="사이드바"></aside>
+    <aside class="mz-sidebar" aria-label="사이드바">
+      <div class="mz-side-inner">
+        <div class="mz-side-brand">
+          <span class="mz-side-brand-mark" aria-hidden="true"></span>
+          <span class="mz-side-brand-text">{{ SERVICE_NAME|default:"김동건의 검색사이트" }}</span>
+        </div>
+
+        <nav class="mz-side-nav" aria-label="도구 메뉴">
+          <button type="button"
+                  id="qaragLaunchBtnDesktop"
+                  class="mz-side-item mz-side-item--emph"
+                  data-qarag-launch
+                  aria-expanded="false"
+                  aria-label="질문 챗봇 열기">
+            <span class="mz-side-ico">💬</span>
+            <span class="mz-side-label">질문 챗봇</span>
+          </button>
+
+          <a class="mz-side-item" href="/board/">
+            <span class="mz-side-ico">📋</span>
+            <span class="mz-side-label">게시판</span>
+          </a>
+
+          <a class="mz-side-item" href="{% url 'media_index' %}">
+            <span class="mz-side-ico">🖼️</span>
+            <span class="mz-side-label">이미지 모아두기</span>
+          </a>
+
+          <a class="mz-side-item" href="{% url 'media_search' %}">
+            <span class="mz-side-ico">🔎</span>
+            <span class="mz-side-label">글로 이미지 찾기</span>
+          </a>
+
+          <a class="mz-side-item" href="#" data-open-ig-guide data-guide-url="/legal/guide/">
+            <span class="mz-side-ico">📘</span>
+            <span class="mz-side-label">사용 안내</span>
+          </a>
+        </nav>
+
+        <div class="mz-side-spacer"></div>
+
+        <div class="mz-side-foot">
+          {% include "ragapp/_usage_widget.html" %}
+
+          <button type="button" id="sbThemeCycleBtn" class="mz-side-theme" aria-label="화면 모드 전환">
+            <span class="mz-side-theme-ico">☀️</span>
+            <span class="mz-side-theme-label">라이트 모드</span>
+          </button>
+        </div>
+      </div>
+    </aside>
 
     <main class="mz-main" aria-label="검색 및 결과">
 
@@ -96,20 +146,6 @@
 
       {% include "ragapp/partials/ai_notice_banner.html" %}
 
-      <div class="mode-tabs mode-tabs--scope mz-mode-tabs mz-mode-tabs--chat"
-           role="tablist"
-           aria-label="답변 범위 선택">
-        <button type="button" class="mode-tab is-active" data-mode="rag" role="tab" aria-selected="true">
-          AI 요약 검색
-        </button>
-        <button type="button" class="mode-tab" data-mode="web" role="tab" aria-selected="false">
-          웹 검색
-        </button>
-        <button type="button" class="mode-tab" data-mode="pdf" role="tab" aria-selected="false">
-          PDF 검색
-        </button>
-      </div>
-
       <section class="mz-chat" aria-label="대화">
         <div id="chatThread" class="mz-thread" aria-live="polite" aria-label="대화 스레드"></div>
 
@@ -133,6 +169,20 @@
           <div id="chatFileHint" class="mz-file-hint" hidden></div>
         </form>
       </section>
+
+      <div class="mode-tabs mode-tabs--scope mz-mode-tabs mz-mode-tabs--chat"
+           role="tablist"
+           aria-label="답변 범위 선택">
+        <button type="button" class="mode-tab is-active" data-mode="rag" role="tab" aria-selected="true">
+          AI 요약 검색
+        </button>
+        <button type="button" class="mode-tab" data-mode="web" role="tab" aria-selected="false">
+          웹 검색
+        </button>
+        <button type="button" class="mode-tab" data-mode="pdf" role="tab" aria-selected="false">
+          PDF 검색
+        </button>
+      </div>
 
       <section id="dgRagEvidenceDock" aria-label="근거"></section>
 
@@ -188,6 +238,7 @@
             <button type="button"
                     id="qaragLaunchBtn"
                     class="side-link side-link-btn"
+                    data-qarag-launch
                     aria-expanded="false"
                     aria-label="질문 챗봇 열기">
               <span class="side-ico">💬</span>
@@ -318,6 +369,13 @@
       return (mode === 'dark') ? 'dark' : 'light';
     }
 
+    const MODE_META = {
+      light:  { ico: '☀️', label: '라이트 모드' },
+      dark:   { ico: '🌙', label: '다크 모드' },
+      system: { ico: '💻', label: '시스템 모드' }
+    };
+    const MODE_CYCLE = ['light', 'dark', 'system'];
+
     function applyTheme(mode){
       const resolved = resolveTheme(mode);
       root.dataset.themeMode = mode;
@@ -333,6 +391,15 @@
         btn.classList.toggle('is-active', active);
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
+
+      const cycleBtn = document.getElementById('sbThemeCycleBtn');
+      if (cycleBtn){
+        const meta = MODE_META[mode] || MODE_META.system;
+        const ico = cycleBtn.querySelector('.mz-side-theme-ico');
+        const label = cycleBtn.querySelector('.mz-side-theme-label');
+        if (ico) ico.textContent = meta.ico;
+        if (label) label.textContent = meta.label;
+      }
     }
 
     function loadMode(){
@@ -362,6 +429,27 @@
       if (!btn) return;
       setMode(btn.getAttribute('data-theme-choice') || 'system');
     });
+
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest && e.target.closest('#sbThemeCycleBtn');
+      if (!btn) return;
+      const current = root.dataset.themeMode || 'system';
+      const idx = MODE_CYCLE.indexOf(current);
+      const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
+      setMode(next);
+    });
+  })();
+  </script>
+
+  <script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+  (function(){
+    var thread = document.getElementById('chatThread');
+    if (!thread) return;
+    function sync(){
+      document.body.classList.toggle('rag-result-mode', thread.children.length > 0);
+    }
+    sync();
+    new MutationObserver(sync).observe(thread, { childList: true });
   })();
   </script>
 

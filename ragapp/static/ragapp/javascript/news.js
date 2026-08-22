@@ -347,7 +347,7 @@
   function sanitizeHTML(unsafe) {
     try {
       var ALLOWED = new Set([
-        "B", "I", "STRONG", "EM", "BR",
+        "B", "I", "STRONG", "EM", "BR", "SUP",
         "UL", "OL", "LI",
         "P", "CODE", "PRE",
         "A", "H1", "H2", "H3", "H4", "BLOCKQUOTE",
@@ -386,6 +386,12 @@
 
         if (tag === "DIV" || tag === "SPAN" || tag === "LI" || tag === "UL" || tag === "OL" || tag === "PRE" || tag === "CODE") {
           return merge(COMMON, merge(DATA, new Set(["class"])));
+        }
+
+        // ✅ "AI 생성" 배지(<p class="answer-meta-row"><b class="ai-generated-badge">)와
+        // 인용 번호 배지(<sup class="rag-cite">)가 class를 잃지 않도록 허용
+        if (tag === "B" || tag === "P" || tag === "SUP" || tag === "STRONG") {
+          return merge(COMMON, new Set(["class"]));
         }
 
         if (tag === "DETAILS") return merge(COMMON, merge(DATA, new Set(["open", "class"])));
@@ -529,6 +535,53 @@
 
   function wrapWithAIBadge(html) {
     return AI_BADGE_HTML + (html || "");
+  }
+
+  /* ✅ 답변 본문의 "[1]", "[2]" 같은 인용 표기를 동그란 배지(<sup class="rag-cite">)로 치환.
+     텍스트 노드만 순회하므로 마크다운 렌더 결과(문단/리스트 등) 어디에 있어도 동작한다.
+     모델이 "[1]" 처럼 따로 쓰기도 하고 "[1, 2, 3]" 처럼 한 괄호에 묶어 쓰기도 해서
+     둘 다 매치한 뒤 콤마로 쪼개 배지를 여러 개 만든다. */
+  var CITE_RE = /\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]/g;
+
+  function badgifyCitations(root) {
+    if (!root) return;
+    try {
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      var nodes = [];
+      var n;
+      while ((n = walker.nextNode())) {
+        if (!CITE_RE.test(n.nodeValue)) continue;
+        if (n.parentElement && n.parentElement.closest("pre, code, a")) continue;
+        nodes.push(n);
+      }
+      CITE_RE.lastIndex = 0;
+
+      nodes.forEach(function (node) {
+        var text = node.nodeValue;
+        CITE_RE.lastIndex = 0;
+        var frag = document.createDocumentFragment();
+        var last = 0;
+        var m;
+        while ((m = CITE_RE.exec(text))) {
+          if (m.index > last) {
+            var chunk = text.slice(last, m.index);
+            if (chunk.endsWith(" ")) chunk = chunk.slice(0, -1);
+            // U+2060 WORD JOINER: 배지가 앞 글자와 떨어져 혼자 줄바꿈되는 것 방지
+            if (chunk) frag.appendChild(document.createTextNode(chunk + "⁠"));
+          }
+          var nums = m[1].split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+          nums.forEach(function (num) {
+            var cite = document.createElement("sup");
+            cite.className = "rag-cite";
+            cite.textContent = num;
+            frag.appendChild(cite);
+          });
+          last = CITE_RE.lastIndex;
+        }
+        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    } catch (_) { }
   }
 
   function trimReferencesSection(text) {
@@ -758,6 +811,7 @@
 
       target.innerHTML = outHtml;
       hardenLinks(target);
+      badgifyCitations(target);
     } catch (e) {
       try {
         target.innerHTML = escHtml(String(text || "")).replace(/\r\n|\r|\n/g, "<br/>");

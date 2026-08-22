@@ -934,6 +934,7 @@
                 } catch (_) { }
             }, 0);
 
+            // 근거는 기본으로 접어두고, 사용자가 "사용된 근거 보기"를 눌렀을 때만 펼친다
             try { setOpenState(false); } catch (_) { }
 
             try {
@@ -965,6 +966,8 @@
 
             scheduleRedock();
             renderDockEvidence(src);
+            // 근거는 기본으로 접어두고, 사용자가 "사용된 근거 보기"를 눌렀을 때만 펼친다
+            try { setOpenState(false); } catch (_) { }
 
             try {
                 var ev = new CustomEvent("dg:rag_sources_updated", { detail: { sources: src, log_id: lid } });

@@ -44,8 +44,8 @@
     --text-on-primary: #f9fafb;
 
     /* 포인트 */
-    --accent: #6366f1;
-    --accent-soft: rgba(99, 102, 241, 0.1);
+    --accent: var(--qarag-accent, #0c766c);
+    --accent-soft: var(--qarag-accent-soft, rgba(15, 139, 127, 0.1));
     --accent-2: #38bdf8;
     --accent-muted: rgba(148, 163, 184, 0.75);
 
@@ -84,8 +84,8 @@ html[data-theme="dark"] {
     --text-sub: #cbd5f5;
     --text-soft: #9ca3af;
 
-    --accent: #38bdf8;
-    --accent-soft: rgba(56, 189, 248, 0.18);
+    --accent: var(--qarag-accent, #2dd4bf);
+    --accent-soft: var(--qarag-accent-soft, rgba(45, 212, 191, 0.14));
     --accent-2: #a855f7;
     --accent-muted: rgba(148, 163, 184, 0.9);
 
@@ -1753,7 +1753,7 @@ html[data-theme="dark"] #cardWeb .src-badge {
 
 .chat-msg--user .chat-bubble {
     background: var(--accent-soft);
-    border-color: rgba(99, 102, 241, 0.22);
+    border-color: var(--qarag-user-line, rgba(15, 139, 127, 0.32));
 }
 
 .chat-bubble--limit {

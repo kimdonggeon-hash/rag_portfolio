@@ -939,10 +939,12 @@
     function wirePanel() {
         const panel = document.getElementById("qaragPanel");
         const backdrop = document.getElementById("qaragBackdrop");
-        const launch = document.getElementById("qaragLaunchBtn");
+        // ✅ 데스크톱 사이드바 + 모바일 도구 드로어, 두 트리거를 모두 지원
+        const launches = Array.from(document.querySelectorAll("[data-qarag-launch]"));
         const close = document.getElementById("qaragCloseBtn");
+        let lastLaunch = launches[0] || null;
 
-        if (!panel || !launch) return;
+        if (!panel || !launches.length) return;
         if (panel.dataset.wired === "1") return;
         panel.dataset.wired = "1";
 
@@ -967,7 +969,7 @@
             panel.removeAttribute("inert");
             panel.setAttribute("aria-hidden", "false");
 
-            launch.setAttribute("aria-expanded", "true");
+            launches.forEach((el) => el.setAttribute("aria-expanded", "true"));
             document.body.classList.add("qarag-open");
 
             if (backdrop) {
@@ -994,7 +996,7 @@
             abortInflight();
 
             // ✅ (핵심) aria-hidden/inert/hidden 적용 전에 포커스를 패널 밖으로 이동
-            _moveFocusOutsidePanel(panel, launch);
+            _moveFocusOutsidePanel(panel, lastLaunch);
 
             // ✅ 상호작용 차단
             panel.setAttribute("inert", "");
@@ -1003,7 +1005,7 @@
             panel.setAttribute("aria-hidden", "true");
 
             panel.classList.remove("show");
-            launch.setAttribute("aria-expanded", "false");
+            launches.forEach((el) => el.setAttribute("aria-expanded", "false"));
             document.body.classList.remove("qarag-open");
 
             if (backdrop) {
@@ -1021,10 +1023,13 @@
         window.openQaragPanel = open;
         window.closeQaragPanel = closeFn;
 
-        launch.addEventListener("click", function (e) {
-            e.preventDefault();
-            if (panel.hidden || panel.getAttribute("aria-hidden") === "true") open();
-            else closeFn();
+        launches.forEach((el) => {
+            el.addEventListener("click", function (e) {
+                e.preventDefault();
+                lastLaunch = el;
+                if (panel.hidden || panel.getAttribute("aria-hidden") === "true") open();
+                else closeFn();
+            });
         });
 
         if (close) {
