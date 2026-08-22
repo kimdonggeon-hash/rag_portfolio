@@ -103,7 +103,7 @@ html[data-theme="dark"] #qaragPanel {
     width: 36px !important;
     height: 36px !important;
     flex: 0 0 auto;
-    background: var(--product-primary-soft) !important;
+    background: var(--qarag-accent-soft, var(--product-primary-soft)) !important;
     box-shadow: none !important;
 }
 
@@ -113,7 +113,7 @@ html[data-theme="dark"] #qaragPanel {
     inset: 0;
     display: grid;
     place-items: center;
-    color: var(--product-primary);
+    color: var(--qarag-accent-strong, var(--product-primary));
     font: 750 10px/1 var(--product-font);
 }
 
@@ -204,9 +204,9 @@ html[data-theme="dark"] #qaragPanel {
 }
 
 #qaragPanel .qarag-msg.user {
-    border-color: #2251cc !important;
-    color: #ffffff !important;
-    background: #2251cc !important;
+    border-color: var(--qarag-user-line, #2251cc) !important;
+    color: var(--qarag-user-ink, #ffffff) !important;
+    background: var(--qarag-user-bg, #2251cc) !important;
     border-bottom-right-radius: 4px !important;
 }
 
@@ -238,8 +238,8 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 }
 
 #qaragPanel #qaragInput:focus {
-    border-color: var(--product-primary) !important;
-    outline: 3px solid var(--product-focus) !important;
+    border-color: var(--qarag-accent, var(--product-primary)) !important;
+    outline: 3px solid var(--qarag-accent-soft, var(--product-focus)) !important;
 }
 
 #qaragPanel .qarag-send-btn,
@@ -247,10 +247,10 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     right: 18px !important;
     width: 36px !important;
     height: 36px !important;
-    border: 1px solid #2251cc !important;
+    border: 1px solid var(--qarag-accent-strong, #2251cc) !important;
     border-radius: 10px !important;
-    color: #ffffff !important;
-    background: #2251cc !important;
+    color: var(--qarag-accent-ink, #ffffff) !important;
+    background: var(--qarag-accent, #2251cc) !important;
     box-shadow: none !important;
 }
 
@@ -286,8 +286,8 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 }
 
 .livechat-btn.primary {
-    color: #ffffff !important;
-    background: #2251cc !important;
+    color: var(--qarag-accent-ink, #ffffff) !important;
+    background: var(--qarag-accent, #2251cc) !important;
 }
 
 /* ------------------------------------------------------------------

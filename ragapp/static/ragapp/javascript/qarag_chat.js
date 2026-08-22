@@ -122,7 +122,12 @@
         while ((m = CITE_RE.exec(line))) {
             any = true;
             if (m.index > last) {
-                parent.appendChild(document.createTextNode(line.slice(last, m.index)));
+                // "됩니다 [1]"처럼 인용 앞에 붙는 공백 1개는 각주 관례상 제거(붕 떠 보이는 것 방지)
+                let chunk = line.slice(last, m.index);
+                if (chunk.endsWith(" ")) chunk = chunk.slice(0, -1);
+                // ✅ 한글은 글자 사이 어디서나 줄바꿈이 가능해서, 배지가 앞 글자와
+                //    떨어져 혼자 다음 줄로 넘어가 버림 → 줄바꿈 금지 문자(word joiner)로 붙임
+                if (chunk) parent.appendChild(document.createTextNode(chunk + "⁠"));
             }
             const cite = document.createElement("sup");
             cite.className = "qarag-cite";

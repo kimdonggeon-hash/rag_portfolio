@@ -4,19 +4,98 @@
 */
 
 /* ------------------------------------------------------
-   Tokens (news.css 토큰을 우선 사용 + 폴백)
+   Tokens — "Quiet Slate" (라이트 · 틸 accent)
+   다크모드는 아래 [data-theme="dark"] 블록에서 같은 accent로 재정의
 ------------------------------------------------------ */
 :root {
-    --qarag-border: #22d3ee;
-    --qarag-bg: var(--card-bg, var(--bg-card, #ffffff));
-    --qarag-bg2: var(--card-soft, var(--bg-card-alt, #f3f4f6));
-    --qarag-ink: var(--text-main, #0f172a);
-    --qarag-dim: var(--text-soft, #64748b);
+    --qarag-accent: #0c766c;
+    --qarag-accent-strong: #0a5f57;
+    --qarag-accent-soft: rgba(15, 139, 127, 0.1);
+    --qarag-accent-line: rgba(15, 139, 127, 0.32);
+    --qarag-accent-ink: #ffffff;
 
-    --qarag-chat-bg: #020617;
-    --qarag-chat-ink: #e5e7eb;
+    --qarag-border: rgba(15, 139, 127, 0.28);
+    --qarag-bg: var(--card-bg, var(--bg-card, #ffffff));
+    --qarag-bg2: var(--card-soft, var(--bg-card-alt, #f4f6f5));
+    --qarag-ink: var(--text-main, #16211f);
+    --qarag-dim: var(--text-soft, #5c6b67);
+
+    --qarag-chat-bg: #eef1ef;
+    --qarag-chat-ink: #16211f;
+    --qarag-surface: #ffffff;
+    --qarag-line: rgba(15, 30, 27, 0.1);
+
+    --qarag-user-bg: rgba(15, 139, 127, 0.1);
+    --qarag-user-line: rgba(15, 139, 127, 0.32);
+    --qarag-user-ink: #0b3a34;
+
+    --qarag-bot-bg: #ffffff;
+    --qarag-bot-ink: #16211f;
+
+    --qarag-notice-bg: rgba(191, 120, 33, 0.1);
+    --qarag-notice-line: rgba(191, 120, 33, 0.36);
+    --qarag-notice-ink: #7a4a15;
 
     --qarag-radius: 1.5rem;
+}
+
+/* 사이트가 다크모드일 때: 같은 틸 accent를 어두운 표면 위에 */
+html[data-theme="dark"] {
+    --qarag-accent: #2dd4bf;
+    --qarag-accent-strong: #14b8a6;
+    --qarag-accent-soft: rgba(45, 212, 191, 0.14);
+    --qarag-accent-line: rgba(45, 212, 191, 0.36);
+    --qarag-accent-ink: #04211d;
+
+    --qarag-border: rgba(45, 212, 191, 0.24);
+    --qarag-ink: #e7ece9;
+    --qarag-dim: #93a19c;
+
+    --qarag-chat-bg: #0e1512;
+    --qarag-chat-ink: #e7ece9;
+    --qarag-surface: #161e1a;
+    --qarag-line: rgba(231, 236, 233, 0.12);
+
+    --qarag-user-bg: rgba(45, 212, 191, 0.16);
+    --qarag-user-line: rgba(45, 212, 191, 0.38);
+    --qarag-user-ink: #d4fbf3;
+
+    --qarag-bot-bg: #1b2420;
+    --qarag-bot-ink: #e7ece9;
+
+    --qarag-notice-bg: rgba(245, 158, 11, 0.14);
+    --qarag-notice-line: rgba(245, 158, 11, 0.4);
+    --qarag-notice-ink: #f2cf8e;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) {
+        --qarag-accent: #2dd4bf;
+        --qarag-accent-strong: #14b8a6;
+        --qarag-accent-soft: rgba(45, 212, 191, 0.14);
+        --qarag-accent-line: rgba(45, 212, 191, 0.36);
+        --qarag-accent-ink: #04211d;
+
+        --qarag-border: rgba(45, 212, 191, 0.24);
+        --qarag-ink: #e7ece9;
+        --qarag-dim: #93a19c;
+
+        --qarag-chat-bg: #0e1512;
+        --qarag-chat-ink: #e7ece9;
+        --qarag-surface: #161e1a;
+        --qarag-line: rgba(231, 236, 233, 0.12);
+
+        --qarag-user-bg: rgba(45, 212, 191, 0.16);
+        --qarag-user-line: rgba(45, 212, 191, 0.38);
+        --qarag-user-ink: #d4fbf3;
+
+        --qarag-bot-bg: #1b2420;
+        --qarag-bot-ink: #e7ece9;
+
+        --qarag-notice-bg: rgba(245, 158, 11, 0.14);
+        --qarag-notice-line: rgba(245, 158, 11, 0.4);
+        --qarag-notice-ink: #f2cf8e;
+    }
 }
 
 /* 패널 기본 크기 토큰 */
@@ -35,7 +114,7 @@
     /* 옛 클래스 호환용 */
     appearance: none;
     border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.55);
+    border: 1px solid var(--qarag-line, rgba(15, 30, 27, 0.14));
     padding: 7px 13px;
     font-size: 13px;
     font-weight: 700;
@@ -43,13 +122,9 @@
     align-items: center;
     gap: 6px;
     cursor: pointer;
-    background:
-        radial-gradient(80px 40px at 0% 0%, rgba(56, 189, 248, 0.28), transparent 60%),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.9));
+    background: var(--qarag-surface, #ffffff);
     color: var(--qarag-ink);
-    box-shadow:
-        0 10px 24px rgba(15, 23, 42, 0.18),
-        0 4px 10px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 8px 20px rgba(15, 30, 27, 0.1);
     transition:
         transform 0.08s ease,
         box-shadow 0.12s ease,
@@ -59,23 +134,19 @@
 
 html[data-theme="dark"] .qa-launch-btn,
 html[data-theme="dark"] .qarag-launch {
-    color: #0f172a !important;
+    color: var(--qarag-ink) !important;
 }
 
 .qa-launch-btn:hover,
 .qarag-launch:hover {
     transform: translateY(-1px);
-    border-color: rgba(56, 189, 248, 0.8);
-    box-shadow:
-        0 14px 30px rgba(15, 23, 42, 0.25),
-        0 6px 16px rgba(15, 23, 42, 0.25);
+    border-color: var(--qarag-accent-line);
+    box-shadow: 0 12px 26px rgba(15, 30, 27, 0.14);
 }
 
 .qa-launch-btn[aria-expanded="true"] {
-    border-color: rgba(56, 189, 248, 0.9);
-    background:
-        radial-gradient(80px 40px at 0% 0%, rgba(56, 189, 248, 0.35), transparent 60%),
-        linear-gradient(90deg, rgba(56, 189, 248, 0.12), rgba(129, 140, 248, 0.12));
+    border-color: var(--qarag-accent-line);
+    background: var(--qarag-accent-soft);
 }
 
 /* 아이콘 살짝만 조정 */
@@ -98,7 +169,7 @@ body.qarag-open {
 #qaragBackdrop {
     position: fixed;
     inset: 0;
-    background: rgba(2, 6, 23, 0.35);
+    background: rgba(9, 20, 18, 0.32);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     z-index: 2990;
@@ -138,9 +209,9 @@ body.qarag-open {
     border-radius: 18px;
     overflow: hidden;
 
-    background: var(--surface, rgba(17, 24, 39, 0.94));
-    border: 1px solid var(--line, rgba(148, 163, 184, 0.28));
-    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+    background: var(--qarag-surface);
+    border: 1px solid var(--qarag-line);
+    box-shadow: 0 24px 70px rgba(15, 30, 27, 0.28);
 
     opacity: 0;
     transform: translateY(6px) scale(0.985);
@@ -185,7 +256,7 @@ body.qarag-open {
     gap: 0.6rem;
     padding-bottom: 0.45rem;
     margin-bottom: 0.4rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+    border-bottom: 1px solid var(--qarag-line);
 
     /* 드래그 핸들 역할 */
     cursor: move;
@@ -203,8 +274,8 @@ body.qarag-open {
     width: 1.9rem;
     height: 1.9rem;
     border-radius: 999px;
-    background: #fee500;
-    box-shadow: 0 4px 9px rgba(0, 0, 0, 0.18);
+    background: var(--qarag-accent-strong);
+    box-shadow: 0 4px 9px rgba(15, 30, 27, 0.22);
 }
 
 #qaragPanel .dm-name-col {
@@ -246,10 +317,10 @@ body.qarag-open {
 }
 
 #qaragPanel #btnConnectLive {
-    border-color: #eab308;
-    background: #fee500;
-    color: #111827;
-    box-shadow: 0 4px 10px rgba(234, 179, 8, 0.35);
+    border-color: var(--qarag-accent-line);
+    background: var(--qarag-accent-soft);
+    color: var(--qarag-accent-strong);
+    box-shadow: none;
 }
 
 #qaragPanel #btnConnectLive::before {
@@ -261,18 +332,18 @@ body.qarag-open {
 }
 
 #qaragPanel #btnConnectLive:hover {
-    filter: brightness(1.03);
+    background: var(--qarag-accent-line);
 }
 
 #qaragPanel #btnEndLive {
-    border-color: rgba(148, 163, 184, 0.85);
-    background: #020617;
-    color: #e5e7eb;
+    border-color: var(--qarag-line);
+    background: var(--qarag-bg2);
+    color: var(--qarag-ink);
 }
 
 #qaragPanel #btnEndLive:hover {
-    background: #111827;
-    border-color: #e5e7eb;
+    background: var(--qarag-line);
+    border-color: var(--qarag-accent-line);
 }
 
 /* 닫기 버튼 */
@@ -290,8 +361,8 @@ body.qarag-open {
 }
 
 #qaragPanel #qaragCloseBtn:hover {
-    background: rgba(148, 163, 184, 0.18);
-    color: #f9fafb;
+    background: var(--qarag-bg2);
+    color: var(--qarag-ink);
 }
 
 /* ------------------------------------------------------
@@ -349,14 +420,16 @@ body.qarag-open {
 }
 
 .qarag-msg.user {
-    background: #fee500;
-    color: #111827;
+    background: var(--qarag-user-bg);
+    color: var(--qarag-user-ink);
+    border: 1px solid var(--qarag-user-line);
     border-bottom-right-radius: 0.3rem;
 }
 
 .qarag-msg.bot {
-    background: rgba(148, 163, 184, 0.22);
-    color: #e5e7eb;
+    background: var(--qarag-bot-bg);
+    color: var(--qarag-bot-ink);
+    border: 1px solid var(--qarag-line);
     border-bottom-left-radius: 0.3rem;
 }
 
@@ -373,8 +446,30 @@ body.qarag-open {
 }
 
 /* ------------------------------------------------------
-   봇 답변 본문: 문단 간격 + 인용 뱃지
+   봇 답변 본문 배치: 뱃지 → (여백) → 문단들(+인용 뱃지)
+   "검색 결과 기반 답변" 뱃지는 본문과 확실히 분리되는 한 줄로 고정
 ------------------------------------------------------ */
+#qaragPanel .qarag-msg.bot {
+    display: flex;
+    flex-direction: column;
+}
+
+.qarag-msg .ai-generated-badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    margin: 0 0 0.5rem;
+    padding: 3px 9px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    border-radius: 999px;
+    background: var(--qarag-accent-soft);
+    border: 1px solid var(--qarag-accent-line);
+    color: var(--qarag-accent-strong);
+    opacity: 1;
+}
+
 .qarag-msg-text {
     display: block;
 }
@@ -384,22 +479,25 @@ body.qarag-open {
 }
 
 .qarag-msg-p + .qarag-msg-p {
-    margin-top: 0.6em;
+    margin-top: 0.65em;
 }
 
 .qarag-cite {
-    display: inline-block;
-    margin-left: 1px;
-    padding: 0 4px;
-    min-width: 13px;
-    text-align: center;
-    font-size: 0.68em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    font-size: 0.64em;
     font-weight: 800;
-    line-height: 1.5;
+    line-height: 1;
     border-radius: 999px;
-    background: rgba(34, 211, 238, 0.22);
-    color: #67e8f9;
-    vertical-align: text-top;
+    background: var(--qarag-accent);
+    color: var(--qarag-accent-ink);
+    vertical-align: middle;
+    transform: translateY(-2px);
 }
 
 /* ------------------------------------------------------
@@ -412,9 +510,9 @@ body.qarag-open {
     max-width: 84%;
     padding: 0.7rem 0.85rem;
     border-radius: 14px;
-    background: rgba(245, 158, 11, 0.12);
-    border: 1px solid rgba(245, 158, 11, 0.38);
-    color: #fde68a;
+    background: var(--qarag-notice-bg);
+    border: 1px solid var(--qarag-notice-line);
+    color: var(--qarag-notice-ink);
 }
 
 .qarag-notice-icon {
@@ -426,7 +524,7 @@ body.qarag-open {
 .qarag-notice-text {
     font-size: 13.5px;
     line-height: 1.55;
-    color: #fef3c7;
+    color: var(--qarag-notice-ink);
 }
 
 .qarag-notice-text .qarag-msg-p {
@@ -460,21 +558,22 @@ body.qarag-open {
 
 .qarag-faq-chip {
     appearance: none;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    background: #ffffff;
-    color: #111827;
+    border: 1px solid var(--qarag-line);
+    background: var(--qarag-surface);
+    color: var(--qarag-ink);
     font-size: 0.78rem;
     font-weight: 600;
     line-height: 1.3;
     padding: 0.5rem 0.85rem;
     border-radius: 999px;
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-    transition: transform 0.08s ease, background 0.12s ease;
+    box-shadow: 0 2px 6px rgba(15, 30, 27, 0.08);
+    transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
 }
 
 .qarag-faq-chip:hover {
-    background: #f3f4f6;
+    background: var(--qarag-accent-soft);
+    border-color: var(--qarag-accent-line);
 }
 
 .qarag-faq-chip:active {
@@ -516,20 +615,12 @@ body.qarag-open {
     /* 모서리 드래그 막기 */
 }
 
-/* 다크모드에서도 글씨 잘 보이게 */
-html[data-theme="dark"] #qaragPanel .qarag-input,
-html[data-theme="dark"] #qaragPanel #qaragInput {
-    background: #e5e7eb;
-    color: #020617;
-}
-
-/* 스크롤 생겼을 때 얇게만 보이게 (선택 사항) */
 #qaragPanel #qaragInput::-webkit-scrollbar {
     width: 4px;
 }
 
 #qaragPanel #qaragInput::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.9);
+    background: var(--qarag-line);
     border-radius: 999px;
 }
 
@@ -551,17 +642,17 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     width: 2.1rem;
     height: 2.1rem;
     border-radius: 999px;
-    border: 1px solid #0ea5e9;
-    background: #38bdf8;
+    border: 1px solid var(--qarag-accent-strong);
+    background: var(--qarag-accent);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
 
     font-size: 0;
-    box-shadow: 0 4px 10px rgba(56, 189, 248, 0.5);
+    box-shadow: 0 4px 10px rgba(12, 118, 108, 0.32);
     transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-    color: #fff;
+    color: var(--qarag-accent-ink);
 }
 
 #qaragPanel .qarag-send-btn::before,
@@ -573,8 +664,8 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 #qaragPanel .qarag-send-btn:hover,
 #qaragPanel #qaragSendBtn:hover {
     transform: translateY(-50%) translateY(-1px);
-    box-shadow: 0 8px 18px rgba(56, 189, 248, 0.7);
-    background: #0ea5e9;
+    box-shadow: 0 8px 18px rgba(12, 118, 108, 0.4);
+    background: var(--qarag-accent-strong);
 }
 
 #qaragPanel .qarag-send-btn[disabled],
@@ -601,12 +692,12 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 #qaragPanel .qarag-feedback-card {
     width: 100%;
     box-sizing: border-box;
-    background: rgba(15, 23, 42, 0.96);
+    background: var(--qarag-surface);
     border-radius: 18px;
-    border: 1px solid rgba(148, 163, 184, 0.45);
+    border: 1px solid var(--qarag-line);
     padding: 12px 14px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
-    color: #e5e7eb;
+    box-shadow: 0 10px 25px rgba(15, 30, 27, 0.1);
+    color: var(--qarag-ink);
 }
 
 #qaragPanel .qarag-feedback-title {
@@ -619,7 +710,7 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     display: block;
     margin-top: 2px;
     font-size: 11px;
-    color: #9ca3af;
+    color: var(--qarag-dim);
 }
 
 #qaragPanel .qarag-feedback-actions {
@@ -634,9 +725,9 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     font-size: 12px;
     font-weight: 700;
     border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.6);
-    background: rgba(15, 23, 42, 0.9);
-    color: #e5e7eb;
+    border: 1px solid var(--qarag-line);
+    background: var(--qarag-bg2);
+    color: var(--qarag-ink);
     cursor: pointer;
 }
 
@@ -665,16 +756,16 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     font-size: 11px;
     font-weight: 650;
     border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-    background: rgba(15, 23, 42, 0.9);
-    color: #e5e7eb;
+    border: 1px solid var(--qarag-line);
+    background: var(--qarag-bg2);
+    color: var(--qarag-ink);
     cursor: pointer;
 }
 
 #qaragPanel .qarag-feedback-chip.is-active {
-    background: #f9fafb;
-    color: #020617;
-    border-color: #facc15;
+    background: var(--qarag-accent-soft);
+    color: var(--qarag-accent-strong);
+    border-color: var(--qarag-accent-line);
 }
 
 #qaragPanel .qarag-feedback-text {
@@ -683,15 +774,15 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     min-height: 72px;
     padding: 10px 12px;
     border-radius: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-    background: rgba(15, 23, 42, 0.95);
-    color: #e5e7eb;
+    border: 1px solid var(--qarag-line);
+    background: var(--qarag-bg2);
+    color: var(--qarag-ink);
     font-size: 12px;
     resize: vertical;
 }
 
 #qaragPanel .qarag-feedback-text::placeholder {
-    color: #64748b;
+    color: var(--qarag-dim);
 }
 
 #qaragPanel .qarag-feedback-form-actions {
@@ -718,8 +809,8 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 
 #qaragPanel .qarag-feedback-skip {
     background: transparent;
-    border-color: rgba(148, 163, 184, 0.7);
-    color: #e5e7eb;
+    border-color: var(--qarag-line);
+    color: var(--qarag-ink);
 }
 
 /* 상담사 연결 동의 모달 (qaragPanel의 z-index:3000보다 위에 있어야 함) */
@@ -734,7 +825,7 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     /* 가운데 정렬 */
     padding: 24px 16px;
     background:
-        radial-gradient(circle at top, rgba(56, 189, 248, .18), rgba(15, 23, 42, .94));
+        radial-gradient(circle at top, rgba(12, 118, 108, .16), rgba(9, 20, 18, .92));
     backdrop-filter: blur(12px);
 }
 
@@ -747,10 +838,10 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     width: 100%;
     max-width: 460px;
     border-radius: 20px;
-    background: var(--qarag-bg, #020617);
-    color: var(--qarag-ink, #e5e7eb);
-    border: 1px solid rgba(56, 189, 248, .55);
-    box-shadow: 0 24px 80px rgba(15, 23, 42, .85);
+    background: var(--qarag-surface);
+    color: var(--qarag-ink);
+    border: 1px solid var(--qarag-accent-line);
+    box-shadow: 0 24px 80px rgba(9, 20, 18, .45);
     padding: 20px 22px 18px;
 }
 
@@ -764,7 +855,7 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     font-size: 13px;
     line-height: 1.6;
     margin: 0 0 8px;
-    color: var(--qarag-dim, #cbd5f5);
+    color: var(--qarag-dim);
 }
 
 .livechat-desc.small {
@@ -777,7 +868,7 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
     padding-left: 18px;
     font-size: 13px;
     line-height: 1.7;
-    color: var(--qarag-ink, #e5e7eb);
+    color: var(--qarag-ink);
 }
 
 .livechat-actions {
@@ -798,14 +889,14 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 }
 
 .livechat-btn.primary {
-    background: linear-gradient(135deg, #38bdf8, #4f46e5);
-    color: #0b1120;
+    background: var(--qarag-accent);
+    color: var(--qarag-accent-ink);
 }
 
 .livechat-btn.ghost {
     background: transparent;
-    border-color: rgba(148, 163, 184, .7);
-    color: var(--qarag-dim, #cbd5f5);
+    border-color: var(--qarag-line);
+    color: var(--qarag-dim);
 }
 
 .livechat-btn:hover {
@@ -814,16 +905,6 @@ html[data-theme="dark"] #qaragPanel #qaragInput {
 
 .livechat-btn:active {
     transform: translateY(1px);
-}
-
-
-/* ------------------------------------------------------
-   Dark theme tweaks
------------------------------------------------------- */
-
-html[data-theme="dark"] #qaragPanel {
-    background: rgba(11, 18, 32, 0.94);
-    border-color: rgba(30, 64, 175, 0.85);
 }
 
 /* ------------------------------------------------------
