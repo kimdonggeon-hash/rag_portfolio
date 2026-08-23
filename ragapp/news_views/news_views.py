@@ -1172,8 +1172,6 @@ def home(request: HttpRequest):
                                                     }
                                                 )
 
-                                        ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
-                                        
                                         rag_answer_text = _fix_invalid_citations(rag_answer_text, hits_payload)
 
                                         ui_seed_hits = _filter_hits_used_in_answer(
@@ -1183,7 +1181,10 @@ def home(request: HttpRequest):
                                         )
 
                                         # ✅ 답변에 실제 인용된 근거만 남긴 뒤에는 다시 품질 필터로 버리지 않는다.
-                                        hits_payload_ui = ui_seed_hits[:ui_max_cards]
+                                        # (RAG_EVIDENCE_MAX_CARDS로 다시 자르면 답변엔 [6][7] 인용이 있는데
+                                        # 패널엔 카드가 없는 상태가 됨 — hits_payload 자체가 RAG_MAX_SOURCES로
+                                        # 이미 상한이 있어서 추가로 자를 필요 없음)
+                                        hits_payload_ui = ui_seed_hits
 
                                         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 
@@ -1979,8 +1980,6 @@ def rag_qa_view(request: HttpRequest):
 
         _append_chat_history(request, q, rag_text)
 
-        ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
-        
         ui_seed_hits = _filter_hits_used_in_answer(
             rag_text,
             hits_payload,
@@ -1989,7 +1988,11 @@ def rag_qa_view(request: HttpRequest):
 
         # ✅ LLM이 존재하지 않는 번호([2], [3] 등)를 붙인 경우에도
         # 실제 검색된 근거가 있으면 최소 1개는 참고자료에 표시한다.
-        hits_payload_ui = ui_seed_hits[:ui_max_cards]
+        # ⚠️ ui_seed_hits는 이미 "답변에 실제 인용된 근거"만 남긴 상태라서
+        # RAG_EVIDENCE_MAX_CARDS로 다시 자르면, 답변 텍스트엔 [6][7] 같은 인용
+        # 번호가 있는데 근거 패널엔 카드가 없는 상태가 된다(hits_payload가
+        # RAG_MAX_SOURCES=8개로 이미 상한이 있어서 여기서 추가로 자를 필요가 없음).
+        hits_payload_ui = ui_seed_hits
 
         sources_norm = _normalize_rag_sources(hits_payload_ui)
 
@@ -2287,8 +2290,6 @@ def qa_rag_chat(request: HttpRequest):
 
         _append_chat_history(request, q, rag_answer_text, max_items=15)
 
-        ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
-
         ui_seed_hits = _filter_hits_used_in_answer(
             rag_answer_text,
             hits_payload,
@@ -2297,7 +2298,9 @@ def qa_rag_chat(request: HttpRequest):
 
         # ✅ 이미 "답변에 실제 인용된 근거"만 남긴 상태이므로
         # 여기서 min_score / boilerplate / dedupe 필터로 다시 제거하지 않는다.
-        hits_payload_ui = ui_seed_hits[:ui_max_cards]
+        # (RAG_EVIDENCE_MAX_CARDS로 다시 자르면 텍스트의 인용 번호와 카드 개수가
+        # 안 맞게 됨 — hits_payload는 RAG_MAX_SOURCES로 이미 상한이 있음)
+        hits_payload_ui = ui_seed_hits
 
         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 
