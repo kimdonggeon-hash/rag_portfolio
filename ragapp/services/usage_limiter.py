@@ -57,12 +57,18 @@ def build_client_key(request) -> str:
 
 def build_client_keys(request) -> list[str]:
     """
-    ✅ 오늘 사용량 조회/차감에 쓸 후보 키들(쿠키 기반 + IP+UA 기반) 전부.
+    ✅ 오늘 사용량 조회/차감에 쓸 후보 키들(쿠키 기반 + IP 기반) 전부.
     쿠키 하나만 쓰면 "브라우저를 바꾸면 다른 사람으로 보이는" 문제가 있고,
     IP만 쓰면 "IP가 바뀌면 리셋되는" 문제가 있어서, 둘 다 후보로 두고
     사용량은 둘 중 더 큰 값을 기준으로 판단 + 둘 다 같이 갱신한다.
     이러면 (같은 기기, IP만 바뀜)과 (같은 IP, 브라우저만 바뀜) 둘 다
     같은 사람으로 취급되어 사용량이 이어진다.
+
+    ⚠️ UA(User-Agent)는 여기서 일부러 뺐다. 사파리/크롬처럼 같은 기기에서도
+    브라우저마다 UA 문자열 자체가 완전히 다르기 때문에, IP+UA로 묶으면
+    "같은 와이파이인데 브라우저만 다르면" 여전히 다른 사람으로 보였다.
+    IP만으로 묶어야 브라우저가 달라도 진짜로 합쳐진다(대신 같은 공인 IP를
+    쓰는 다른 사람과 섞일 수 있지만, 개인 포트폴리오 수준 한도라 감수).
     """
     secret = getattr(settings, "LOG_IP_HASH_SECRET", "") or "usage-secret"
     keys: list[str] = []
@@ -74,10 +80,9 @@ def build_client_keys(request) -> list[str]:
         )
 
     ip = _client_ip(request)
-    ua = (request.META.get("HTTP_USER_AGENT") or "")[:80]
-    ipua_key = hashlib.sha256(f"{secret}|{ip}|{ua}".encode("utf-8", "ignore")).hexdigest()
-    if ipua_key not in keys:
-        keys.append(ipua_key)
+    ip_key = hashlib.sha256(f"{secret}|ip:{ip}".encode("utf-8", "ignore")).hexdigest()
+    if ip_key not in keys:
+        keys.append(ip_key)
 
     return keys
 
