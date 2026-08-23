@@ -55,6 +55,33 @@ def build_client_key(request) -> str:
     return hashlib.sha256(raw.encode("utf-8", "ignore")).hexdigest()
 
 
+def build_client_keys(request) -> list[str]:
+    """
+    ✅ 오늘 사용량 조회/차감에 쓸 후보 키들(쿠키 기반 + IP+UA 기반) 전부.
+    쿠키 하나만 쓰면 "브라우저를 바꾸면 다른 사람으로 보이는" 문제가 있고,
+    IP만 쓰면 "IP가 바뀌면 리셋되는" 문제가 있어서, 둘 다 후보로 두고
+    사용량은 둘 중 더 큰 값을 기준으로 판단 + 둘 다 같이 갱신한다.
+    이러면 (같은 기기, IP만 바뀜)과 (같은 IP, 브라우저만 바뀜) 둘 다
+    같은 사람으로 취급되어 사용량이 이어진다.
+    """
+    secret = getattr(settings, "LOG_IP_HASH_SECRET", "") or "usage-secret"
+    keys: list[str] = []
+
+    cid = get_cookie_cid(request)
+    if cid:
+        keys.append(
+            hashlib.sha256(f"{secret}|cid:{cid}".encode("utf-8", "ignore")).hexdigest()
+        )
+
+    ip = _client_ip(request)
+    ua = (request.META.get("HTTP_USER_AGENT") or "")[:80]
+    ipua_key = hashlib.sha256(f"{secret}|{ip}|{ua}".encode("utf-8", "ignore")).hexdigest()
+    if ipua_key not in keys:
+        keys.append(ipua_key)
+
+    return keys
+
+
 def get_daily_limit(kind: str) -> int:
     if kind == "web":
         return int(getattr(settings, "QA_USAGE_LIMIT_WEB", 0) or 0)
@@ -153,41 +180,46 @@ def check_and_increment_usage(request, kind: str) -> Tuple[bool, int, int]:
         cache[kind] = (True, 0, 0)
         return cache[kind]
 
+    field = _FIELD_MAP.get(kind)
+    if not field:
+        cache[kind] = (True, 0, 0)
+        return cache[kind]
+
     today = timezone.localdate()
-    key = build_client_key(request)
+    keys = build_client_keys(request)
 
     with transaction.atomic():
-        usage, _ = DailyUsage.objects.select_for_update().get_or_create(
-            date=today,
-            client_key=key,
-            defaults={
-                "web_count": 0,
-                "rag_count": 0,
-                "pdf_count": 0,
-                "image_count": 0,
-                "table_count": 0,
-                "admin_count": 0,
-            },
-        )
+        rows = []
+        for k in keys:
+            row, _ = DailyUsage.objects.select_for_update().get_or_create(
+                date=today,
+                client_key=k,
+                defaults={
+                    "web_count": 0,
+                    "rag_count": 0,
+                    "pdf_count": 0,
+                    "image_count": 0,
+                    "table_count": 0,
+                    "admin_count": 0,
+                },
+            )
+            rows.append(row)
 
-        field = _FIELD_MAP.get(kind)
-        if not field:
-            cache[kind] = (True, 0, 0)
-            return cache[kind]
-
-        used = int(getattr(usage, field) or 0)
+        used = max((int(getattr(r, field) or 0) for r in rows), default=0)
         if used >= limit:
             cache[kind] = (False, limit, used)
             return cache[kind]
 
-        setattr(usage, field, used + 1)
-
+        new_used = used + 1
         update_fields = [field]
-        if hasattr(usage, "updated_at"):
+        if hasattr(rows[0], "updated_at"):
             update_fields.append("updated_at")
 
-        usage.save(update_fields=update_fields)
-        cache[kind] = (True, limit, used + 1)
+        for r in rows:
+            setattr(r, field, new_used)
+            r.save(update_fields=update_fields)
+
+        cache[kind] = (True, limit, new_used)
         return cache[kind]
 
 
@@ -217,21 +249,22 @@ def refund_usage(request, kind: str) -> None:
         return
 
     today = timezone.localdate()
-    key = build_client_key(request)
+    keys = build_client_keys(request)
 
     try:
         with transaction.atomic():
-            usage = DailyUsage.objects.select_for_update().filter(date=today, client_key=key).first()
-            if usage is None:
-                return
-            used = int(getattr(usage, field) or 0)
-            if used <= 0:
-                return
-            setattr(usage, field, used - 1)
-            update_fields = [field]
-            if hasattr(usage, "updated_at"):
-                update_fields.append("updated_at")
-            usage.save(update_fields=update_fields)
+            for k in keys:
+                usage = DailyUsage.objects.select_for_update().filter(date=today, client_key=k).first()
+                if usage is None:
+                    continue
+                used = int(getattr(usage, field) or 0)
+                if used <= 0:
+                    continue
+                setattr(usage, field, used - 1)
+                update_fields = [field]
+                if hasattr(usage, "updated_at"):
+                    update_fields.append("updated_at")
+                usage.save(update_fields=update_fields)
     except Exception:
         return
 

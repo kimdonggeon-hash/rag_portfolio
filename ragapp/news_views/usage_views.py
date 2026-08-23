@@ -14,7 +14,7 @@ from django.views.decorators.http import require_GET
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Sum
 
-from ragapp.services.usage_limiter import build_client_key, get_daily_limit
+from ragapp.services.usage_limiter import build_client_keys, get_daily_limit
 
 log = logging.getLogger(__name__)
 
@@ -52,14 +52,13 @@ def _read_today_usage_for_request(request: HttpRequest) -> Dict[str, int]:
 
     try:
         today = timezone.localdate()
-        key = build_client_key(request)
-        row = DailyUsage.objects.filter(date=today, client_key=key).first()
-        if not row:
-            return {k: 0 for k in _KIND_TO_FIELD.keys()}
+        keys = build_client_keys(request)
+        rows = list(DailyUsage.objects.filter(date=today, client_key__in=keys))
 
-        out: Dict[str, int] = {}
-        for kind, field in _KIND_TO_FIELD.items():
-            out[kind] = int(getattr(row, field, 0) or 0)
+        out: Dict[str, int] = {k: 0 for k in _KIND_TO_FIELD.keys()}
+        for row in rows:
+            for kind, field in _KIND_TO_FIELD.items():
+                out[kind] = max(out[kind], int(getattr(row, field, 0) or 0))
         return out
     except Exception as e:
         log.exception("usage read failed: %s", e)
