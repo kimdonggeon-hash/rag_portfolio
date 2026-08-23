@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Tuple, Dict
+import re
+from typing import Tuple, Dict, Optional
 
 from django.conf import settings
 from django.db import transaction
@@ -21,6 +22,13 @@ _FIELD_MAP = {
 _ADMIN_FIELD = "admin_count"
 _ADMIN_CACHE_KEY = "__admin__"
 
+# ✅ 기기(브라우저) 단위로 오늘 사용량을 유지하기 위한 장기 쿠키.
+# IP만으로 client_key를 만들면 공유기/모뎀 재시작 등으로 공인 IP가 바뀔 때마다
+# 완전히 새로운 client_key가 되어 "사용량이 초기화된 것처럼" 보이는 문제가 있었음.
+# 쿠키가 있으면 그걸 우선 쓰고, 없을 때만 IP+UA로 폴백한다(최초 방문 등).
+CID_COOKIE_NAME = "dg_cid"
+_CID_RE = re.compile(r"^[a-f0-9]{32}$")
+
 
 def _client_ip(request) -> str:
     xff_raw = request.META.get("HTTP_X_FORWARDED_FOR") or ""
@@ -30,11 +38,20 @@ def _client_ip(request) -> str:
     return request.META.get("REMOTE_ADDR", "") or "0.0.0.0"
 
 
+def get_cookie_cid(request) -> Optional[str]:
+    cid = (request.COOKIES.get(CID_COOKIE_NAME) or "").strip().lower()
+    return cid if _CID_RE.match(cid) else None
+
+
 def build_client_key(request) -> str:
-    ip = _client_ip(request)
-    ua = (request.META.get("HTTP_USER_AGENT") or "")[:80]
     secret = getattr(settings, "LOG_IP_HASH_SECRET", "") or "usage-secret"
-    raw = f"{secret}|{ip}|{ua}"
+    cid = get_cookie_cid(request)
+    if cid:
+        raw = f"{secret}|cid:{cid}"
+    else:
+        ip = _client_ip(request)
+        ua = (request.META.get("HTTP_USER_AGENT") or "")[:80]
+        raw = f"{secret}|{ip}|{ua}"
     return hashlib.sha256(raw.encode("utf-8", "ignore")).hexdigest()
 
 

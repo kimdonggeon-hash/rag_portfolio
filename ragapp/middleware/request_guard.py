@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 import re
+import uuid
 from typing import Dict, Optional, Tuple, Iterable, List
 from urllib.parse import urlparse
 
@@ -17,7 +18,12 @@ from django.http import (
 from django.utils import timezone
 from django.shortcuts import render
 
-from ragapp.services.usage_limiter import build_client_key, is_admin_unlimited
+from ragapp.services.usage_limiter import (
+    build_client_key,
+    is_admin_unlimited,
+    get_cookie_cid,
+    CID_COOKIE_NAME,
+)
 
 # (있으면) DailyUsage 모델 사용
 try:
@@ -631,6 +637,21 @@ class RequestGuardMiddleware:
                     resp[k] = v
             if "Content-Security-Policy" not in resp and self.csp_value:
                 resp["Content-Security-Policy"] = self.csp_value
+        except Exception:
+            pass
+
+        # 8) 기기 식별 쿠키(dg_cid) 발급: 없으면 새로 심어서 다음 요청부터
+        #    IP가 바뀌어도(공유기 재시작 등) 오늘 사용량이 유지되게 한다.
+        try:
+            if not get_cookie_cid(request):
+                resp.set_cookie(
+                    CID_COOKIE_NAME,
+                    uuid.uuid4().hex,
+                    max_age=60 * 60 * 24 * 730,  # 2년
+                    httponly=True,
+                    secure=bool(getattr(settings, "SESSION_COOKIE_SECURE", not settings.DEBUG)),
+                    samesite="Lax",
+                )
         except Exception:
             pass
 

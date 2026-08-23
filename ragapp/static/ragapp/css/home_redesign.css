@@ -868,11 +868,6 @@ html[data-theme="dark"] #toolsDrawer .manual-item {
         border-radius: 16px !important;
     }
 
-    #chatThread.mz-thread:empty::before {
-        padding: 0 18px;
-        font-size: 13px;
-    }
-
     .mz-composer-inner {
         grid-template-columns: 38px minmax(0, 1fr) auto !important;
     }
@@ -883,6 +878,33 @@ html[data-theme="dark"] #toolsDrawer .manual-item {
 
     .ai-notice-banner {
         padding: 12px !important;
+    }
+
+    /* ===== 모바일 검색 후: 데스크톱처럼 흰 박스/크기조절 핸들 없이
+       배경 위에 말풍선만 떠 있는 자연스러운 페이지 스크롤로 ===== */
+    body.rag-result-mode .mz-hero.mz-hero--chat,
+    body.rag-result-mode .ai-notice-banner {
+        display: none !important;
+    }
+
+    body.rag-result-mode .mz-thread,
+    body.rag-result-mode #chatThread.mz-thread {
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        padding: 8px 0 16px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    body.rag-result-mode .chat-thread-resizer {
+        display: none !important;
+    }
+
+    body.rag-result-mode .page-footer-wrap.mz-footer {
+        display: none !important;
     }
 }
 

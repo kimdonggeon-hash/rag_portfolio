@@ -134,6 +134,7 @@ def _safe_copy_best_effort(src: str, dst: str) -> None:
 
 _RESTORE_LOCK = threading.Lock()
 _RESTORED_ONCE = False
+_LAST_RESTORE_CHECK_MONO = 0.0
 
 
 def restore_db_from_remote_snapshot(force: bool = False) -> bool:
@@ -178,15 +179,62 @@ def restore_db_from_remote_snapshot(force: bool = False) -> bool:
         return False
 
 
+def _int_env_at_import(name: str, default: int) -> int:
+    try:
+        return int(str(os.environ.get(name, default)).strip())
+    except Exception:
+        return default
+
+
+_RESTORE_RECHECK_SEC = max(0, _int_env_at_import("VECTOR_DB_RESTORE_RECHECK_SEC", 20))
+
+
+def _remote_newer_than_local() -> bool:
+    """remote 스냅샷이 local보다 최신인지(다른 Cloud Run 인스턴스가 새로 썼는지) 확인."""
+    rp = _VECTOR_DB_REMOTE_PATH
+    lp = _VECTOR_DB_PATH
+    if not rp:
+        return False
+    try:
+        rpp, lpp = Path(rp), Path(lp)
+        if not rpp.exists():
+            return False
+        if not lpp.exists():
+            return True
+        # 여유(1s)를 둬서 동시 mtime 오차로 인한 불필요한 복원을 방지
+        return rpp.stat().st_mtime > (lpp.stat().st_mtime + 1.0)
+    except Exception:
+        return False
+
+
 def _maybe_restore_once() -> None:
-    global _RESTORED_ONCE
-    if _RESTORED_ONCE:
+    """
+    ✅ Cloud Run은 인스턴스가 여러 개 뜰 수 있는데, 예전엔 프로세스당 딱 한 번만
+    remote 스냅샷을 복원했다. 그래서 인스턴스 A가 문서를 업로드해도, 이미 떠 있던
+    인스턴스 B는 재시작 전까지 그 문서를 영영 못 봤다(검색에 반영 안 되는 버그의 원인).
+    이제는 일정 주기(VECTOR_DB_RESTORE_RECHECK_SEC, 기본 20초)마다 remote가 더
+    최신인지 다시 확인해서, 다른 인스턴스가 쓴 변경사항도 따라잡는다.
+    """
+    global _RESTORED_ONCE, _LAST_RESTORE_CHECK_MONO
+
+    if not _VECTOR_DB_REMOTE_PATH:
         return
+
+    now = time.monotonic()
+    if _RESTORED_ONCE and (now - _LAST_RESTORE_CHECK_MONO) < _RESTORE_RECHECK_SEC:
+        return
+
     with _RESTORE_LOCK:
-        if _RESTORED_ONCE:
+        now = time.monotonic()
+        if _RESTORED_ONCE and (now - _LAST_RESTORE_CHECK_MONO) < _RESTORE_RECHECK_SEC:
             return
-        restore_db_from_remote_snapshot(force=False)
-        _RESTORED_ONCE = True
+        _LAST_RESTORE_CHECK_MONO = now
+
+        if not _RESTORED_ONCE:
+            restore_db_from_remote_snapshot(force=False)
+            _RESTORED_ONCE = True
+        elif _remote_newer_than_local():
+            restore_db_from_remote_snapshot(force=True)
 
 
 def sync_db_to_remote_snapshot(conn: Optional[sqlite3.Connection] = None) -> bool:
