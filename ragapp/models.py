@@ -1090,8 +1090,27 @@ class AppLog(models.Model):
 
 
 class DailyUsage(models.Model):
+    # ✅ 한 사람당 여러 행이 생긴다(브라우저별 쿠키 키 + 그 사람들이 공유하는 IP 키).
+    # 사용량 판단은 후보 키들 중 max로 하고 전부 같은 값으로 동기화하기 때문에,
+    # 같은 사용량이 여러 행에 복제되어 있다. 통계에서 중복 집계하지 않으려면
+    # 아래 key_kind로 행 종류를 구분해야 한다.
+    KEY_KIND_CID = "cid"
+    KEY_KIND_IP = "ip"
+    KEY_KIND_CHOICES = [
+        (KEY_KIND_CID, "쿠키(브라우저) 기반"),
+        (KEY_KIND_IP, "IP 기반"),
+    ]
+
     date = models.DateField()
     client_key = models.CharField(max_length=200)
+    key_kind = models.CharField(
+        max_length=8,
+        choices=KEY_KIND_CHOICES,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="이 행이 쿠키 기반인지 IP 기반인지(통계 중복 집계 방지용)",
+    )
 
     web_count = models.PositiveIntegerField(default=0)
     rag_count = models.PositiveIntegerField(default=0)

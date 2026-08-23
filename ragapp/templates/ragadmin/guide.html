@@ -220,7 +220,13 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>RAG Admin 가이드</h1>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <h1>RAG Admin 가이드</h1>
+    <a href="{% url 'ragadmin:index' %}"
+       style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.12);color:inherit;text-decoration:none;font-size:13px;">
+      <span>←</span><span>ragadmin으로 돌아가기</span>
+    </a>
+  </div>
   <p class="lead">각 관리 화면에서 무엇을 하는지, 어떤 순서로 쓰면 되는지 한눈에 볼 수 있는 설명서입니다.</p>
 
   <div class="card">

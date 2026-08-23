@@ -24,13 +24,24 @@
     .kpi .t{color:#94a3b8;font-size:12px}
     .kpi .v{font-size:18px;margin-top:2px}
     .split{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .back-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.25);background:#1f2a44;color:#e5e7eb;text-decoration:none;font-size:13px}
+    .back-btn:hover{filter:brightness(1.08)}
+    .note{margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(56,189,248,.28);background:rgba(56,189,248,.08);color:#cbd5e1;font-size:12.5px;line-height:1.6}
+    .kind{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;border:1px solid rgba(148,163,184,.25);color:#94a3b8;white-space:nowrap}
+    .kind.ip{border-color:rgba(52,211,153,.35);color:#6ee7b7}
     @media (max-width: 980px){.split{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>DailyUsage 대시보드</h1>
+      <div class="head-row">
+        <h1>DailyUsage 대시보드</h1>
+        <a class="back-btn" href="{% url 'ragadmin:index' %}">
+          <span>←</span><span>ragadmin으로 돌아가기</span>
+        </a>
+      </div>
       <div class="muted">
         조회 날짜: <span class="pill">{{ selected_date }}</span>
         · 서버 localdate(): <span class="pill">{{ server_localdate }}</span>
@@ -46,6 +57,17 @@
         <button type="submit">조회</button>
       </form>
 
+      <div class="note">
+        ℹ️ 사용량 제한은 <b>기기 단위</b>라 한 사람당 행이 여러 개 생깁니다 —
+        브라우저마다 <span class="kind">쿠키(브라우저)</span> 행이 하나씩,
+        그리고 그 브라우저들이 <b>공유하는</b> <span class="kind ip">IP(기기/네트워크)</span> 행이 하나.
+        제한은 이 행들 중 <b>가장 큰 값</b>으로 판단해서 사파리↔크롬을 오가도 사용량이 이어집니다.
+        아래 <b>합계와 Top 20은 IP 행만 집계</b>해서 같은 사용량을 중복으로 세지 않습니다.
+        {% if totals_approx %}
+        <br><b style="color:#fbbf24">⚠️ 이 날짜는 행 종류 구분이 없던 시절 데이터라 합계가 중복 집계되어 실제보다 클 수 있습니다.</b>
+        {% endif %}
+      </div>
+
       <div class="grid">
         <div class="kpi"><div class="t">WEB (limit {{ limit_web }})</div><div class="v">{{ total_web }}</div></div>
         <div class="kpi"><div class="t">RAG (limit {{ limit_rag }})</div><div class="v">{{ total_rag }}</div></div>
@@ -56,17 +78,18 @@
 
       <div class="split">
         <div>
-          <h2 style="font-size:14px;margin:14px 0 6px">Top 20 (총합 기준)</h2>
+          <h2 style="font-size:14px;margin:14px 0 6px">Top 20 (사람 단위 · IP 행 기준)</h2>
           <table>
             <thead>
               <tr>
-                <th>client_key</th><th>total</th><th>web</th><th>rag</th><th>pdf</th><th>image</th><th>admin</th>
+                <th>client_key</th><th>종류</th><th>total</th><th>web</th><th>rag</th><th>pdf</th><th>image</th><th>admin</th>
               </tr>
             </thead>
             <tbody>
               {% for r in top_rows %}
               <tr>
                 <td><code>{{ r.client_key|slice:":12" }}…</code></td>
+                <td><span class="kind {{ r.key_kind }}">{{ r.key_kind_label }}</span></td>
                 <td><strong>{{ r.total }}</strong></td>
                 <td>{{ r.web }}</td>
                 <td>{{ r.rag }}</td>
@@ -75,7 +98,7 @@
                 <td>{{ r.admin }}</td>
               </tr>
               {% empty %}
-              <tr><td colspan="7" class="muted">데이터가 없습니다.</td></tr>
+              <tr><td colspan="8" class="muted">데이터가 없습니다.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -83,17 +106,18 @@
 
         <div>
           <h2 style="font-size:14px;margin:14px 0 6px">전체 목록 (최대 2000)</h2>
-          <div class="muted">row_count: {{ row_count }}</div>
+          <div class="muted">row_count: {{ row_count }} · 쿠키 행과 IP 행이 함께 보입니다(한 사람 = 여러 행)</div>
           <table>
             <thead>
               <tr>
-                <th>client_key</th><th>total</th><th>web</th><th>rag</th><th>pdf</th><th>image</th><th>admin</th>
+                <th>client_key</th><th>종류</th><th>total</th><th>web</th><th>rag</th><th>pdf</th><th>image</th><th>admin</th>
               </tr>
             </thead>
             <tbody>
               {% for r in rows %}
               <tr>
                 <td><code>{{ r.client_key|slice:":12" }}…</code></td>
+                <td><span class="kind {{ r.key_kind }}">{{ r.key_kind_label }}</span></td>
                 <td><strong>{{ r.total }}</strong></td>
                 <td>{{ r.web }}</td>
                 <td>{{ r.rag }}</td>
@@ -102,7 +126,7 @@
                 <td>{{ r.admin }}</td>
               </tr>
               {% empty %}
-              <tr><td colspan="7" class="muted">데이터가 없습니다.</td></tr>
+              <tr><td colspan="8" class="muted">데이터가 없습니다.</td></tr>
               {% endfor %}
             </tbody>
           </table>

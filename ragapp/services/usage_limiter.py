@@ -70,21 +70,30 @@ def build_client_keys(request) -> list[str]:
     IP만으로 묶어야 브라우저가 달라도 진짜로 합쳐진다(대신 같은 공인 IP를
     쓰는 다른 사람과 섞일 수 있지만, 개인 포트폴리오 수준 한도라 감수).
     """
+    return [k for k, _kind in build_client_keys_with_kind(request)]
+
+
+def build_client_keys_with_kind(request) -> list[tuple[str, str]]:
+    """
+    build_client_keys()와 같지만 각 키가 쿠키 기반인지 IP 기반인지도 같이 준다.
+    DailyUsage.key_kind에 기록해서 통계에서 중복 집계를 피하는 데 쓴다.
+    """
     secret = getattr(settings, "LOG_IP_HASH_SECRET", "") or "usage-secret"
-    keys: list[str] = []
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
 
     cid = get_cookie_cid(request)
     if cid:
-        keys.append(
-            hashlib.sha256(f"{secret}|cid:{cid}".encode("utf-8", "ignore")).hexdigest()
-        )
+        k = hashlib.sha256(f"{secret}|cid:{cid}".encode("utf-8", "ignore")).hexdigest()
+        out.append((k, "cid"))
+        seen.add(k)
 
     ip = _client_ip(request)
     ip_key = hashlib.sha256(f"{secret}|ip:{ip}".encode("utf-8", "ignore")).hexdigest()
-    if ip_key not in keys:
-        keys.append(ip_key)
+    if ip_key not in seen:
+        out.append((ip_key, "ip"))
 
-    return keys
+    return out
 
 
 def get_daily_limit(kind: str) -> int:
@@ -191,15 +200,16 @@ def check_and_increment_usage(request, kind: str) -> Tuple[bool, int, int]:
         return cache[kind]
 
     today = timezone.localdate()
-    keys = build_client_keys(request)
+    keyed = build_client_keys_with_kind(request)
 
     with transaction.atomic():
         rows = []
-        for k in keys:
+        for k, key_kind in keyed:
             row, _ = DailyUsage.objects.select_for_update().get_or_create(
                 date=today,
                 client_key=k,
                 defaults={
+                    "key_kind": key_kind,
                     "web_count": 0,
                     "rag_count": 0,
                     "pdf_count": 0,
@@ -208,6 +218,10 @@ def check_and_increment_usage(request, kind: str) -> Tuple[bool, int, int]:
                     "admin_count": 0,
                 },
             )
+            # 기존(마이그레이션 이전에 생긴) 행은 key_kind가 비어 있으니 채워준다
+            if not getattr(row, "key_kind", ""):
+                row.key_kind = key_kind
+                row.save(update_fields=["key_kind"])
             rows.append(row)
 
         used = max((int(getattr(r, field) or 0) for r in rows), default=0)

@@ -132,6 +132,7 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
 
     total_web = total_rag = total_pdf = total_image = total_admin = 0
     row_count = 0
+    totals_approx = False
 
     if DailyUsage is not None:
         try:
@@ -139,7 +140,17 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
             if q:
                 qs = qs.filter(client_key__contains=q)
 
-            agg = qs.aggregate(
+            # ⚠️ 한 사람당 행이 여러 개다(브라우저별 쿠키 행 + 그 사람들이 공유하는 IP 행).
+            # 사용량은 후보 키들 중 max로 판단하고 전부 같은 값으로 동기화하므로,
+            # 모든 행을 그냥 Sum하면 같은 사용량을 2~3번 세어 합계가 부풀려진다.
+            # IP 행 하나가 그 그룹의 실제 사용량(max)을 들고 있으므로 IP 행만 집계한다.
+            ip_qs = qs.filter(key_kind=DailyUsage.KEY_KIND_IP)
+
+            # key_kind가 붙기 전에 쌓인 과거 데이터는 구분할 수 없어서 예전 방식으로 폴백
+            totals_approx = not ip_qs.exists()
+            agg_qs = qs if totals_approx else ip_qs
+
+            agg = agg_qs.aggregate(
                 sw=Sum("web_count"),
                 sr=Sum("rag_count"),
                 sp=Sum("pdf_count"),
@@ -155,6 +166,7 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
             raw = list(
                 qs.order_by("-id").values(
                     "client_key",
+                    "key_kind",
                     "web_count",
                     "rag_count",
                     "pdf_count",
@@ -164,6 +176,11 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
             )
             row_count = len(raw)
 
+            _KIND_LABEL = {
+                DailyUsage.KEY_KIND_CID: "쿠키(브라우저)",
+                DailyUsage.KEY_KIND_IP: "IP(기기/네트워크)",
+            }
+
             def pack(r: Dict[str, Any]) -> Dict[str, Any]:
                 web = int(r.get("web_count") or 0)
                 rag = int(r.get("rag_count") or 0)
@@ -171,8 +188,11 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
                 img = int(r.get("image_count") or 0)
                 adm = int(r.get(_ADMIN_FIELD) or 0)
                 tot = web + rag + pdf + img + adm  # ✅ total에 admin 포함
+                kind = r.get("key_kind") or ""
                 return {
                     "client_key": r.get("client_key") or "",
+                    "key_kind": kind,
+                    "key_kind_label": _KIND_LABEL.get(kind, "미분류(과거 데이터)"),
                     "total": tot,
                     "web": web,
                     "rag": rag,
@@ -182,7 +202,9 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
                 }
 
             rows = [pack(r) for r in raw]
-            top_rows = sorted(rows, key=lambda x: x["total"], reverse=True)[:20]
+            # 상위 목록은 사람 단위로 보이도록 IP 행 기준(과거 데이터면 전체)
+            _top_src = [x for x in rows if x["key_kind"] == DailyUsage.KEY_KIND_IP] or rows
+            top_rows = sorted(_top_src, key=lambda x: x["total"], reverse=True)[:20]
 
         except Exception as e:
             log.exception("daily_usage_dashboard failed: %s", e)
@@ -204,6 +226,7 @@ def daily_usage_dashboard(request: HttpRequest) -> HttpResponse:
         "total_pdf": total_pdf,
         "total_image": total_image,
         "total_admin": total_admin,
+        "totals_approx": totals_approx,
         # tables
         "top_rows": top_rows,
         "rows": rows,
