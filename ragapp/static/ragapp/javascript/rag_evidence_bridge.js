@@ -158,10 +158,11 @@
                 }
             });
 
-            // ✅ 핵심 수정:
-            // 답변의 [2]와 실제 근거 idx=1처럼 번호가 어긋난 경우에도
-            // 백엔드가 보낸 근거를 0개로 숨기지 않는다.
-            return selected.length ? selected : sources;
+            // 답변에 [1], [2] 같은 인용이 있으면, 실제로 그 번호에 해당하는
+            // 근거만 보여준다. 번호가 하나도 안 맞아서 selected가 비면
+            // (백엔드 idx와 어긋난 경우) "일단 다 보여주기"로 되돌아가지 않는다 —
+            // 그러면 답변에 안 쓰인 근거까지 "사용됨"으로 오해하게 만들기 때문.
+            return selected;
         } catch (_) {
             return Array.isArray(sources) ? sources : [];
         }
