@@ -132,4 +132,10 @@
     </nav>
   {% endif %}
 
+  {% if allow_guest_posts %}
+    <a class="feed-fab" href="{% url 'board:create' %}" aria-label="새 글 작성">✍️</a>
+  {% elif request.user.is_authenticated and request.user.is_staff %}
+    <a class="feed-fab" href="{% url 'board:create' %}" aria-label="새 글 작성">✍️</a>
+  {% endif %}
+
 {% endblock %}

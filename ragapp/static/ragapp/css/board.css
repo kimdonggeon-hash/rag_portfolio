@@ -2536,3 +2536,31 @@ html[data-theme="dark"] .board-switch-thumb {
     color: var(--muted);
     opacity: .85;
 }
+
+/* ✅ 모바일 전용 글쓰기 FAB — 넓은 화면에선 상단 글쓰기 버튼이 이미 있어서 숨김 */
+.feed-fab {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .feed-fab {
+        display: grid;
+        place-items: center;
+        position: fixed;
+        right: 18px;
+        bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+        width: 52px;
+        height: 52px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 20px;
+        text-decoration: none;
+        box-shadow: 0 14px 30px color-mix(in srgb, var(--accent) 45%, transparent);
+        z-index: 60;
+    }
+
+    .feed-fab:active {
+        transform: translateY(1px);
+    }
+}
