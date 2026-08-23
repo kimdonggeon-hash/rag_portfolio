@@ -23,7 +23,7 @@ from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.files.base import File, ContentFile
 
-from ragapp.services.image_moderation import is_public_image, get_actor_key
+from ragapp.services.image_moderation import is_public_image, get_actor_key, get_actor_ip_key
 
 from .feature_config import (
     PUBLIC_ALLOW_UPLOAD_IMAGES,
@@ -128,6 +128,16 @@ except Exception as e:  # pragma: no cover
 def _safe_actor_key(req: HttpRequest) -> str:
     try:
         return str(get_actor_key(req) or "").strip()
+    except Exception:
+        return ""
+
+
+def _safe_actor_ip_key(req: HttpRequest) -> str:
+    """✅ 업로드 시점에 IP 기반 보조 식별자도 같이 기록해둔다 — 나중에 정지(제재) 처리할 때
+    쿠키/세션 키뿐 아니라 이 값도 함께 제재해서, 브라우저를 바꿔도(사파리↔크롬)
+    같은 네트워크에서는 정지가 유지되게 한다."""
+    try:
+        return str(get_actor_ip_key(req) or "").strip()
     except Exception:
         return ""
 
@@ -251,6 +261,7 @@ def media_index_view(request: HttpRequest) -> HttpResponse:
     common_tags = (request.POST.get("tags") or "").strip()
 
     actor_key = _safe_actor_key(request)
+    actor_ip_key = _safe_actor_ip_key(request)
 
     cards: List[Dict[str, Any]] = []
     ok, fail = 0, 0
@@ -349,6 +360,7 @@ def media_index_view(request: HttpRequest) -> HttpResponse:
                 "size": int(size_bytes),
                 "sha16": sha16,
                 "actor_key": actor_key,
+                "actor_ip_key": actor_ip_key,
                 "caption": caption_final,
                 "tags": tags_final,
                 "ai_used": bool(ai_used),
@@ -1720,6 +1732,7 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
 
     src_key = _normalize_storage_key(str(meta.get("storage_key") or "").strip())
     actor_key = str(meta.get("actor_key") or "").strip()
+    actor_ip_key = str(meta.get("actor_ip_key") or "").strip()
 
     # ImageUploadRequest가 있으면 기록(있을 때만)
     upload_request = None
@@ -1738,33 +1751,35 @@ def api_media_pending_reject(request: HttpRequest) -> JsonResponse:
         pass
 
     # ✅ 제재 적용
+    # 쿠키/세션 기반 actor_key뿐 아니라 업로드 시점에 같이 기록해둔 IP 기반 보조 키
+    # (actor_ip_key)에도 동일하게 적용한다 — 그래야 브라우저를 바꿔도(사파리↔크롬)
+    # 같은 네트워크에서는 정지가 유지된다.
     if reject_mode == "restrict_all" and actor_key:
+        penalty_keys = [k for k in dict.fromkeys([actor_key, actor_ip_key]) if k]
         try:
             from ragapp.moderation_models import UserPenalty
 
             reviewer = getattr(request, "user", None)
 
-            if permaban:
-                if hasattr(UserPenalty, "apply_permaban_all"):
-                    UserPenalty.apply_permaban_all(actor_key, by_user=reviewer, reason=reason or "영구 제한")
-                elif hasattr(UserPenalty, "apply_permaban"):
-                    UserPenalty.apply_permaban(actor_key, by_user=reviewer, reason=reason or "영구 제한")
-                else:
-                    try:
-                        UserPenalty.objects.create(actor_key=actor_key, kind="permaban", reason=reason or "영구 제한", created_by=reviewer)
-                    except Exception:
-                        pass
-            else:
-                if hasattr(UserPenalty, "apply_suspend_all"):
-                    UserPenalty.apply_suspend_all(actor_key, days=int(suspend_days), by_user=reviewer, reason=reason or "기간 제한")
-                elif hasattr(UserPenalty, "apply_suspend"):
-                    UserPenalty.apply_suspend(actor_key, days=int(suspend_days), by_user=reviewer, reason=reason or "기간 제한")
-                else:
-                    try:
-                        until = timezone.now() + timezone.timedelta(days=int(suspend_days))
-                        UserPenalty.objects.create(actor_key=actor_key, kind="suspend", until=until, reason=reason or "기간 제한", created_by=reviewer)
-                    except Exception:
-                        pass
+            for pk in penalty_keys:
+                try:
+                    if permaban:
+                        if hasattr(UserPenalty, "apply_permaban_all"):
+                            UserPenalty.apply_permaban_all(pk, by_user=reviewer, reason=reason or "영구 제한")
+                        elif hasattr(UserPenalty, "apply_permaban"):
+                            UserPenalty.apply_permaban(pk, by_user=reviewer, reason=reason or "영구 제한")
+                        else:
+                            UserPenalty.objects.create(actor_key=pk, kind="permaban", reason=reason or "영구 제한", created_by=reviewer)
+                    else:
+                        if hasattr(UserPenalty, "apply_suspend_all"):
+                            UserPenalty.apply_suspend_all(pk, days=int(suspend_days), by_user=reviewer, reason=reason or "기간 제한")
+                        elif hasattr(UserPenalty, "apply_suspend"):
+                            UserPenalty.apply_suspend(pk, days=int(suspend_days), by_user=reviewer, reason=reason or "기간 제한")
+                        else:
+                            until = timezone.now() + timezone.timedelta(days=int(suspend_days))
+                            UserPenalty.objects.create(actor_key=pk, kind="suspend", until=until, reason=reason or "기간 제한", created_by=reviewer)
+                except Exception:
+                    continue
         except Exception:
             pass
 

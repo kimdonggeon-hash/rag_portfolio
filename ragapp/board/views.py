@@ -162,6 +162,14 @@ class PostListView(ListView):
         if not cat and not q:
             qs = qs.exclude(category__is_notice=True)
 
+        qs = qs.annotate(
+            comment_count=Count(
+                "comments",
+                filter=Q(comments__is_hidden=False, comments__is_deleted=False),
+                distinct=True,
+            )
+        )
+
         return qs.order_by("-pinned", "-created_at")
 
     def get_context_data(self, **kwargs):

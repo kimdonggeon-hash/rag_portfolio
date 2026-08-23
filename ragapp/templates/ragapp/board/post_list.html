@@ -1,103 +1,135 @@
 {% extends "ragapp/board/board_base.html" %}
 
+{% block shell_class %} is-feed{% endblock %}
+{% block side %}{% endblock %}
+
 {% block content %}
 
-  
-  {% if notices %}
-    <section class="board-section">
-      <h2 class="board-h2">공지</h2>
+  <section class="feed-hero">
+    <p class="feed-eyebrow">Community</p>
+    <h2 class="feed-h1">함께 만드는 <span class="feed-accent">이야기</span></h2>
 
-      <div class="board-list">
-        {% for p in notices %}
-          <a class="board-row is-notice" href="{% url 'board:detail' p.pk %}">
-            <div class="board-row-title">
-              <span class="board-badge">공지</span>
+    <form class="feed-search" method="get" action="{% url 'board:list' %}">
+      <span class="feed-search-ico" aria-hidden="true">🔍</span>
+      <input
+        class="feed-search-input"
+        type="search"
+        name="q"
+        value="{{ request.GET.q|default:'' }}"
+        placeholder="제목/내용 검색"
+      />
+      {% if request.GET.cat %}
+        <input type="hidden" name="cat" value="{{ request.GET.cat }}"/>
+      {% endif %}
+      <button class="feed-search-btn" type="submit">검색</button>
+    </form>
 
-              {# ✅ 비밀 공지면 표시 (운영자는 바로 열람, 비회원/일반은 auth로 이동) #}
-              {% if p.is_secret %}
-                <span class="board-badge is-secret" aria-label="비밀글">🔒 비밀</span>
-              {% endif %}
-
-              <span class="board-title-text">{{ p.title }}</span>
-            </div>
-
-            <div class="board-row-meta">
-              {% if p.is_secret and not is_staff %}
-                <span class="board-meta is-secret-hint">비밀번호 필요</span>
-                <span class="board-meta">{{ p.created_at|date:"Y-m-d" }}</span>
-              {% else %}
-                <span class="board-meta">{{ p.created_at|date:"Y-m-d" }}</span>
-                <span class="board-meta">조회 {{ p.view_count }}</span>
-              {% endif %}
-            </div>
-          </a>
-        {% endfor %}
-      </div>
-    </section>
-  {% endif %}
-
-  <section class="board-section">
-    <div class="board-head">
-      <h2 class="board-h2">전체 글</h2>
-      <div class="board-head-right">
-        <span class="board-muted">최신순</span>
-      </div>
+    <div class="feed-cat-tabs" role="tablist" aria-label="카테고리 필터">
+      <a class="feed-cat-tab {% if not cat_active %}is-active{% endif %}"
+         href="{% url 'board:list' %}{% if request.GET.q %}?q={{ request.GET.q|urlencode }}{% endif %}">
+        전체
+      </a>
+      {% for c in categories %}
+        <a class="feed-cat-tab {% if cat_active == c.slug %}is-active{% endif %}"
+           href="{% url 'board:list' %}?cat={{ c.slug|urlencode }}{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}">
+          {{ c.name }} <span class="feed-cat-count">{{ c.count }}</span>
+        </a>
+      {% endfor %}
     </div>
 
-    {% if posts %}
-      <div class="board-list">
-        {% for p in posts %}
-          <a class="board-row" href="{% url 'board:detail' p.pk %}">
-            <div class="board-row-title">
-              {% if p.category %}
-                <span class="board-chip">{{ p.category.name }}</span>
-              {% endif %}
-
-              {% if p.pinned %}
-                <span class="board-badge">PIN</span>
-              {% endif %}
-
-              {% if p.is_secret %}
-                <span class="board-badge is-secret" aria-label="비밀글">🔒 비밀</span>
-              {% endif %}
-
-              <span class="board-title-text">{{ p.title }}</span>
-            </div>
-
-            <div class="board-row-meta">
-              {% if p.is_secret and not is_staff %}
-                <span class="board-meta">비밀번호 필요</span>
-                <span class="board-meta">{{ p.created_at|date:"Y-m-d H:i" }}</span>
-              {% else %}
-                <span class="board-meta">{{ p.created_at|date:"Y-m-d H:i" }}</span>
-                <span class="board-meta">조회 {{ p.view_count }}</span>
-              {% endif %}
-            </div>
-          </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="board-empty">아직 글이 없어요.</div>
-    {% endif %}
-
-    
-    {% if is_paginated %}
-      <nav class="board-pager" aria-label="페이지 이동">
-        {% if page_obj.has_previous %}
-          <a class="board-page"
-             href="?page={{ page_obj.previous_page_number }}{% if qparams %}&{{ qparams }}{% endif %}">이전</a>
-        {% endif %}
-
-        <span class="board-page is-current">
-          {{ page_obj.number }} / {{ paginator.num_pages }}
-        </span>
-
-        {% if page_obj.has_next %}
-          <a class="board-page"
-             href="?page={{ page_obj.next_page_number }}{% if qparams %}&{{ qparams }}{% endif %}">다음</a>
-        {% endif %}
-      </nav>
+    {% if request.GET.q %}
+      <a class="feed-reset-link" href="{% url 'board:list' %}{% if request.GET.cat %}?cat={{ request.GET.cat|urlencode }}{% endif %}">
+        ↩ 검색 초기화
+      </a>
     {% endif %}
   </section>
+
+  {% if notices %}
+    {% for p in notices %}
+      <a class="feed-notice" href="{% url 'board:detail' p.pk %}">
+        <span class="feed-notice-badge" aria-hidden="true">📌</span>
+        <span class="feed-notice-body">
+          <span class="feed-notice-title">
+            {{ p.title }}
+            {% if p.is_secret %}<span class="board-badge is-secret" aria-label="비밀글">🔒 비밀</span>{% endif %}
+          </span>
+          <span class="feed-notice-sub">
+            {{ p.created_at|date:"Y-m-d" }} · 조회 {{ p.view_count }} · 공지
+          </span>
+        </span>
+        <span class="feed-notice-arrow" aria-hidden="true">→</span>
+      </a>
+    {% endfor %}
+  {% endif %}
+
+  {% if posts %}
+    <div class="feed-grid">
+      {% for p in posts %}
+        <a class="feed-card" href="{% url 'board:detail' p.pk %}">
+          <div class="feed-card-top">
+            {% if p.category %}<span class="board-chip">{{ p.category.name }}</span>{% endif %}
+            {% if p.pinned %}<span class="feed-pin-mark" aria-label="고정글">📌</span>{% endif %}
+            {% if p.is_secret %}<span class="feed-pin-mark" aria-label="비밀글">🔒</span>{% endif %}
+          </div>
+
+          <p class="feed-card-title">{{ p.title }}</p>
+
+          <p class="feed-card-excerpt">
+            {% if p.is_secret and not is_staff %}
+              비밀번호가 필요한 글이에요.
+            {% else %}
+              {{ p.body|striptags|truncatechars:70 }}
+            {% endif %}
+          </p>
+
+          <div class="feed-card-foot">
+            {% if p.author %}
+              {% with display_name=p.author.username %}
+                <span class="feed-author">
+                  <span class="feed-avatar">{{ display_name|slice:":1" }}</span>
+                  <span class="feed-author-name">{{ display_name }}</span>
+                </span>
+              {% endwith %}
+            {% elif p.guest_name %}
+              <span class="feed-author">
+                <span class="feed-avatar">{{ p.guest_name|slice:":1" }}</span>
+                <span class="feed-author-name">{{ p.guest_name }}</span>
+              </span>
+            {% else %}
+              <span class="feed-author">
+                <span class="feed-avatar">익</span>
+                <span class="feed-author-name">익명</span>
+              </span>
+            {% endif %}
+            <span class="feed-card-meta">
+              <span>{{ p.created_at|date:"m-d" }}</span>
+              <span>💬 {{ p.comment_count }}</span>
+              <span>👁 {{ p.view_count }}</span>
+            </span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="board-empty">아직 글이 없어요.</div>
+  {% endif %}
+
+  {% if is_paginated %}
+    <nav class="board-pager" aria-label="페이지 이동">
+      {% if page_obj.has_previous %}
+        <a class="board-page"
+           href="?page={{ page_obj.previous_page_number }}{% if qparams %}&{{ qparams }}{% endif %}">이전</a>
+      {% endif %}
+
+      <span class="board-page is-current">
+        {{ page_obj.number }} / {{ paginator.num_pages }}
+      </span>
+
+      {% if page_obj.has_next %}
+        <a class="board-page"
+           href="?page={{ page_obj.next_page_number }}{% if qparams %}&{{ qparams }}{% endif %}">다음</a>
+      {% endif %}
+    </nav>
+  {% endif %}
 
 {% endblock %}

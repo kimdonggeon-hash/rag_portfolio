@@ -36,10 +36,17 @@ def _anon_actor_fingerprint(request) -> str:
     세션/DB에 의존하지 않는 익명 식별자.
     - raw IP를 그대로 쓰지 않고(정책/프라이버시), SECRET_KEY 기반 HMAC으로 익명화.
     - sess.save() 같은 DB 세션 생성은 절대 하지 않음.
+    - ✅ 쿠키(dg_cid)가 있으면 우선 사용 — 같은 기기에서 브라우저만 바꿔도(사파리↔크롬)
+      IP+UA 조합이 달라져 제재가 우회되는 문제를 막는다.
     """
-    ip = (get_remote_ip(request) or "").strip()
-    ua = (get_user_agent(request) or "").strip()
-    raw = f"{ip}|{ua}"
+    from ragapp.services.usage_limiter import get_cookie_cid
+
+    cid = get_cookie_cid(request)
+    if cid:
+        raw = f"cid:{cid}"
+    else:
+        ip = (get_remote_ip(request) or "").strip()
+        raw = f"ip:{ip}"
     # Django SECRET_KEY 사용
     digest = salted_hmac("ragapp.actor", raw).hexdigest()[:20]
     return digest
@@ -49,12 +56,20 @@ def get_actor_key(request) -> str:
     """
     ✅ DB 세션 생성 금지(= sess.save() 금지)
     - 인증 사용자: user:pk
-    - 익명: 세션키가 이미 있으면 sess:<key> (저장/생성 안 함)
-    - 세션키가 없으면 anon:<hmac> 로 폴백 (DB/세션 저장 안 함)
+    - 익명: 쿠키(dg_cid)가 있으면 cid 우선(세션보다 오래 유지되고 이미 전사 발급 중)
+    - 그다음 세션키가 있으면 sess:<key> (저장/생성 안 함)
+    - 둘 다 없으면 anon:<hmac> 로 폴백 (DB/세션 저장 안 함)
     """
     u = getattr(request, "user", None)
     if u and getattr(u, "is_authenticated", False):
         return f"user:{u.pk}"
+
+    from ragapp.services.usage_limiter import get_cookie_cid
+
+    cid = get_cookie_cid(request)
+    if cid:
+        digest = salted_hmac("ragapp.actor", f"cid:{cid}").hexdigest()[:20]
+        return f"anon:{digest}"
 
     sess = getattr(request, "session", None)
     if sess is not None:
@@ -63,8 +78,20 @@ def get_actor_key(request) -> str:
         if sk:
             return f"sess:{sk}"
 
-    # SessionMiddleware가 없거나, session_key가 없으면 익명 폴백
+    # 쿠키/세션이 모두 없으면 IP 기반 폴백
     return f"anon:{_anon_actor_fingerprint(request)}"
+
+
+def get_actor_ip_key(request) -> str:
+    """✅ 쿠키/세션과 무관하게 IP만으로 계산되는 보조 식별자.
+    같은 기기에서 브라우저를 바꾸면(사파리↔크롬) 쿠키/세션 기반 actor_key가 달라져
+    정지(UserPenalty)가 우회될 수 있다 — 업로드 시점에 이 값도 함께 기록해두고,
+    제재 적용/조회 시 둘 다 확인하면 브라우저를 바꿔도 같은 네트워크(IP)에서는
+    정지가 유지된다.
+    """
+    ip = (get_remote_ip(request) or "").strip()
+    digest = salted_hmac("ragapp.actor.ip", f"ip:{ip}").hexdigest()[:20]
+    return f"anonip:{digest}"
 
 
 # ────────────────────────────────────────────────
@@ -78,11 +105,7 @@ def get_penalty(actor_key: str) -> Optional[UserPenalty]:
         return None
 
 
-def is_actor_blocked(actor_key: str) -> Tuple[bool, str]:
-    p = get_penalty(actor_key)
-    if not p:
-        return False, ""
-
+def _penalty_message(p: "UserPenalty") -> Tuple[bool, str]:
     if p.mode == UserPenalty.Mode.PERMABAN:
         return True, "이용이 제한된 상태입니다."
 
@@ -98,6 +121,30 @@ def is_actor_blocked(actor_key: str) -> Tuple[bool, str]:
         hrs = max(0, secs // 3600)
         return True, f"이용이 제한된 상태입니다. (남은 시간 약 {hrs}시간)"
 
+    return False, ""
+
+
+def is_actor_blocked(actor_key: str) -> Tuple[bool, str]:
+    p = get_penalty(actor_key)
+    if not p:
+        return False, ""
+    return _penalty_message(p)
+
+
+def is_actor_blocked_multi(actor_keys) -> Tuple[bool, str]:
+    """✅ actor_key 후보 여러 개(쿠키 기반 + IP 기반) 중 하나라도 제재 중이면 차단.
+    브라우저를 바꿔서(사파리↔크롬) 쿠키/세션 기반 키가 달라져도, 같은 네트워크(IP)
+    기반 보조 키가 제재되어 있으면 계속 차단 상태를 유지한다."""
+    keys = [k for k in dict.fromkeys(actor_keys) if k]
+    if not keys:
+        return False, ""
+    try:
+        for p in UserPenalty.objects.filter(actor_key__in=keys):
+            blocked, msg = _penalty_message(p)
+            if blocked:
+                return blocked, msg
+    except Exception:
+        return False, ""
     return False, ""
 
 

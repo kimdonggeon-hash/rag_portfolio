@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+from django.conf import settings
 from django.core.cache import cache
+
+from ragapp.services.usage_limiter import get_cookie_cid
 
 
 def _get_ip(request) -> str:
@@ -15,9 +18,14 @@ def _get_ip(request) -> str:
 
 
 def client_fingerprint(request) -> str:
-    ip = _get_ip(request)
-    ua = (request.META.get("HTTP_USER_AGENT") or "-")[:120]
-    raw = f"{ip}|{ua}"
+    """✅ 쿠키(dg_cid) 우선 — 브라우저를 바꿔도(사파리↔크롬) 같은 기기면
+    같은 fingerprint가 나오도록 한다(레이트리밋/중복제출 우회 방지)."""
+    secret = getattr(settings, "LOG_IP_HASH_SECRET", "") or "board-rl-secret"
+    cid = get_cookie_cid(request)
+    if cid:
+        raw = f"{secret}|cid:{cid}"
+    else:
+        raw = f"{secret}|ip:{_get_ip(request)}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 

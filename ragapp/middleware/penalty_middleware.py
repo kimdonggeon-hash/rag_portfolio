@@ -8,7 +8,7 @@ from threading import Lock
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 
-from ragapp.services.image_moderation import get_actor_key, is_actor_blocked
+from ragapp.services.image_moderation import get_actor_key, get_actor_ip_key, is_actor_blocked_multi
 
 log = logging.getLogger(__name__)
 
@@ -92,12 +92,15 @@ class PenaltyMiddleware:
         # 3) 차단 체크 (장애 시 서비스 전체가 죽지 않게 fail-open)
         try:
             actor_key = get_actor_key(request)
+            # ✅ IP 기반 보조 키도 함께 확인 — 브라우저를 바꿔도(사파리↔크롬)
+            #    같은 네트워크에서 걸린 정지가 유지되도록 한다.
+            ip_key = get_actor_ip_key(request)
 
             cached = _cache_get(actor_key)
             if cached is not None:
                 blocked, msg = cached
             else:
-                blocked, msg = is_actor_blocked(actor_key)
+                blocked, msg = is_actor_blocked_multi([actor_key, ip_key])
                 _cache_set(actor_key, blocked, msg)
 
         except Exception as e:

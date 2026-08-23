@@ -16,6 +16,17 @@ except Exception:  # pragma: no cover
     BoardAbuseKeyword = None  # type: ignore
     BoardReport = None  # type: ignore
 
+try:
+    # ✅ 게시글/댓글의 creator_fp와 반드시 같은 방식으로 계산해야
+    #    운영자가 글에 찍힌 FP로 수동 Ban 했을 때 실제로 그 사람을 막을 수 있다.
+    from ragapp.board.utils import (  # type: ignore
+        build_fp_from_request as _shared_build_fp,
+        build_fp_candidates_from_request as _shared_build_fp_candidates,
+    )
+except Exception:  # pragma: no cover
+    _shared_build_fp = None  # type: ignore
+    _shared_build_fp_candidates = None  # type: ignore
+
 
 class BoardContentGuardMiddleware:
     def __init__(self, get_response):
@@ -36,30 +47,37 @@ class BoardContentGuardMiddleware:
             if "/moderate/" in p or "/mod/" in p or "/report/" in p:
                 return self.get_response(request)
 
-            fp = self._fingerprint(request)
+            # ✅ 쿠키 기반 fp + IP 기반 fp 둘 다 후보로 확인 — 브라우저를 바꿔도
+            #    (사파리↔크롬) 같은 네트워크에서 걸린 자동 차단이 계속 유지되게 한다.
+            fps = self._fingerprints(request)
+            primary_fp = fps[0]
 
-            # ✅ ban 상태 확인 (만료시각 포함)
-            ban_info = cache.get(self._ban_key(fp))
-            if ban_info:
-                left = self._ban_seconds_left(ban_info)
-                if left is not None and left > 0:
-                    mins = max(1, left // 60)
-                    return self._deny(f"현재 게시판 작성이 제한된 상태입니다. (남은 약 {mins}분)")
-                return self._deny("현재 게시판 작성이 제한된 상태입니다. 잠시 후 다시 시도해 주세요.")
+            # ✅ ban 상태 확인 (만료시각 포함) — 후보 중 하나라도 걸려있으면 차단
+            for fp in fps:
+                ban_info = cache.get(self._ban_key(fp))
+                if ban_info:
+                    left = self._ban_seconds_left(ban_info)
+                    if left is not None and left > 0:
+                        mins = max(1, left // 60)
+                        return self._deny(f"현재 게시판 작성이 제한된 상태입니다. (남은 약 {mins}분)")
+                    return self._deny("현재 게시판 작성이 제한된 상태입니다. 잠시 후 다시 시도해 주세요.")
 
-            reason, ban_points = self._inspect(request)
+            reason, ban_points = self._inspect(request, fps)
 
             if reason:
                 if ban_points > 0:
-                    score, threshold = self._bump_ban_score(fp, ban_points)
+                    score, threshold = self._bump_ban_score(fps, ban_points)
                     if score >= threshold:
                         ttl = self._ban_ttl()
                         until = int(time.time()) + ttl
 
-                        cache.set(self._ban_key(fp), {"until": until, "score": score}, ttl)
-                        self._ban_index_upsert(fp, until)
+                        # ✅ 후보 fp 전부에 차단을 걸어야 브라우저를 바꿔도 우회되지 않는다.
+                        for fp in fps:
+                            cache.set(self._ban_key(fp), {"until": until, "score": score}, ttl)
+                            self._ban_index_upsert(fp, until)
 
-                        cache.delete(self._ban_score_key(fp))
+                        for fp in fps:
+                            cache.delete(self._ban_score_key(fp))
                         return self._deny("금칙어가 반복 감지되어 24시간 게시판 작성이 제한됩니다.")
 
                     return self._deny(f"{reason} (누적 {score}/{threshold})")
@@ -88,7 +106,7 @@ p{{margin:0;line-height:1.65;color:#334155}}
 </html>"""
         return HttpResponseForbidden(html)
 
-    def _inspect(self, request) -> Tuple[str, int]:
+    def _inspect(self, request, fps: List[str]) -> Tuple[str, int]:
         title = (request.POST.get("title") or "").strip()
         body = (request.POST.get("body") or "").strip()
         guest_name = (request.POST.get("guest_name") or "").strip()
@@ -97,9 +115,15 @@ p{{margin:0;line-height:1.65;color:#334155}}
         if not text:
             return ("", 0)
 
+        primary_fp = fps[0]
+
         # ✅ 링크 제한(레벨링): 외부 URL 포함 제출 시도 → 차단 + 자동 신고 생성
-        fp = self._fingerprint(request)
-        lb = cache.get(f"board:linkblock:{fp}")
+        #    후보 fp(쿠키/IP) 중 하나라도 제한 걸려있으면 적용
+        lb = None
+        for fp in fps:
+            lb = cache.get(f"board:linkblock:{fp}")
+            if lb:
+                break
         if lb and self._url_re.search(text):
             left = None
             try:
@@ -109,7 +133,7 @@ p{{margin:0;line-height:1.65;color:#334155}}
                 left = None
 
             urls = self._url_extract_re.findall(text)[:3]
-            self._auto_report_link_violation(request, fp=fp, text=text, urls=urls, left=left)
+            self._auto_report_link_violation(request, fp=primary_fp, text=text, urls=urls, left=left)
 
             if isinstance(left, int) and left > 0:
                 mins = max(1, left // 60)
@@ -132,7 +156,7 @@ p{{margin:0;line-height:1.65;color:#334155}}
             return ("같은 단어가 과도하게 반복되었습니다.", 0)
 
         # 중복 제출(5분)
-        h = hashlib.sha1(f"{fp}|{title}|{body}".encode("utf-8")).hexdigest()
+        h = hashlib.sha1(f"{primary_fp}|{title}|{body}".encode("utf-8")).hexdigest()
         if cache.get(f"board:dup:{h}"):
             return ("같은 내용이 반복 제출된 것으로 보입니다.", 0)
         cache.set(f"board:dup:{h}", 1, 300)
@@ -292,23 +316,26 @@ p{{margin:0;line-height:1.65;color:#334155}}
         except Exception:
             return 2
 
-    def _bump_ban_score(self, fp: str, points: int) -> Tuple[int, int]:
-        key = self._ban_score_key(fp)
+    def _bump_ban_score(self, fps: List[str], points: int) -> Tuple[int, int]:
+        """✅ 후보 fp(쿠키/IP) 전체에서 최댓값을 가져와 누적하고, 다시 전부에 동기화한다.
+        브라우저를 바꿔도(사파리↔크롬) 누적 점수가 초기화되지 않게 하기 위함."""
         threshold = self._ban_threshold()
         ttl = self._ban_ttl()
 
-        val = cache.get(key)
-        if val is None:
-            cache.set(key, points, ttl)
-            return (points, threshold)
+        cur = 0
+        for fp in fps:
+            val = cache.get(self._ban_score_key(fp))
+            if val is not None:
+                try:
+                    cur = max(cur, int(val))
+                except Exception:
+                    pass
 
-        try:
-            newv = cache.incr(key, points)  # type: ignore
-        except Exception:
-            newv = int(val) + int(points)
-            cache.set(key, newv, ttl)
+        newv = cur + int(points)
+        for fp in fps:
+            cache.set(self._ban_score_key(fp), newv, ttl)
 
-        return (int(newv), threshold)
+        return (newv, threshold)
 
     def _ban_seconds_left(self, ban_info: Any):
         try:
@@ -351,7 +378,22 @@ p{{margin:0;line-height:1.65;color:#334155}}
 
     # ───────── misc ─────────
 
+    def _fingerprints(self, request) -> List[str]:
+        if _shared_build_fp_candidates is not None:
+            try:
+                fps = _shared_build_fp_candidates(request)
+                if fps:
+                    return fps
+            except Exception:
+                pass
+        return [self._fingerprint(request)]
+
     def _fingerprint(self, request) -> str:
+        if _shared_build_fp is not None:
+            try:
+                return _shared_build_fp(request)
+            except Exception:
+                pass
         ip = (
             request.META.get("HTTP_CF_CONNECTING_IP")
             or request.META.get("HTTP_X_FORWARDED_FOR")

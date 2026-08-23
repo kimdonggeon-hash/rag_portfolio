@@ -36,7 +36,7 @@
       </div>
     </header>
 
-    <div class="shell-grid">
+    <div class="shell-grid{% block shell_class %}{% endblock %}">
       <main class="shell-main" aria-label="게시판 본문">
 
         {% include "ragapp/partials/ai_notice_banner.html" %}
@@ -44,6 +44,7 @@
         {% block content %}{% endblock %}
       </main>
 
+      {% block side %}
       <aside class="shell-side" aria-label="게시판 도구">
         <div class="side-stack">
           <section class="side-card" aria-label="검색">
@@ -99,6 +100,7 @@
           </section>
         </div>
       </aside>
+      {% endblock %}
     </div>
 
     <div class="page-footer-wrap">

@@ -22,8 +22,9 @@
     --line: rgba(15, 23, 42, .10);
     --shadow: 0 18px 40px rgba(2, 6, 23, .08);
 
-    --accent: #2563eb;
-    --accent-2: #1d4ed8;
+    /* ✅ 메인 페이지/챗봇과 같은 teal accent로 통일(qarag_chat.css의 토큰을 그대로 이어받음) */
+    --accent: var(--qarag-accent, #0c766c);
+    --accent-2: var(--qarag-accent-strong, #0a5f57);
 
     --focus-bd: color-mix(in srgb, var(--accent) 55%, var(--line));
     --focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
@@ -44,11 +45,33 @@
 
     --bbtn-primary-bg: var(--accent);
     --bbtn-primary-fg: #ffffff;
-    --bbtn-primary-bd: rgba(37, 99, 235, .55);
+    --bbtn-primary-bd: color-mix(in srgb, var(--accent) 55%, transparent);
 
     --bbtn-danger-bg: rgba(239, 68, 68, .10);
     --bbtn-danger-fg: #991b1b;
     --bbtn-danger-bd: rgba(239, 68, 68, .35);
+}
+
+/* ✅ base.css(:root[data-theme="dark"] / :root:not([data-theme]))와
+   board_theme_switch.css(html[data-theme="light|dark"])가 둘 다 --accent를
+   재정의하는데, 이 선택자들의 특이도가 board.css의 원래 :root/html[data-theme="dark"]
+   보다 높아서 그냥 두면 teal이 아니라 파란 accent가 이겨버린다.
+   두 파일과 같거나 더 높은 특이도로 맞춰서(로드 순서상 board.css가 더 나중이라 이김) 되돌린다. */
+:root[data-theme="dark"] {
+    --accent: var(--qarag-accent, #2dd4bf);
+    --accent-2: var(--qarag-accent-strong, #14b8a6);
+}
+
+:root[data-theme="light"] {
+    --accent: var(--qarag-accent, #0c766c);
+    --accent-2: var(--qarag-accent-strong, #0a5f57);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        --accent: var(--qarag-accent, #2dd4bf);
+        --accent-2: var(--qarag-accent-strong, #14b8a6);
+    }
 }
 
 html[data-theme="dark"] {
@@ -83,7 +106,7 @@ html[data-theme="dark"] {
 
     --bbtn-primary-bg: var(--accent);
     --bbtn-primary-fg: #ffffff;
-    --bbtn-primary-bd: rgba(37, 99, 235, .60);
+    --bbtn-primary-bd: color-mix(in srgb, var(--accent) 60%, transparent);
 
     --bbtn-danger-bg: rgba(239, 68, 68, .16);
     --bbtn-danger-fg: rgba(248, 113, 113, 1);
@@ -2211,4 +2234,305 @@ html[data-theme="dark"] .board-switch-thumb {
 .board-chk input {
     width: 18px;
     height: 18px;
+}
+
+/* ------------------------------------------------------
+   Feed (post_list.html) — 카드 그리드 피드
+------------------------------------------------------ */
+.shell-grid.is-feed {
+    grid-template-columns: 1fr;
+}
+
+.feed-hero {
+    padding: 8px 0 18px;
+}
+
+.feed-eyebrow {
+    margin: 0 0 8px;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.feed-h1 {
+    margin: 0 0 18px;
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -.01em;
+    color: var(--ink);
+    font-family: "Noto Serif KR", "Nanum Myeongjo", Batang, serif;
+}
+
+.feed-accent {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.feed-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 420px;
+    padding: 9px 14px;
+    margin-bottom: 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+}
+
+.feed-search-ico {
+    flex: 0 0 auto;
+    font-size: 13px;
+    opacity: .7;
+}
+
+.feed-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    outline: none;
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.feed-search-btn {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: var(--accent-2);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.feed-cat-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.feed-cat-tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 15px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+
+.feed-cat-tab:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    text-decoration: none;
+}
+
+.feed-cat-tab.is-active {
+    color: var(--accent-2);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.feed-cat-count {
+    opacity: .75;
+    font-size: 11px;
+}
+
+.feed-reset-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.feed-notice {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    margin-bottom: 12px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), color-mix(in srgb, var(--accent) 3%, transparent));
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+    text-decoration: none;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.feed-notice:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+    text-decoration: none;
+}
+
+.feed-notice-badge {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+}
+
+.feed-notice-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.feed-notice-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.feed-notice-sub {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.feed-notice-arrow {
+    flex: 0 0 auto;
+    margin-left: auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+}
+
+.feed-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 18px;
+}
+
+@media (max-width: 980px) {
+    .feed-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .feed-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.feed-card {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-height: 160px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    text-decoration: none;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+.feed-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+    text-decoration: none;
+}
+
+.feed-card-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.feed-pin-mark {
+    font-size: 12px;
+}
+
+.feed-card-title {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--ink);
+}
+
+.feed-card-excerpt {
+    margin: 0;
+    flex: 1 1 auto;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.feed-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 9px;
+    border-top: 1px dashed var(--line);
+}
+
+.feed-author {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.feed-avatar {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+    color: var(--accent-2);
+    font-size: 9.5px;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+    text-transform: uppercase;
+}
+
+.feed-author-name {
+    font-size: 11px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.feed-card-meta {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    font-size: 10.5px;
+    color: var(--muted);
+    opacity: .85;
 }
