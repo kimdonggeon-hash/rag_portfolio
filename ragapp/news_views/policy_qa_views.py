@@ -26,6 +26,8 @@ from .news_views import (  # noqa
     log_chat_message,
     _hit_text,
     _normalize_rag_sources,
+    _filter_hits_used_in_answer,
+    _fix_invalid_citations,
     _append_chat_history,
 )
 
@@ -644,6 +646,7 @@ def qa_policy_view(request: HttpRequest) -> JsonResponse:
     rag_text = ""
     hits_payload_ui: List[Dict[str, Any]] = []
     hits_payload_raw: List[Dict[str, Any]] = []
+    hits_payload_quality: List[Dict[str, Any]] = []
 
     allowed_rag = False
     limit_rag = 0
@@ -689,9 +692,23 @@ def qa_policy_view(request: HttpRequest) -> JsonResponse:
                     m = h.get("meta") or {}
                     if not isinstance(m, dict):
                         m = {}
+
+                    try:
+                        citation_idx = int(
+                            h.get("citation_idx")
+                            or h.get("idx")
+                            or m.get("citation_idx")
+                            or m.get("idx")
+                            or i
+                        )
+                    except (TypeError, ValueError):
+                        citation_idx = i
+
                     hits_payload_raw.append(
                         {
-                            "idx": i,
+                            # 답변 생성 당시 번호를 보존해야 [4]와 근거 #4가 연결된다.
+                            "idx": citation_idx,
+                            "citation_idx": citation_idx,
                             "title": m.get("title") or m.get("url") or h.get("title") or h.get("url") or f"문서 {i}",
                             "source": m.get("source_name") or m.get("source") or h.get("source") or "",
                             "url": m.get("url") or h.get("url") or "",
@@ -700,7 +717,26 @@ def qa_policy_view(request: HttpRequest) -> JsonResponse:
                         }
                     )
                 else:
-                    hits_payload_raw.append({"idx": i, "title": str(h), "source": "", "url": "", "snippet": "", "score": None})
+                    hits_payload_raw.append(
+                        {
+                            "idx": i,
+                            "citation_idx": i,
+                            "title": str(h),
+                            "source": "",
+                            "url": "",
+                            "snippet": "",
+                            "score": None,
+                        }
+                    )
+
+            # 묶음 인용([1, 2, 5])까지 포함해 실제 인용된 카드만 UI에 전달한다.
+            # 검색 hit가 없다면 답변에 남은 인용 표기도 함께 제거한다.
+            rag_text = _fix_invalid_citations(rag_text, hits_payload_raw)
+            hits_payload_ui = _filter_hits_used_in_answer(
+                rag_text,
+                hits_payload_raw,
+                fallback_count=1,
+            )
 
             ui_max_cards = int(getattr(settings, "RAG_EVIDENCE_MAX_CARDS", 5))
             ui_min_score = getattr(settings, "RAG_EVIDENCE_MIN_SCORE", None)
@@ -709,8 +745,10 @@ def qa_policy_view(request: HttpRequest) -> JsonResponse:
             except Exception:
                 ui_min_score = None
 
-            hits_payload_ui = filter_source_cards_dicts(
-                hits_payload_raw,
+            # 품질 필터 결과는 RAG 채택 여부 판단에만 사용한다. 이미 답변에 실제
+            # 인용된 카드를 다시 잘라내면 본문의 번호와 근거 패널이 어긋난다.
+            hits_payload_quality = filter_source_cards_dicts(
+                hits_payload_ui,
                 max_cards=ui_max_cards,
                 min_score=ui_min_score,
                 drop_boilerplate=True,
@@ -722,6 +760,7 @@ def qa_policy_view(request: HttpRequest) -> JsonResponse:
             rag_text = ""
             hits_payload_ui = []
             hits_payload_raw = []
+            hits_payload_quality = []
     else:
         # ✅ rag 강제면 web로 넘기지 말고 여기서 종료
         if force_rag:
@@ -732,7 +771,7 @@ def qa_policy_view(request: HttpRequest) -> JsonResponse:
             )
 
     # 7-2) 근거 OK면 RAG 최종
-    if (not force_web) and rag_text and _evidence_ok(hits_payload_ui):
+    if (not force_web) and rag_text and _evidence_ok(hits_payload_quality):
         ans = _conservative_wrap(rag_text, domain=domain, risk=risk) if conservative else rag_text
         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 

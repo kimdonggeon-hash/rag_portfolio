@@ -169,7 +169,24 @@ def _hit_text(h: dict) -> str:
     return ""
 
 
-_CITATION_NO_RE = re.compile(r"\[(\d{1,2})\]")
+_CITATION_NO_RE = re.compile(r"\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]")
+
+
+def _citation_numbers(answer: str) -> list[int]:
+    """Return distinct citation numbers, including grouped forms like ``[1, 2]``."""
+    used_nums: list[int] = []
+
+    for match in _CITATION_NO_RE.finditer(answer or ""):
+        for raw_num in match.group(1).split(","):
+            try:
+                number = int(raw_num.strip())
+            except (TypeError, ValueError):
+                continue
+
+            if 1 <= number <= 99 and number not in used_nums:
+                used_nums.append(number)
+
+    return used_nums
 
 
 def _filter_hits_used_in_answer(
@@ -193,18 +210,7 @@ def _filter_hits_used_in_answer(
     if not clean_hits:
         return []
 
-    used_nums: list[int] = []
-
-    for m in _CITATION_NO_RE.finditer(answer or ""):
-        try:
-            n = int(m.group(1))
-        except Exception:
-            continue
-
-        # 실제 근거 개수 범위 안의 번호만 인정
-        # 예: [2024] 같은 숫자는 무시
-        if 1 <= n <= 99 and n not in used_nums:
-            used_nums.append(n)
+    used_nums = _citation_numbers(answer)
 
     if used_nums:
         selected: list[dict] = []
@@ -249,7 +255,11 @@ def _fix_invalid_citations(answer: str, hits: list[dict]) -> str:
     """
     clean_hits = [h for h in (hits or []) if isinstance(h, dict)]
     if not clean_hits:
-        return re.sub(r"\s*\[\d{1,2}\]", "", answer or "")
+        return re.sub(
+            r"\s*\[\s*\d{1,2}(?:\s*,\s*\d{1,2})*\s*\]",
+            "",
+            answer or "",
+        )
 
     valid_nums = set()
 
@@ -262,15 +272,18 @@ def _fix_invalid_citations(answer: str, hits: list[dict]) -> str:
     first_num = min(valid_nums) if valid_nums else 1
 
     def repl(m):
-        try:
-            n = int(m.group(1))
-        except Exception:
-            return f"[{first_num}]"
+        fixed_nums: list[int] = []
+        for raw_num in m.group(1).split(","):
+            try:
+                n = int(raw_num.strip())
+            except (TypeError, ValueError):
+                n = first_num
 
-        if n in valid_nums:
-            return f"[{n}]"
+            fixed = n if n in valid_nums else first_num
+            if fixed not in fixed_nums:
+                fixed_nums.append(fixed)
 
-        return f"[{first_num}]"
+        return "[" + ", ".join(str(n) for n in fixed_nums) + "]"
 
     return _CITATION_NO_RE.sub(repl, answer or "")
 

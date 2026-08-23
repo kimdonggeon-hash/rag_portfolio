@@ -1240,16 +1240,18 @@
 
         var answer = String(answerText || "");
         var used = [];
-        var re = /\[(\d{1,2})\]/g;
+        var re = /\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]/g;
         var m;
 
         while ((m = re.exec(answer)) !== null) {
-          var n = parseInt(m[1], 10);
+          m[1].split(",").forEach(function (rawNum) {
+            var n = parseInt(String(rawNum || "").trim(), 10);
 
-          // [2024] 같은 숫자 오인 방지
-          if (n >= 1 && n <= 99 && used.indexOf(n) < 0) {
-            used.push(n);
-          }
+            // [2024] 같은 숫자 오인 방지
+            if (n >= 1 && n <= 99 && used.indexOf(n) < 0) {
+              used.push(n);
+            }
+          });
         }
 
         // ✅ 답변에 인용번호가 없어도 백엔드가 근거를 줬으면 보여준다.

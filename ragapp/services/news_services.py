@@ -1423,7 +1423,24 @@ def _build_source_block(hits: List[Dict[str, Any]]) -> str:
 
     return "\n\n".join(out).strip()
 
-_CITATION_RE = re.compile(r"\[(\d{1,2})\]")
+_CITATION_RE = re.compile(r"\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]")
+
+
+def _citation_numbers(answer: str) -> List[int]:
+    """Return distinct citation numbers, including grouped forms like ``[1, 2]``."""
+    used_nums: List[int] = []
+
+    for match in _CITATION_RE.finditer(answer or ""):
+        for raw_num in match.group(1).split(","):
+            try:
+                number = int(raw_num.strip())
+            except (TypeError, ValueError):
+                continue
+
+            if 1 <= number <= 99 and number not in used_nums:
+                used_nums.append(number)
+
+    return used_nums
 
 
 def _filter_hits_cited_by_answer(answer: str, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1434,17 +1451,7 @@ def _filter_hits_cited_by_answer(answer: str, hits: List[Dict[str, Any]]) -> Lis
     if not hits:
         return []
 
-    used_nums: List[int] = []
-
-    for m in _CITATION_RE.finditer(answer or ""):
-        try:
-            n = int(m.group(1))
-        except Exception:
-            continue
-
-        # [2024] 같은 숫자 오인 방지
-        if 1 <= n <= 99 and n not in used_nums:
-            used_nums.append(n)
+    used_nums = _citation_numbers(answer)
 
     if not used_nums:
         fallback_n = int(getattr(settings, "RAG_EVIDENCE_FALLBACK_COUNT", 1))
@@ -1480,7 +1487,11 @@ def _fix_invalid_citations(answer: str, hits: List[Dict[str, Any]]) -> str:
     clean_hits = [h for h in (hits or []) if isinstance(h, dict)]
 
     if not clean_hits:
-        return _CITATION_RE.sub("", answer or "").strip()
+        return re.sub(
+            r"\s*\[\s*\d{1,2}(?:\s*,\s*\d{1,2})*\s*\]",
+            "",
+            answer or "",
+        ).strip()
 
     valid_nums: set[int] = set()
 
@@ -1501,15 +1512,18 @@ def _fix_invalid_citations(answer: str, hits: List[Dict[str, Any]]) -> str:
     first_num = min(valid_nums) if valid_nums else 1
 
     def repl(m):
-        try:
-            n = int(m.group(1))
-        except Exception:
-            return f"[{first_num}]"
+        fixed_nums: List[int] = []
+        for raw_num in m.group(1).split(","):
+            try:
+                n = int(raw_num.strip())
+            except (TypeError, ValueError):
+                n = first_num
 
-        if n in valid_nums:
-            return f"[{n}]"
+            fixed = n if n in valid_nums else first_num
+            if fixed not in fixed_nums:
+                fixed_nums.append(fixed)
 
-        return f"[{first_num}]"
+        return "[" + ", ".join(str(n) for n in fixed_nums) + "]"
 
     return _CITATION_RE.sub(repl, answer or "")
 

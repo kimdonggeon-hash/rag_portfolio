@@ -248,16 +248,18 @@ def _filter_hits_cited_by_answer(answer: str, hits: List[Dict]) -> List[Dict]:
 
     used_nums: List[int] = []
 
-    for m in re.finditer(r"\[(\d{1,2})\]", answer or ""):
-        try:
-            n = int(m.group(1))
-        except Exception:
-            continue
+    citation_re = re.compile(r"\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]")
+    for match in citation_re.finditer(answer or ""):
+        for raw_num in match.group(1).split(","):
+            try:
+                n = int(raw_num.strip())
+            except (TypeError, ValueError):
+                continue
 
-        # ✅ len(hits) 기준으로 제한하면
-        # citation_idx=2인데 hits가 1개만 남은 경우 매칭이 깨질 수 있음
-        if 1 <= n <= 99 and n not in used_nums:
-            used_nums.append(n)
+            # ✅ len(hits) 기준으로 제한하면
+            # citation_idx=2인데 hits가 1개만 남은 경우 매칭이 깨질 수 있음
+            if 1 <= n <= 99 and n not in used_nums:
+                used_nums.append(n)
 
     if not used_nums:
         return []

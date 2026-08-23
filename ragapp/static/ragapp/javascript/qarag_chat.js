@@ -112,7 +112,7 @@
     // ✅ 봇 답변 포맷팅: 문단 구분 + 인용 표시([1] 같은 각주)를 뱃지로
     //    (항상 텍스트 노드로만 조립 → innerHTML 사용 안 함, XSS 안전)
     // ─────────────────────────────────────
-    const CITE_RE = /\[(\d{1,2})\]/g;
+    const CITE_RE = /\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]/g;
 
     function _appendTextWithCites(parent, line) {
         CITE_RE.lastIndex = 0;
@@ -129,10 +129,12 @@
                 //    떨어져 혼자 다음 줄로 넘어가 버림 → 줄바꿈 금지 문자(word joiner)로 붙임
                 if (chunk) parent.appendChild(document.createTextNode(chunk + "⁠"));
             }
-            const cite = document.createElement("sup");
-            cite.className = "qarag-cite";
-            cite.textContent = m[1];
-            parent.appendChild(cite);
+            m[1].split(",").map((n) => n.trim()).filter(Boolean).forEach((num) => {
+                const cite = document.createElement("sup");
+                cite.className = "qarag-cite";
+                cite.textContent = num;
+                parent.appendChild(cite);
+            });
             last = CITE_RE.lastIndex;
         }
         if (!any) {

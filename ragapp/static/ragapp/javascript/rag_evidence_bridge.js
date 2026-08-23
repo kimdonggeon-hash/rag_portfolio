@@ -118,16 +118,18 @@
 
             var answer = String(answerText || "");
             var used = [];
-            var re = /\[(\d{1,2})\]/g;
+            var re = /\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]/g;
             var m;
 
             while ((m = re.exec(answer)) !== null) {
-                var n = parseInt(m[1], 10);
+                m[1].split(",").forEach(function (rawNum) {
+                    var n = parseInt(String(rawNum || "").trim(), 10);
 
-                // [2024] 같은 숫자 오인 방지
-                if (n >= 1 && n <= 99 && used.indexOf(n) < 0) {
-                    used.push(n);
-                }
+                    // [2024] 같은 숫자 오인 방지
+                    if (n >= 1 && n <= 99 && used.indexOf(n) < 0) {
+                        used.push(n);
+                    }
+                });
             }
 
             // ✅ 답변에 인용번호가 하나도 없을 때:
@@ -196,11 +198,6 @@
             var snippet = safeText(s.chunk || s.snippet || s.text || s.content || "");
             var score = (typeof s.score === "number") ? s.score : ((typeof s.similarity === "number") ? s.similarity : null);
 
-            var urlNorm = normalizeOutboundUrl(url);
-            var key = ((urlNorm || url || title || String(idx)) || "").toLowerCase();
-            if (seen.has(key)) return;
-            seen.add(key);
-
             var citationIdx = null;
 
             try {
@@ -213,12 +210,22 @@
                 citationIdx = idx + 1;
             }
 
+            citationIdx = parseInt(citationIdx, 10);
+            if (!(citationIdx >= 1 && citationIdx <= 99)) citationIdx = idx + 1;
+
+            var urlNorm = normalizeOutboundUrl(url);
+            // 같은 문서의 서로 다른 인용 번호는 각각 답변 배지와 연결되어야 한다.
+            var key = (String(citationIdx) + "|" + (urlNorm || url || title || String(idx))).toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+
             var displayIdx = idx + 1;
 
             out.push({
-                // ✅ 화면 표시용 번호는 항상 1부터 순서대로 정렬
-                idx: displayIdx,
-                citation_idx: displayIdx,
+                // 답변의 인용 배지 번호와 근거 카드 번호를 동일하게 유지
+                idx: citationIdx,
+                citation_idx: citationIdx,
+                display_idx: displayIdx,
 
                 // ✅ 원래 백엔드 번호는 디버깅용으로 보존
                 raw_idx: citationIdx,
