@@ -12,6 +12,10 @@
 
 ## 스크린샷
 
+| 메인 페이지 | AI 요약 검색(RAG) 결과 |
+|---|---|
+| ![메인 페이지](docs/screenshots/main-page.png) | ![RAG 검색 결과](docs/screenshots/rag-search.png) |
+
 | 질문 챗봇 | 어드민 대시보드 | 글로 이미지 찾기 |
 |---|---|---|
 | ![질문 챗봇](docs/screenshots/chat.png) | ![어드민 대시보드](docs/screenshots/dashboard.png) | ![글로 이미지 찾기](docs/screenshots/image-search.png) |
