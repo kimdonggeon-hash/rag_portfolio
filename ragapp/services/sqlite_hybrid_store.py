@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 import shutil
 import threading
@@ -771,25 +772,101 @@ def query_vector_only(
     }
 
 
-def _fts_query_raw(conn: sqlite3.Connection, query_text: str, limit: int) -> List[Tuple[str, float]]:
-    limit = max(1, int(limit))
+# 한국어 조사/어미 — 토큰 끝에 붙어서 FTS 토큰 매칭을 깨뜨린다.
+# 예) 문서에는 "보안"이 있는데 질문 토큰은 "보안에"라 매칭이 안 됨.
+_KO_PARTICLES = (
+    "으로부터", "로부터", "에서는", "에게서", "이라는", "이라도", "이라고",
+    "에서", "에게", "한테", "부터", "까지", "보다", "처럼", "같이", "라는",
+    "라고", "라도", "이나", "으로", "에는", "에도", "이란",
+    "은", "는", "이", "가", "을", "를", "에", "의", "와", "과",
+    "도", "만", "로", "나", "란",
+)
+
+# 질문에만 나오고 문서엔 없는 일반어 — 키워드 후보에서 뺀다.
+_KO_STOPWORDS = {
+    "알려줘", "알려", "알려주세요", "말해줘", "설명", "설명해줘", "정리", "정리해줘",
+    "요약", "요약해줘", "해줘", "해주세요", "뭐야", "무엇", "무엇인가", "어떻게",
+    "어떤", "어떠한", "대해", "대하여", "대한", "관해", "관하여", "관련",
+    "있나요", "있어", "인가요", "인가", "인지", "건가요", "좀", "제발",
+    "what", "how", "why", "the", "and", "for", "about", "please", "tell",
+}
+
+_FTS_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]+")
+
+
+def _ko_strip_particle(tok: str) -> str:
+    """토큰 끝의 조사를 한 번만 떼어낸다(떼고 나서 2글자 이상일 때만)."""
+    for p in _KO_PARTICLES:
+        if len(tok) > len(p) + 1 and tok.endswith(p):
+            return tok[: -len(p)]
+    return tok
+
+
+def build_fts_match_query(query_text: str, *, max_terms: int = 12) -> str:
+    """
+    사용자 질문을 FTS5 MATCH 식으로 바꾼다.
+
+    ⚠️ 질문 문자열을 그대로 MATCH에 넘기면 FTS5가 토큰 사이를 암묵적 AND로 묶어서
+    "디지털 AND 보안에 AND 대해 AND 알려줘"가 되고, 한국어는 조사가 붙어 있어
+    문서의 "보안"과 질문의 "보안에"가 서로 다른 토큰이라 사실상 항상 0건이 나온다.
+
+    그래서 (1) 토큰을 쪼개고 (2) 조사를 떼고 (3) 불용어를 버린 뒤
+    (4) 접두어 매칭(term*)으로 OR 결합한다.
+    """
     q = (query_text or "").strip()
     if not q:
+        return ""
+
+    terms: List[str] = []
+    seen: set[str] = set()
+
+    for raw in _FTS_TOKEN_RE.findall(q):
+        for cand in (raw, _ko_strip_particle(raw)):
+            c = cand.strip().lower()
+            if len(c) < 2:
+                continue
+            if c in _KO_STOPWORDS:
+                continue
+            if c in seen:
+                continue
+            seen.add(c)
+            terms.append(cand.strip())
+            if len(terms) >= max_terms:
+                break
+        if len(terms) >= max_terms:
+            break
+
+    if not terms:
+        return ""
+
+    # 각 term은 이미 [0-9A-Za-z가-힣]만 남아 있어서 FTS5 특수문자 위험이 없다.
+    return " OR ".join(f"{t}*" for t in terms)
+
+
+def _fts_query_raw(conn: sqlite3.Connection, query_text: str, limit: int) -> List[Tuple[str, float]]:
+    limit = max(1, int(limit))
+    match_expr = build_fts_match_query(query_text)
+    if not match_expr:
         return []
 
     try:
+        # ⚠️ 테이블 별칭(f)을 MATCH/bm25에 쓰면 SQLite 버전에 따라
+        # "no such column: f"로 죽는다(그러면 except에 걸려 키워드 검색이
+        # 통째로 무력화됨). 반드시 테이블 이름을 그대로 쓴다.
         rows = conn.execute(
             """
-            SELECT f.id, bm25(f) AS rank
-            FROM vector_docs_fts f
-            WHERE f MATCH ?
+            SELECT id, bm25(vector_docs_fts) AS rank
+            FROM vector_docs_fts
+            WHERE vector_docs_fts MATCH ?
             ORDER BY rank ASC
             LIMIT ?
             """,
-            (q, limit),
+            (match_expr, limit),
         ).fetchall()
         return [(str(r[0]), float(r[1])) for r in rows]
-    except Exception:
+    except Exception as e:
+        # 조용히 삼키면 하이브리드가 벡터 전용으로 퇴화한 걸 아무도 모른다.
+        log.warning("FTS 키워드 검색 실패(match=%r): %s", match_expr[:120], e)
         return []
 
 
