@@ -287,6 +287,71 @@ def _fix_invalid_citations(answer: str, hits: list[dict]) -> str:
 
     return _CITATION_NO_RE.sub(repl, answer or "")
 
+
+def _renumber_citations_to_match_hits(
+    answer: str,
+    hits: list[dict],
+) -> tuple[str, list[dict]]:
+    """
+    UI에 내보낼 근거를 1..N으로 다시 번호 매기고, 답변 본문의 인용 번호도 같이 고친다.
+
+    검색 단계에서는 후보 근거가 8개라 답변이 [4]처럼 인용하는데, UI에는 "실제 인용된
+    근거"만 골라서 1개만 남는 경우가 있다. 그러면 본문 배지는 4번인데 근거 카드는
+    1개뿐이라 번호가 안 맞고, 프론트에서 번호로 다시 매칭하는 순간 0개가 되어버린다.
+    (본문에 배지는 떠 있는데 "사용된 근거 0개"로 보이던 원인)
+
+    여기서 번호를 1부터 순서대로 다시 매겨두면 답변의 인용 번호와 카드 번호가 항상
+    일치하므로, 프론트가 어느 단계에서 필터링하든 근거가 사라지지 않는다.
+    """
+    clean_hits = [h for h in (hits or []) if isinstance(h, dict)]
+    if not clean_hits:
+        return (answer or ""), []
+
+    # 기존 번호 → 새 번호(1..N) 매핑
+    old_to_new: dict[int, int] = {}
+    renumbered: list[dict] = []
+
+    for new_idx, h in enumerate(clean_hits, start=1):
+        try:
+            old_idx = int(h.get("citation_idx") or h.get("idx") or new_idx)
+        except (TypeError, ValueError):
+            old_idx = new_idx
+
+        # 같은 번호가 중복돼도 첫 번째 것만 매핑에 남긴다
+        old_to_new.setdefault(old_idx, new_idx)
+
+        nh = dict(h)
+        nh["idx"] = new_idx
+        nh["citation_idx"] = new_idx
+        renumbered.append(nh)
+
+    def repl(m):
+        mapped: list[int] = []
+        for raw_num in m.group(1).split(","):
+            try:
+                n = int(raw_num.strip())
+            except (TypeError, ValueError):
+                continue
+
+            new_n = old_to_new.get(n)
+            if new_n is not None and new_n not in mapped:
+                mapped.append(new_n)
+
+        if not mapped:
+            # 매핑되는 근거가 없는 인용은 표기를 지운다(없는 근거를 가리키는 배지 방지)
+            return ""
+
+        return "[" + ", ".join(str(n) for n in mapped) + "]"
+
+    new_answer = re.sub(
+        r"\[\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)\s*\]",
+        repl,
+        answer or "",
+    )
+
+    return new_answer, renumbered
+
+
 def _pii_block_msg(kind: str | None) -> str:
     k = kind or "개인정보"
     return (
@@ -1197,7 +1262,11 @@ def home(request: HttpRequest):
                                         # (RAG_EVIDENCE_MAX_CARDS로 다시 자르면 답변엔 [6][7] 인용이 있는데
                                         # 패널엔 카드가 없는 상태가 됨 — hits_payload 자체가 RAG_MAX_SOURCES로
                                         # 이미 상한이 있어서 추가로 자를 필요 없음)
-                                        hits_payload_ui = ui_seed_hits
+                                        # ✅ 남은 근거를 1..N으로 다시 번호 매기고 본문 인용 번호도 맞춰준다.
+                                        rag_answer_text, hits_payload_ui = _renumber_citations_to_match_hits(
+                                            rag_answer_text,
+                                            ui_seed_hits,
+                                        )
 
                                         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 
@@ -1966,6 +2035,25 @@ def rag_qa_view(request: HttpRequest):
         # ✅ LLM이 실제 근거 개수와 다른 번호를 붙인 경우 보정
         rag_text = _fix_invalid_citations(rag_text, hits_payload)
 
+        ui_seed_hits = _filter_hits_used_in_answer(
+            rag_text,
+            hits_payload,
+            fallback_count=1,
+        )
+
+        # ✅ LLM이 존재하지 않는 번호([2], [3] 등)를 붙인 경우에도
+        # 실제 검색된 근거가 있으면 최소 1개는 참고자료에 표시한다.
+        # ⚠️ ui_seed_hits는 이미 "답변에 실제 인용된 근거"만 남긴 상태라서
+        # RAG_EVIDENCE_MAX_CARDS로 다시 자르면, 답변 텍스트엔 [6][7] 같은 인용
+        # 번호가 있는데 근거 패널엔 카드가 없는 상태가 된다(hits_payload가
+        # RAG_MAX_SOURCES=8개로 이미 상한이 있어서 여기서 추가로 자를 필요가 없음).
+        # ✅ 남은 근거를 1..N으로 다시 번호 매기고 본문 인용 번호도 맞춰준다.
+        # ⚠️ 로그/세션 기록보다 먼저 해야 messages로 내려가는 본문과 근거 번호가 어긋나지 않는다.
+        rag_text, hits_payload_ui = _renumber_citations_to_match_hits(
+            rag_text,
+            ui_seed_hits,
+        )
+
         user_log.mode = "rag"
         user_log.save(update_fields=["mode"])
 
@@ -1979,7 +2067,7 @@ def rag_qa_view(request: HttpRequest):
             question=q,
             content=rag_text,
             answer_excerpt=(rag_text or "")[:500],
-            sources=hits_payload,
+            sources=hits_payload_ui,
             meta_extra={"where": "rag_qa_view", "hit_count": len(used_hits or [])},
         )
 
@@ -1992,20 +2080,6 @@ def rag_qa_view(request: HttpRequest):
         )
 
         _append_chat_history(request, q, rag_text)
-
-        ui_seed_hits = _filter_hits_used_in_answer(
-            rag_text,
-            hits_payload,
-            fallback_count=1,
-        )
-
-        # ✅ LLM이 존재하지 않는 번호([2], [3] 등)를 붙인 경우에도
-        # 실제 검색된 근거가 있으면 최소 1개는 참고자료에 표시한다.
-        # ⚠️ ui_seed_hits는 이미 "답변에 실제 인용된 근거"만 남긴 상태라서
-        # RAG_EVIDENCE_MAX_CARDS로 다시 자르면, 답변 텍스트엔 [6][7] 같은 인용
-        # 번호가 있는데 근거 패널엔 카드가 없는 상태가 된다(hits_payload가
-        # RAG_MAX_SOURCES=8개로 이미 상한이 있어서 여기서 추가로 자를 필요가 없음).
-        hits_payload_ui = ui_seed_hits
 
         sources_norm = _normalize_rag_sources(hits_payload_ui)
 
@@ -2313,7 +2387,11 @@ def qa_rag_chat(request: HttpRequest):
         # 여기서 min_score / boilerplate / dedupe 필터로 다시 제거하지 않는다.
         # (RAG_EVIDENCE_MAX_CARDS로 다시 자르면 텍스트의 인용 번호와 카드 개수가
         # 안 맞게 됨 — hits_payload는 RAG_MAX_SOURCES로 이미 상한이 있음)
-        hits_payload_ui = ui_seed_hits
+        # ✅ 남은 근거를 1..N으로 다시 번호 매기고 본문 인용 번호도 맞춰준다.
+        rag_answer_text, hits_payload_ui = _renumber_citations_to_match_hits(
+            rag_answer_text,
+            ui_seed_hits,
+        )
 
         normalized_sources = _normalize_rag_sources(hits_payload_ui)
 
