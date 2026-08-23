@@ -20,6 +20,10 @@
 |---|---|---|
 | ![질문 챗봇](docs/screenshots/chat.png) | ![어드민 대시보드](docs/screenshots/dashboard.png) | ![글로 이미지 찾기](docs/screenshots/image-search.png) |
 
+| 실시간 상담 - 고객 화면 | 실시간 상담 - 상담사 콘솔 |
+|---|---|
+| ![실시간 상담 고객 화면](docs/screenshots/livechat-customer.png) | ![실시간 상담 상담사 콘솔](docs/screenshots/livechat-agent.png) |
+
 ---
 
 ## 프로젝트 목적
