@@ -530,6 +530,10 @@ html[data-theme="light"] .consent-primary-btn.consent-guide-btn {
     border-radius: 999px;
     border: 1px solid rgba(148, 163, 184, .45);
     background: rgba(255, 255, 255, .75);
+    /* ✅ 배너 카드 자체는 다크모드에서도 항상 밝은 톤이라, 글자색도 페이지 테마를
+       상속받지 않고 카드에 맞는 색으로 고정한다 (다크모드에서 흰 배경에 흰 글씨로
+       안 보이던 문제) */
+    color: rgba(15, 23, 42, .86);
     font-weight: 700;
     font-size: 12px;
     letter-spacing: .2px;

@@ -629,7 +629,11 @@ html[data-theme="dark"] .board-meta.is-secret-hint {
     margin-top: 12px;
 }
 
-.board-page {
+/* ⚠️ <body class="board-page">와 클래스명이 겹쳐서 .board-page 단독 선택자를 쓰면
+   body에도 그대로 매치된다(모바일에서 탭하면 hover가 안 풀려서 body에 transform이
+   걸리고, position:fixed 버튼들의 기준점이 뷰포트가 아니라 body로 바뀌어 아래로
+   튀는 버그의 원인이었음) — 반드시 .board-pager 안에서만 매치되게 스코프 지정 */
+.board-pager .board-page {
     padding: 8px 10px;
     border-radius: 12px;
     border: 1px solid var(--line);
@@ -640,13 +644,13 @@ html[data-theme="dark"] .board-meta.is-secret-hint {
     transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
 
-.board-page:hover {
+.board-pager .board-page:hover {
     transform: translateY(-1px);
     box-shadow: var(--bbtn-shadow-hover);
     background: var(--bbtn-bg-hover);
 }
 
-.board-page.is-current {
+.board-pager .board-page.is-current {
     color: var(--muted);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
@@ -719,7 +723,7 @@ html[data-theme="dark"] .board-meta.is-secret-hint {
         margin-top: 14px;
     }
 
-    .board-page {
+    .board-pager .board-page {
         padding: 10px 12px;
         border-radius: 12px;
         min-height: 40px;
