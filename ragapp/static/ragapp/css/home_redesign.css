@@ -880,8 +880,22 @@ html[data-theme="dark"] #toolsDrawer .manual-item {
     }
 
     /* ===== 모바일 검색 후: 데스크톱처럼 흰 박스/크기조절 핸들 없이
-       배경 위에 말풍선만 떠 있는 자연스러운 페이지 스크롤로 ===== */
-    body.rag-result-mode .mz-hero.mz-hero--chat,
+       배경 위에 말풍선만 떠 있는 자연스러운 페이지 스크롤로.
+       ⚠️ 모바일은 도구 버튼(#toolsDockBtn)이 히어로 안에 같이 있어서,
+       히어로를 통째로 숨기면 도구 버튼까지 사라져 검색 후엔 도구 메뉴를
+       열 방법이 없어진다. 헤드라인 텍스트만 숨기고 버튼은 남긴다. */
+    body.rag-result-mode .mz-hero.mz-hero--chat {
+        padding: 6px 0 4px !important;
+    }
+
+    body.rag-result-mode .mz-hero.mz-hero--chat .mz-hero-head {
+        min-height: 44px;
+    }
+
+    body.rag-result-mode .mz-hero.mz-hero--chat .mz-hero-text {
+        display: none !important;
+    }
+
     body.rag-result-mode .ai-notice-banner {
         display: none !important;
     }

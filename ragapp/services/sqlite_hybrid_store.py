@@ -709,6 +709,12 @@ def upsert_docs(
                 [(ids[i], docs[i]) for i in range(n)],
             )
 
+        # ⚠️ 방금 쓴 내용이 remote로 동기화되려면 먼저 커밋이 되어 있어야 한다.
+        # (sync는 WAL 체크포인트 후 파일을 복사하는데, 커밋 전이면 이번 upsert가
+        #  WAL에 committed frame으로 반영되지 않아 그대로 동기화에서 누락된다.
+        #  `with conn:`은 이 블록을 빠져나갈 때만 커밋하므로, sync를 그 안에서
+        #  호출하면 항상 "직전 upsert까지"만 동기화되는 상태였다.)
+        conn.commit()
         maybe_sync_db_to_remote_snapshot(conn)
 
 
