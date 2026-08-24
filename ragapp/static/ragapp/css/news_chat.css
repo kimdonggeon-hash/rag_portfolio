@@ -509,8 +509,12 @@ html[data-theme="dark"] #toolsDrawer .side-card {
     font-size: 11px !important;
 }
 
+/* 도구 패널 안에서는 .side-card-body(세로 flex)의 stretch 때문에
+   inline-flex여도 알약이 가로로 늘어난다. 버튼만 왼쪽에 몰려서
+   오른쪽이 텅 비어 보이던 문제 → 3등분 세그먼트 컨트롤로 채운다. */
 #toolsDrawer .theme-toggle {
-    display: inline-flex !important;
+    display: flex !important;
+    width: 100% !important;
     gap: 4px !important;
     align-items: center !important;
     padding: 4px !important;
@@ -521,14 +525,22 @@ html[data-theme="dark"] #toolsDrawer .side-card {
 }
 
 #toolsDrawer .theme-btn {
-    width: 34px !important;
-    height: 34px !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: 40px !important;
+    display: grid !important;
+    place-items: center !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
     border-radius: 999px !important;
     border: none !important;
     background: transparent !important;
     cursor: pointer !important;
     opacity: .65 !important;
     outline: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation !important;
     transition: background .12s ease, opacity .12s ease, box-shadow .12s ease, transform .08s ease !important;
 }
 
