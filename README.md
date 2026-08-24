@@ -340,6 +340,10 @@ pip install -r requirements.txt
 
 `.env` 파일을 생성하고 필요한 값을 설정합니다.
 
+로컬 개발에서는 `DJANGO_DEBUG=1`로 두는 것을 권장합니다.
+`DJANGO_DEBUG=0`이면 HTTPS 강제 리다이렉트와 HSTS가 함께 켜지기 때문에,
+TLS를 지원하지 않는 개발 서버에서는 접속이 되지 않습니다(아래 6번 참고).
+
 ```env
 DJANGO_SECRET_KEY=
 DJANGO_DEBUG=1
@@ -365,9 +369,38 @@ python manage.py migrate
 
 ### 6. 개발 서버 실행
 
+Windows(PowerShell) 기준으로는 로컬 실행 스크립트를 사용합니다.
+
 ```bash
-python manage.py runserver
+powershell -ExecutionPolicy Bypass -File scripts/run_local.ps1
 ```
+
+접속 주소는 **http://127.0.0.1:8000** 입니다.
+
+이 스크립트는 `DJANGO_DEBUG=1`, `SECURE_SSL_REDIRECT=0`, 로컬 SQLite 경로, 로컬 임베딩 모드 등
+개발용 환경변수를 `.env`보다 먼저 설정해 줍니다.
+(`.env` 로딩은 `override=False`이므로, 이미 설정된 환경변수를 덮어쓰지 않습니다.)
+
+`python manage.py runserver`로 직접 실행할 수도 있지만,
+`.env`에 `DJANGO_DEBUG=0`이 설정되어 있으면 `SECURE_SSL_REDIRECT`가 강제로 켜지면서
+`http://127.0.0.1:8000` 요청이 `https://`로 리다이렉트되고, 개발 서버는 TLS를 처리하지 못해
+접속이 실패합니다. 이 경우 아래처럼 개발용 값을 직접 지정해야 합니다.
+
+PowerShell:
+
+```bash
+$env:DJANGO_DEBUG=1; $env:SECURE_SSL_REDIRECT=0; python manage.py runserver
+```
+
+macOS / Linux:
+
+```bash
+DJANGO_DEBUG=1 SECURE_SSL_REDIRECT=0 python manage.py runserver
+```
+
+> `localhost`로 접속해 한 번 HSTS가 캐시된 경우에는 설정을 되돌려도 브라우저가 계속 HTTPS로 접속합니다.
+> `chrome://net-internals/#hsts`의 *Delete domain security policies*에서 `localhost`를 삭제하거나,
+> 시크릿 창으로 접속하면 됩니다.
 
 ---
 
