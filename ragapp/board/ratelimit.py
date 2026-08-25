@@ -5,16 +5,12 @@ from django.conf import settings
 from django.core.cache import cache
 
 from ragapp.services.usage_limiter import get_cookie_cid
+from ragapp.services.client_ip import get_client_ip
 
 
 def _get_ip(request) -> str:
-    try:
-        xff = request.META.get("HTTP_X_FORWARDED_FOR")
-        if xff:
-            return xff.split(",")[0].strip()
-    except Exception:
-        pass
-    return request.META.get("REMOTE_ADDR") or "0.0.0.0"
+    # XFF 위조로 레이트리밋을 우회할 수 없도록 공용 헬퍼를 쓴다.
+    return get_client_ip(request)
 
 
 def client_fingerprint(request) -> str:

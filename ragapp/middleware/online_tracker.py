@@ -10,6 +10,7 @@ from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils.deprecation import MiddlewareMixin
+from ragapp.services.client_ip import get_client_ip
 
 
 class OnlineTrackerMiddleware(MiddlewareMixin):
@@ -133,10 +134,7 @@ class OnlineTrackerMiddleware(MiddlewareMixin):
         if getattr(user, "is_authenticated", False):
             base = f"user:{user.pk}"
         else:
-            ip = (
-                (request.META.get("HTTP_X_FORWARDED_FOR") or "").split(",")[0].strip()
-                or request.META.get("REMOTE_ADDR", "")
-            )
+            ip = get_client_ip(request)
             ua = request.META.get("HTTP_USER_AGENT", "")
             base = f"anon:{ip}:{ua}"
 

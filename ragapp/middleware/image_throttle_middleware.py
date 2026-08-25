@@ -8,15 +8,12 @@ from typing import Optional
 from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils.deprecation import MiddlewareMixin
+from ragapp.services.client_ip import get_client_ip
 
 
 def _client_ip(request: HttpRequest) -> str:
-    # Cloud Run / 프록시 환경 고려 (X-Forwarded-For)
-    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if xff:
-        # "client, proxy1, proxy2" -> client
-        return xff.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "") or ""
+    # XFF 맨 왼쪽은 위조 가능 → 스로틀이 무력화된다. 공용 헬퍼로 일원화.
+    return get_client_ip(request)
 
 
 def _ua(request: HttpRequest) -> str:

@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.db.utils import OperationalError, DatabaseError
+from ragapp.services.client_ip import get_client_ip
 
 
 # ---------------------------------------------------------------------
@@ -123,7 +124,7 @@ def _fingerprint(request: HttpRequest) -> str:
     except Exception:
         pass
 
-    ip = (request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR") or "").split(",")[0].strip()
+    ip = get_client_ip(request)
     ua = (request.META.get("HTTP_USER_AGENT") or "")[:200]
     raw = f"{ip}|{ua}"
     h = hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]

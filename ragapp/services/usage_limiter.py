@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ragapp.models import DailyUsage
+from ragapp.services.client_ip import get_client_ip
 
 _FIELD_MAP = {
     "web": "web_count",
@@ -31,11 +32,9 @@ _CID_RE = re.compile(r"^[a-f0-9]{32}$")
 
 
 def _client_ip(request) -> str:
-    xff_raw = request.META.get("HTTP_X_FORWARDED_FOR") or ""
-    xff = [p.strip() for p in xff_raw.split(",") if p.strip()]
-    if xff:
-        return xff[0]
-    return request.META.get("REMOTE_ADDR", "") or "0.0.0.0"
+    # XFF 맨 왼쪽은 클라이언트가 위조할 수 있어서 IP 한도가 뚫린다.
+    # 신뢰 가능한 위치를 고르는 로직은 client_ip 모듈로 일원화했다.
+    return get_client_ip(request)
 
 
 def get_cookie_cid(request) -> Optional[str]:
